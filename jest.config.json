@@ -1,0 +1,9 @@
+{
+  "testEnvironment": "node",
+  "collectCoverage": true,
+  "coverageDirectory": "coverage",
+  "testMatch": ["**/tests/**/*.test.js", "**/tests/**/*.spec.js"],
+  "collectCoverageFrom": ["src/**/*.js", "shared/**/*.js", "!src/config/**", "!**/node_modules/**", "!**/coverage/**"],
+  "setupFilesAfterEnv": ["<rootDir>/tests/setup.js"],
+  "testTimeout": 30000
+}

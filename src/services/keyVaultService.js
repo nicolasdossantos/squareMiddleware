@@ -1,0 +1,120 @@
+const { SecretClient } = require('@azure/keyvault-secrets');
+const { DefaultAzureCredential } = require('@azure/identity');
+
+/**
+ * Azure Key Vault Service
+ *
+ * Manages secure access to secrets stored in Azure Key Vault:
+ * - Retell API key (for signature verification)
+ * - Per-agent configurations (Square credentials + bearer tokens)
+ *
+ * Features:
+ * - In-memory caching (10 min TTL) to reduce Key Vault calls
+ * - Automatic fallback to environment variables in development
+ * - Managed Identity authentication (no credentials in code)
+ */
+class KeyVaultService {
+  constructor() {
+    this.cache = new Map();
+    this.cacheTTL = 10 * 60 * 1000; // 10 minutes
+    this.client = null;
+    this.useMock = process.env.NODE_ENV === 'development' && !process.env.USE_REAL_KEYVAULT;
+
+    // Initialize Key Vault client in production
+    if (!this.useMock) {
+      const keyVaultName = process.env.AZURE_KEY_VAULT_NAME;
+      if (!keyVaultName) {
+        throw new Error('AZURE_KEY_VAULT_NAME environment variable is required');
+      }
+      const keyVaultUrl = `https://${keyVaultName}.vault.azure.net`;
+      this.client = new SecretClient(keyVaultUrl, new DefaultAzureCredential());
+    }
+  }
+
+  /**
+   * Get a secret from Key Vault with caching
+   * @param {string} secretName - Name of the secret to retrieve
+   * @returns {Promise<string>} Secret value
+   */
+  async getSecret(secretName) {
+    // Check cache first
+    const cached = this.cache.get(secretName);
+    if (cached && Date.now() - cached.timestamp < this.cacheTTL) {
+      return cached.value;
+    }
+
+    // Use mock in development
+    if (this.useMock) {
+      return this._getMockSecret(secretName);
+    }
+
+    // Fetch from Key Vault
+    try {
+      const secret = await this.client.getSecret(secretName);
+
+      // Cache the result
+      this.cache.set(secretName, {
+        value: secret.value,
+        timestamp: Date.now()
+      });
+
+      return secret.value;
+    } catch (error) {
+      console.error(`[KeyVault] Failed to fetch secret ${secretName}:`, error.message);
+      throw new Error(`Key Vault secret not found: ${secretName}`);
+    }
+  }
+
+  /**
+   * Get Retell API key for signature verification
+   * @returns {Promise<string>} Retell API key
+   */
+  async getRetellApiKey() {
+    return this.getSecret('retell-api-key');
+  }
+
+  /**
+   * Get agent configuration (Square credentials + bearer token)
+   * @param {string} agentId - Agent identifier
+   * @returns {Promise<Object>} Agent configuration
+   */
+  async getAgentConfig(agentId) {
+    const secretName = `agent-${agentId}`;
+    const configJson = await this.getSecret(secretName);
+    return JSON.parse(configJson);
+  }
+
+  /**
+   * Clear cache (useful for testing or when secrets are rotated)
+   */
+  clearCache() {
+    this.cache.clear();
+  }
+
+  /**
+   * Mock secret retrieval for development
+   * @private
+   */
+  _getMockSecret(secretName) {
+    if (secretName === 'retell-api-key') {
+      return process.env.RETELL_API_KEY || 'test-retell-api-key';
+    }
+
+    // Mock agent configuration
+    if (secretName.startsWith('agent-')) {
+      const agentId = secretName.replace('agent-', '');
+      return JSON.stringify({
+        agentId,
+        bearerToken: process.env.MOCK_BEARER_TOKEN || 'test-bearer-token',
+        squareAccessToken: process.env.SQUARE_ACCESS_TOKEN || 'test-square-token',
+        squareLocationId: process.env.SQUARE_LOCATION_ID || 'test-location',
+        squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'sandbox',
+        timezone: process.env.TIMEZONE || 'America/New_York'
+      });
+    }
+
+    throw new Error(`Mock secret not found: ${secretName}`);
+  }
+}
+
+module.exports = new KeyVaultService();

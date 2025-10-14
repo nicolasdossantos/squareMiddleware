@@ -1,0 +1,111 @@
+/**
+ * Express.js Application Setup
+ * World-class architecture with comprehensive middleware stack
+ */
+
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
+
+// Import route modules
+const routes = require('./routes');
+
+// Import middlewares
+const { errorHandler } = require('./middlewares/errorHandler');
+const requestLogger = require('./middlewares/requestLogger');
+const { securityValidation, sanitizeInputs } = require('./middlewares/validation');
+const correlationId = require('./middlewares/correlationId');
+// Removed old tenantContext - now using agentAuth for Retell-based authentication
+
+// Import configuration
+
+/**
+ * Create Express application with enterprise-grade configuration
+ */
+function createApp() {
+  const app = express();
+
+  // Trust proxy for Azure App Service
+  app.set('trust proxy', 1);
+
+  // Security middleware
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // Allow for API responses
+      crossOriginEmbedderPolicy: false
+    })
+  );
+
+  // CORS configuration
+  app.use(
+    cors({
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID']
+    })
+  );
+
+  // Compression middleware
+  app.use(compression());
+
+  // Body parsing middleware
+  app.use(
+    express.json({
+      limit: '10mb',
+      verify: (req, res, buf) => {
+        // Store raw body for webhook signature verification
+        req.rawBody = buf;
+      }
+    })
+  );
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+  app.use(express.text({ limit: '10mb' }));
+
+  // Rate limiting
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: process.env.RATE_LIMIT_MAX || 1000, // requests per window
+    message: {
+      error: 'Too many requests',
+      message: 'Rate limit exceeded. Please try again later.',
+      retryAfter: '15 minutes'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: req => {
+      // Skip rate limiting for health checks
+      return req.path === '/health' || req.path === '/warmup';
+    }
+  });
+  app.use(limiter);
+
+  // Correlation ID middleware (must be early)
+  app.use(correlationId);
+
+  // Request logging middleware
+  app.use(requestLogger);
+
+  // Input sanitization
+  app.use(sanitizeInputs);
+
+  // Security validation
+  app.use(securityValidation);
+
+  // Authentication is now handled at the route level:
+  // - Retell webhooks: retellAuth middleware validates HMAC signatures
+  // - API endpoints: agentAuth middleware validates Bearer tokens
+  // See src/routes/webhooks.js and src/routes/api.js for implementation
+
+  // API routes
+  app.use('/api', routes);
+
+  // Global error handler (must be last)
+  app.use(errorHandler);
+
+  return app;
+}
+
+module.exports = createApp;

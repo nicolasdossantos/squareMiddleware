@@ -1,0 +1,10 @@
+{
+  "watch": ["src/**/*", "shared/**/*"],
+  "ext": "js,json",
+  "ignore": ["node_modules/**/*", "tests/**/*", "coverage/**/*", "tmp/**/*", "*.test.js"],
+  "delay": "1000",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "verbose": true
+}

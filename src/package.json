@@ -1,0 +1,6 @@
+{
+  "name": "barber-boutique-src",
+  "version": "1.0.0",
+  "description": "Source files for barber boutique API",
+  "main": "server.js"
+}
