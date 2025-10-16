@@ -32,16 +32,6 @@ router.post(
 );
 
 /**
- * PUT /api/customers/update
- * Update customer information (Azure Functions compatibility)
- */
-router.put(
-  '/update',
-  validateContentType(['application/json']),
-  asyncHandler(customerController.updateCustomerInfoCompatibility)
-);
-
-/**
  * PUT /api/customers/:customerId
  * Update customer information
  */
@@ -51,21 +41,5 @@ router.put(
   validateSchema(validateCustomerInfo),
   asyncHandler(customerController.updateCustomerInfo)
 );
-
-/**
- * POST /api/customers/:customerId/bookings
- * Create new booking for customer
- */
-router.post(
-  '/:customerId/bookings',
-  validateContentType(['application/json']),
-  asyncHandler(customerController.createBooking)
-);
-
-/**
- * DELETE /api/customers/:customerId/bookings/:bookingId
- * Cancel customer booking
- */
-router.delete('/:customerId/bookings/:bookingId', asyncHandler(customerController.cancelBooking));
 
 module.exports = router;

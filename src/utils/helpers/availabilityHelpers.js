@@ -1,4 +1,9 @@
 // GetServiceAvailability/helpers.js
+//
+// 🔴 IMPORTANT: Square SDK v42+ Response Structure
+// All API responses use response.result.* (NOT direct properties)
+// See SQUARE_SDK_V42_RESPONSE_STRUCTURE.md for complete reference
+//
 const { createSquareClient, logApiCall, trackException, fmtLocal } = require('../squareUtils');
 
 /**
@@ -98,16 +103,26 @@ async function loadAvailability(tenant, serviceVariationIds, staffMemberId, star
     const resp = await square.bookingsApi.searchAvailability(searchParams);
     const apiDuration = Date.now() - apiStartTime;
 
+    // Square SDK v42+ uses .result
+    const availabilities = resp.result?.availabilities || [];
+
+    context.log('🔍 [SQUARE AVAILABILITY] Response structure:', {
+      hasResult: !!resp.result,
+      hasAvailabilities: !!resp.result?.availabilities,
+      availabilitiesCount: availabilities.length,
+      responseKeys: Object.keys(resp)
+    });
+
     logApiCall(context, 'search_availability', true, apiDuration, {
       service_variation_ids: idsArray.join(','),
       service_count: idsArray.length,
       staff_member_id: staffMemberId || 'all',
-      availability_count: resp.availabilities?.length || 0,
+      availability_count: availabilities.length,
       tenant_id: tenant.id
     });
 
     // Process availability slots with double booking protection
-    const slots = (resp.availabilities || [])
+    const slots = availabilities
       .map(availability => ({
         startAt: availability.startAt,
         readable_time: fmtLocal(availability.startAt, tenant.timezone),
@@ -151,7 +166,7 @@ async function loadAvailability(tenant, serviceVariationIds, staffMemberId, star
 
     // Additional debugging for multi-service bookings
     if (idsArray.length > 1) {
-      const rawSlots = resp.availabilities || [];
+      const rawSlots = availabilities; // Already extracted from resp.result.availabilities
 
       context.log('🔍 Multi-service availability search result:', {
         services_requested: idsArray.length,

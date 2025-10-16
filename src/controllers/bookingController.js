@@ -586,13 +586,14 @@ async function cancelBooking(req, res) {
     const query =
       req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
 
-    // EXACT AZURE FUNCTIONS LOGIC - Get bookingId from query or params
-    const bookingId = query.bookingId || req.params.bookingId || req.params.action;
+    // Get bookingId from route params (DELETE /api/bookings/:bookingId)
+    const bookingId = req.params.bookingId || req.params.id || query.bookingId;
 
     console.log('🔍 [CANCEL BOOKING] Parameter analysis:', {
       queryBookingId: query.bookingId,
       paramsBookingId: req.params.bookingId,
-      paramsAction: req.params.action,
+      paramsId: req.params.id,
+      allParams: req.params,
       finalBookingId: bookingId,
       correlationId
     });
@@ -718,11 +719,7 @@ async function getBookingsByCustomer(req, res) {
       dateRange: startDate && endDate ? { startDate, endDate } : null
     });
 
-    const result = await bookingService.getBookingsByCustomer(
-      customerId,
-      { status, limit: parseInt(limit), startDate, endDate },
-      correlationId
-    );
+    const result = await bookingService.getBookingsByCustomer(tenant, customerId, correlationId);
 
     if (!result.success) {
       logError('bookings_get_by_customer_failed', result.error, {
@@ -837,7 +834,7 @@ async function listBookings(req, res) {
       filters
     });
 
-    const result = await bookingService.listBookings(filters, correlationId);
+    const result = await bookingService.listBookings(filters, tenant, correlationId);
 
     if (!result.success) {
       logError('bookings_list_failed', result.error, {
@@ -962,6 +959,7 @@ async function getServiceAvailability(req, res) {
     };
 
     const availabilityRecord = await availabilityHelpers.loadAvailability(
+      tenant,
       serviceIdArray,
       staffMemberId,
       startDate.toISOString(),
@@ -1416,15 +1414,71 @@ async function handleListBookings(req, correlationId) {
   }
 }
 
+/**
+ * Get booking by ID
+ * GET /api/bookings/:bookingId
+ */
+async function getBooking(req, res) {
+  const { correlationId, tenant } = req;
+  const { bookingId } = req.params;
+
+  try {
+    logEvent('booking_get_request', { correlationId, bookingId });
+
+    const result = await bookingService.getBooking(tenant, bookingId, correlationId);
+
+    if (!result.success) {
+      logError('booking_get_failed', result.error, { correlationId, bookingId });
+      return sendError(res, 'Failed to retrieve booking', { error: result.error });
+    }
+
+    logEvent('booking_get_success', { correlationId, bookingId });
+    return sendSuccess(res, 'Booking retrieved successfully', result.data);
+  } catch (error) {
+    logError('booking_get_error', error, { correlationId, bookingId });
+    return sendError(res, 'Failed to retrieve booking');
+  }
+}
+
+/**
+ * Confirm booking (update status to ACCEPTED)
+ * POST /api/bookings/:bookingId/confirm
+ */
+async function confirmBooking(req, res) {
+  const { correlationId, tenant } = req;
+  const { bookingId } = req.params;
+
+  try {
+    logEvent('booking_confirm_request', { correlationId, bookingId });
+
+    const result = await bookingService.confirmBooking(tenant, bookingId, correlationId);
+
+    if (!result.success) {
+      logError('booking_confirm_failed', result.error, { correlationId, bookingId });
+      return sendError(res, 'Failed to confirm booking', { error: result.error });
+    }
+
+    logEvent('booking_confirm_success', { correlationId, bookingId });
+    return sendSuccess(res, 'Booking confirmed successfully', { booking: result.data });
+  } catch (error) {
+    logError('booking_confirm_error', error, { correlationId, bookingId });
+    return sendError(res, 'Internal server error during booking confirmation');
+  }
+}
+
 module.exports = {
   // Booking operations
   createBooking,
   updateBooking,
   cancelBooking,
+  getBooking,
+  confirmBooking,
 
   // Customer booking operations
   getBookingsByCustomer,
+  getCustomerBookings: getBookingsByCustomer, // Alias for route compatibility
   getActiveBookingsByCustomer,
+  getCustomerActiveBookings: getActiveBookingsByCustomer, // Alias for route compatibility
 
   // Administrative operations
   listBookings,

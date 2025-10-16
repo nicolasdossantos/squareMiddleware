@@ -7,6 +7,7 @@ Complete step-by-step guide to deploy your Square Middleware API to Azure with s
 ## 🎯 Overview
 
 This guide will help you:
+
 1. Create a new Azure infrastructure (Resource Group, App Service, Key Vault)
 2. Configure security (Managed Identity, IP restrictions)
 3. Deploy your application code
@@ -20,6 +21,7 @@ This guide will help you:
 ## 📋 Prerequisites
 
 ### 1. Azure CLI Installed
+
 ```bash
 # Check if installed
 az --version
@@ -28,6 +30,7 @@ az --version
 ```
 
 ### 2. Logged into Azure
+
 ```bash
 # Login
 az login
@@ -37,6 +40,7 @@ az account show
 ```
 
 ### 3. Required Information
+
 - [ ] Retell API Key (for signature verification)
 - [ ] Retell Agent IDs
 - [ ] Square Access Tokens (per agent)
@@ -60,6 +64,7 @@ chmod +x deploy/azure-deploy.sh
 ```
 
 **What this creates:**
+
 - ✅ Resource Group: `square-middleware-prod-rg`
 - ✅ App Service Plan: `square-middleware-prod-app-plan` (B1 tier)
 - ✅ App Service: `square-middleware-prod-api`
@@ -84,6 +89,7 @@ chmod +x deploy/store-secrets.sh
 ```
 
 **You'll be prompted for:**
+
 1. Retell API Key
 2. For each agent:
    - Agent ID
@@ -92,7 +98,8 @@ chmod +x deploy/store-secrets.sh
    - Square Environment (sandbox/production)
    - Timezone
 
-**Output:** 
+**Output:**
+
 - Secrets stored in Key Vault
 - `deploy/agent-tokens.txt` with Bearer tokens for Retell configuration
 
@@ -163,6 +170,7 @@ chmod +x deploy/configure-ip-restrictions.sh
 ```
 
 **You'll be prompted for:**
+
 - Retell webhook IP addresses (get from Retell docs/support)
 - Whether to allow your current IP (for testing)
 
@@ -171,6 +179,7 @@ chmod +x deploy/configure-ip-restrictions.sh
 ### Step 5: Verify Deployment (~5 minutes)
 
 #### 5.1 Check App Service Status
+
 ```bash
 az webapp show \
   --name square-middleware-prod-api \
@@ -180,6 +189,7 @@ az webapp show \
 ```
 
 #### 5.2 Test Health Endpoint
+
 ```bash
 # Test health endpoint
 curl https://square-middleware-prod-api.azurewebsites.net/health
@@ -189,6 +199,7 @@ curl https://square-middleware-prod-api.azurewebsites.net/health
 ```
 
 #### 5.3 View Application Logs
+
 ```bash
 # Stream logs
 az webapp log tail \
@@ -199,12 +210,14 @@ az webapp log tail \
 #### 5.4 Test Protected Endpoint (requires auth)
 
 Generate a test signature:
+
 ```bash
 # Use the test-signature.js script (see below)
 node deploy/test-signature.js
 ```
 
 Then test with curl:
+
 ```bash
 curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/webhooks/retell/call-started \
   -H "Content-Type: application/json" \
@@ -224,29 +237,34 @@ curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/webhooks/r
 In your Retell dashboard, configure webhooks to point to:
 
 **Webhook URL:**
+
 ```
 https://square-middleware-prod-api.azurewebsites.net/api/webhooks/retell/call-started
 ```
 
 **Required Headers:**
+
 ```
 Authorization: Bearer <YOUR_AGENT_BEARER_TOKEN>
 x-agent-id: <YOUR_AGENT_ID>
 ```
 
-The signature (`x-retell-signature`) and timestamp (`x-retell-timestamp`) headers are automatically added by Retell.
+The signature (`x-retell-signature`) and timestamp (`x-retell-timestamp`) headers are automatically added by
+Retell.
 
 ---
 
 ## 🧪 Testing Strategy
 
 ### 1. Test Health Endpoints (No Auth)
+
 ```bash
 curl https://square-middleware-prod-api.azurewebsites.net/health
 curl https://square-middleware-prod-api.azurewebsites.net/health/detailed
 ```
 
 ### 2. Test Customer Endpoints (With Auth)
+
 ```bash
 # Get customer info
 curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/customer/info \
@@ -259,6 +277,7 @@ curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/customer/i
 ```
 
 ### 3. Test Booking Endpoints (With Auth)
+
 ```bash
 # Get availability
 curl -X GET "https://square-middleware-prod-api.azurewebsites.net/api/bookings/availability?date=2025-10-20" \
@@ -273,6 +292,7 @@ curl -X GET "https://square-middleware-prod-api.azurewebsites.net/api/bookings/a
 ## 🔄 Migration from Old Infrastructure
 
 ### Before Migration
+
 1. ✅ New infrastructure deployed and tested
 2. ✅ All endpoints working correctly
 3. ✅ Retell webhooks tested in staging/sandbox
@@ -281,13 +301,16 @@ curl -X GET "https://square-middleware-prod-api.azurewebsites.net/api/bookings/a
 ### Migration Steps
 
 #### 1. Update Retell Webhooks
+
 Point Retell to new URL:
+
 ```
 Old: https://barber-boutique-api.azurewebsites.net/...
 New: https://square-middleware-prod-api.azurewebsites.net/...
 ```
 
 #### 2. Monitor New Infrastructure
+
 ```bash
 # Watch logs for any errors
 az webapp log tail \
@@ -296,14 +319,17 @@ az webapp log tail \
 ```
 
 #### 3. Verify Traffic
+
 - Check Application Insights for incoming requests
 - Verify no errors in logs
 - Test a few real bookings
 
 #### 4. Keep Old Infrastructure for 24-48 Hours
+
 Don't delete immediately - keep as fallback
 
 #### 5. Delete Old Infrastructure (After Successful Migration)
+
 ```bash
 # List resource groups
 az group list --query "[].name" -o table
@@ -320,6 +346,7 @@ az group delete \
 ## 📊 Monitoring & Troubleshooting
 
 ### View Application Insights
+
 ```bash
 # Open in portal
 az monitor app-insights component show \
@@ -329,6 +356,7 @@ az monitor app-insights component show \
 ```
 
 ### Check Key Vault Access
+
 ```bash
 # List secrets
 az keyvault secret list \
@@ -345,7 +373,9 @@ az keyvault secret show \
 ### Common Issues
 
 #### Issue: "Cannot access Key Vault"
+
 **Solution:** Verify Managed Identity has permissions
+
 ```bash
 az keyvault set-policy \
   --name square-middleware-kv \
@@ -354,13 +384,17 @@ az keyvault set-policy \
 ```
 
 #### Issue: "401 Unauthorized"
+
 **Solution:** Check signature verification
+
 - Verify Retell API key is correct in Key Vault
 - Check timestamp is within 5-minute window
 - Verify Bearer token matches agent config
 
 #### Issue: "403 Forbidden"
+
 **Solution:** Check IP restrictions
+
 - Verify Retell webhook IP is allowed
 - Temporarily remove restrictions to test
 
@@ -369,17 +403,20 @@ az keyvault set-policy \
 ## 💰 Cost Management
 
 ### Current Monthly Costs (~$14)
+
 - App Service Plan (B1): ~$13/month
 - Key Vault: ~$1/month
 - Application Insights: FREE (5GB/month)
 
 ### Cost Optimization Tips
+
 1. Use B1 tier for low/medium traffic
 2. Enable auto-scaling only if needed
 3. Monitor Key Vault operations (stay within free tier)
 4. Use Application Insights free tier
 
 ### View Current Costs
+
 ```bash
 # View costs for resource group
 az consumption usage list \
@@ -395,11 +432,13 @@ az consumption usage list \
 If issues arise with new infrastructure:
 
 ### Quick Rollback
+
 1. Update Retell webhooks back to old URL
 2. Old infrastructure continues serving requests
 3. Debug new infrastructure without downtime
 
 ### Emergency Rollback Script
+
 ```bash
 # Restore old webhook URL in Retell dashboard
 # Old URL: https://barber-boutique-api.azurewebsites.net/...
@@ -427,6 +466,7 @@ If issues arise with new infrastructure:
 ## 📞 Support
 
 If you encounter issues:
+
 1. Check Application Insights for errors
 2. Review App Service logs: `az webapp log tail ...`
 3. Verify Key Vault access
@@ -440,6 +480,7 @@ For Azure support: https://portal.azure.com
 ## 📝 Next Steps
 
 After successful deployment:
+
 1. Set up monitoring alerts in Application Insights
 2. Configure backup/restore for App Service
 3. Set up staging slots for zero-downtime deployments

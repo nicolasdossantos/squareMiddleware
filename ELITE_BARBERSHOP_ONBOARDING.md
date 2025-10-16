@@ -24,15 +24,15 @@ https://square-middleware-prod-api.azurewebsites.net
 
 ### Configuration Details
 
-| Setting | Value |
-|---------|-------|
-| **Business Name** | Elite Barbershop |
-| **Agent ID** | agent_895480dde586e4c3712bd4c770 |
-| **Square Location ID** | L71YZWPR1TD9B |
-| **Square Environment** | Production |
-| **Timezone** | America/New_York (EST) |
-| **Contact Email** | hello@fluentfront.ai |
-| **Contact Phone** | +12677210098 |
+| Setting                | Value                            |
+| ---------------------- | -------------------------------- |
+| **Business Name**      | Elite Barbershop                 |
+| **Agent ID**           | agent_895480dde586e4c3712bd4c770 |
+| **Square Location ID** | L71YZWPR1TD9B                    |
+| **Square Environment** | Production                       |
+| **Timezone**           | America/New_York (EST)           |
+| **Contact Email**      | hello@fluentfront.ai             |
+| **Contact Phone**      | +12677210098                     |
 
 ---
 
@@ -61,10 +61,12 @@ chmod +x onboard-elite-barbershop.sh
 ### ✅ Step 2: Configure Retell Webhook
 
 1. **Log into Retell AI Dashboard:**
+
    - Go to: <https://app.retellai.com>
    - Navigate to your agent: `agent_895480dde586e4c3712bd4c770`
 
 2. **Set Webhook URL:**
+
    - In agent settings, find "Webhook URL"
    - Enter: `https://square-middleware-prod-api.azurewebsites.net/api/webhooks/retell`
    - Save changes

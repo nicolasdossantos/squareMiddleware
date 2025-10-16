@@ -1,4 +1,9 @@
 // BookingManager/helpers.js
+//
+// 🔴 IMPORTANT: Square SDK v42+ Response Structure
+// All API responses use response.result.* (NOT direct properties)
+// See SQUARE_SDK_V42_RESPONSE_STRUCTURE.md for complete reference
+//
 const {
   createSquareClient,
   logApiCall,
@@ -339,22 +344,22 @@ async function updateBooking(context, tenant, bookingId, updateData) {
   try {
     logApiCall(context, 'bookings.updateBooking', startTime);
 
-    const updateRequest = {
-      bookingId,
-      idempotencyKey: `update_${bookingId}_${Date.now()}`,
-      booking: {
-        id: bookingId,
-        version: updateData.version, // Required for updates
-        ...(updateData.startAt && { startAt: updateData.startAt }),
-        ...(updateData.appointmentSegments && { appointmentSegments: updateData.appointmentSegments }),
-        ...(updateData.customerNote && { customerNote: updateData.customerNote }),
-        ...(updateData.sellerNote && { sellerNote: updateData.sellerNote })
-      }
+    const idempotencyKey = `update_${bookingId}_${Date.now()}`;
+    const booking = {
+      id: bookingId,
+      version: updateData.version, // Required for updates
+      ...(updateData.startAt && { startAt: updateData.startAt }),
+      ...(updateData.status && { status: updateData.status }),
+      ...(updateData.appointmentSegments && { appointmentSegments: updateData.appointmentSegments }),
+      ...(updateData.customerNote && { customerNote: updateData.customerNote }),
+      ...(updateData.sellerNote && { sellerNote: updateData.sellerNote })
     };
 
     // Create tenant-specific Square client
     const square = createSquareClient(tenant.accessToken);
-    const response = await square.bookingsApi.updateBooking(updateRequest);
+
+    // Square SDK v42+ expects individual parameters, not an object
+    const response = await square.bookingsApi.updateBooking(bookingId, { idempotencyKey, booking });
 
     return { booking: response };
   } catch (error) {
@@ -388,16 +393,21 @@ async function cancelBooking(context, tenant, bookingId) {
   try {
     logApiCall(context, 'bookings.cancelBooking', startTime);
 
-    // Create tenant-specific Square client
+    // First get the booking to get its version
     const square = createSquareClient(tenant.accessToken);
-    const response = await square.bookingsApi.cancelBooking({ bookingId });
+    const getResponse = await square.bookingsApi.retrieveBooking(bookingId);
+    const bookingVersion = getResponse.result.booking.version;
+
+    // Cancel the booking with required parameters (SDK v42+)
+    const idempotencyKey = `cancel_${bookingId}_${Date.now()}`;
+    const response = await square.bookingsApi.cancelBooking(bookingId, { idempotencyKey, bookingVersion });
 
     // Clean BigInt values before logging
     const { cleanBigIntFromObject } = require('./bigIntUtils');
     const cleanResponse = cleanBigIntFromObject(response);
     context.log('Cancel booking response:', cleanResponse);
 
-    return { booking: response.booking };
+    return { booking: response.result.booking };
   } catch (error) {
     context.error('Error canceling booking:', error);
 
@@ -427,9 +437,16 @@ async function getBooking(context, tenant, bookingId) {
   try {
     logApiCall(context, 'bookings.retrieveBooking', startTime);
 
+    context.log('Getting booking with:', {
+      bookingId,
+      hasAccessToken: !!tenant.accessToken,
+      tokenLength: tenant.accessToken?.length,
+      tokenPreview: tenant.accessToken?.substring(0, 10) + '...'
+    });
+
     // Create tenant-specific Square client
     const square = createSquareClient(tenant.accessToken);
-    const response = await square.bookingsApi.retrieveBooking({ bookingId });
+    const response = await square.bookingsApi.retrieveBooking(bookingId);
 
     // Clean BigInt values before logging
     const { cleanBigIntFromObject } = require('./bigIntUtils');

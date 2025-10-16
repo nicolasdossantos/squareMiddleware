@@ -9,12 +9,16 @@ const { asyncHandler } = require('../middlewares/errorHandler');
 const { validateSchema, validateContentType } = require('../middlewares/validation');
 const bookingController = require('../controllers/bookingController');
 const correlationId = require('../middlewares/correlationId');
+const agentAuth = require('../middlewares/agentAuth');
 const { validateBookingData } = require('../utils/helpers/bookingHelpers');
 
 const router = express.Router();
 
 // Apply correlation ID middleware to all booking routes
 router.use(correlationId);
+
+// Apply agent authentication to all booking routes
+router.use(agentAuth);
 
 // Wrapper for validateBookingData to match middleware expectations
 const validateCustomerBooking = body => {
@@ -48,11 +52,11 @@ router.get('/:bookingId', asyncHandler(bookingController.getBooking));
 /**
  * PUT /api/bookings/:bookingId
  * Update existing booking with availability validation
+ * Note: Removed validateSchema because updates are partial and don't require all fields
  */
 router.put(
   '/:bookingId',
   validateContentType(['application/json']),
-  validateSchema(validateCustomerBooking),
   asyncHandler(bookingController.updateBooking)
 );
 
@@ -63,32 +67,14 @@ router.put(
 router.delete('/:bookingId', asyncHandler(bookingController.cancelBooking));
 
 /**
- * GET /api/bookings/customer/:customerId
- * Get all bookings for a specific customer
- */
-router.get('/customer/:customerId', asyncHandler(bookingController.getCustomerBookings));
-
-/**
- * GET /api/bookings/customer/:customerId/active
- * Get active (upcoming) bookings for a specific customer
- */
-router.get('/customer/:customerId/active', asyncHandler(bookingController.getCustomerActiveBookings));
-
-/**
  * GET /api/bookings
  * List bookings with filters (admin/staff endpoint)
  */
 router.get('/', asyncHandler(bookingController.listBookings));
 
 /**
- * DELETE /api/bookings/:bookingId
- * Cancel booking
- */
-router.delete('/:bookingId', asyncHandler(bookingController.cancelBooking));
-
-/**
  * POST /api/bookings/:bookingId/confirm
- * Confirm booking
+ * Confirm booking (changes status from PENDING to ACCEPTED)
  */
 router.post('/:bookingId/confirm', asyncHandler(bookingController.confirmBooking));
 

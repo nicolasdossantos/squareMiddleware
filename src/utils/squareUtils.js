@@ -1,4 +1,9 @@
 // shared/squareUtils.js
+//
+// 🔴 IMPORTANT: Square SDK v42+ Response Structure
+// All API responses use response.result.* (NOT direct properties)
+// See SQUARE_SDK_V42_RESPONSE_STRUCTURE.md for complete reference
+//
 const { Client: SquareClient, Environment } = require('square/legacy');
 const { logCacheHit, logApiCall, trackException } = require('./telemetry');
 const { toBigInt, bigIntReplacer, cleanBigIntFromObject } = require('./helpers/bigIntUtils');
@@ -702,14 +707,35 @@ async function updateCustomer(context, tenant, customerId, updateData) {
       throw new Error('Customer ID is required and must be a string');
     }
 
+    // Field mapping - support both formats
+    const fieldMapping = {
+      email: 'emailAddress',
+      givenName: 'firstName',
+      familyName: 'lastName'
+    };
+
+    // Apply reverse mapping to incoming data
+    const mappedData = {};
+    for (const [key, value] of Object.entries(updateData)) {
+      // If key matches a mapped field name, use the canonical name
+      const canonicalKey = Object.keys(fieldMapping).find(k => fieldMapping[k] === key) || key;
+      mappedData[canonicalKey] = value;
+    }
+
     // Validate that we have some data to update
-    const { firstName, lastName, email, phoneNumber, note, version } = updateData;
+    const { firstName, lastName, email, emailAddress, phoneNumber, note, givenName, familyName, version } =
+      mappedData;
+
+    // Support both naming conventions
+    const actualFirstName = firstName || givenName;
+    const actualLastName = lastName || familyName;
+    const actualEmail = email || emailAddress;
 
     // Check if any field is provided (including explicit null/empty string for clearing)
     const hasUpdates =
-      firstName !== undefined ||
-      lastName !== undefined ||
-      email !== undefined ||
+      actualFirstName !== undefined ||
+      actualLastName !== undefined ||
+      actualEmail !== undefined ||
       phoneNumber !== undefined ||
       note !== undefined ||
       version !== undefined;
@@ -719,11 +745,11 @@ async function updateCustomer(context, tenant, customerId, updateData) {
     }
 
     // Validate email if provided
-    if (email !== undefined && email !== null) {
-      if (email === '') {
+    if (actualEmail !== undefined && actualEmail !== null) {
+      if (actualEmail === '') {
         // Allow clearing email with empty string
       } else {
-        const emailValidation = validateEmailAddress(email);
+        const emailValidation = validateEmailAddress(actualEmail);
         if (!emailValidation.isValid) {
           throw new Error(`Invalid email: ${emailValidation.error}`);
         }
@@ -745,54 +771,52 @@ async function updateCustomer(context, tenant, customerId, updateData) {
       }
     }
 
-    // Build the customer update request (Square API expects body structure)
-    const updateRequest = {
-      customerId: customerId.trim(),
-      body: {}
-    };
+    // Build the customer update body (Square SDK v42+ expects separate parameters)
+    const customerBody = {};
 
     // Only add fields that have meaningful values - omit null/undefined/empty to preserve existing data
-    if (firstName !== undefined && firstName !== null && firstName !== '') {
-      updateRequest.body.givenName = firstName.trim();
+    if (actualFirstName !== undefined && actualFirstName !== null && actualFirstName !== '') {
+      customerBody.givenName = actualFirstName.trim();
     }
 
-    if (lastName !== undefined && lastName !== null && lastName !== '') {
-      updateRequest.body.familyName = lastName.trim();
+    if (actualLastName !== undefined && actualLastName !== null && actualLastName !== '') {
+      customerBody.familyName = actualLastName.trim();
     }
 
-    if (email !== undefined && email !== null && email !== '') {
-      updateRequest.body.emailAddress = email.trim().toLowerCase();
+    if (actualEmail !== undefined && actualEmail !== null && actualEmail !== '') {
+      customerBody.emailAddress = actualEmail.trim().toLowerCase();
     }
 
     if (formattedPhone !== undefined && formattedPhone !== null && formattedPhone !== '') {
-      updateRequest.body.phoneNumber = formattedPhone;
+      customerBody.phoneNumber = formattedPhone;
     }
 
     if (note !== undefined && note !== null && note !== '') {
-      updateRequest.body.note = note;
+      customerBody.note = note;
     }
 
     if (version !== undefined) {
-      updateRequest.body.version = typeof version === 'number' ? toBigInt(version) : version;
+      customerBody.version = typeof version === 'number' ? toBigInt(version) : version;
     }
 
     context.log('Updating customer with data:', {
       customerId,
-      updateFields: Object.keys(updateRequest.body).filter(key => key !== 'customerId')
+      updateFields: Object.keys(customerBody)
     });
 
     // Create tenant-specific Square client
     const square = createSquareClient(tenant.accessToken);
 
     const apiStartTime = Date.now();
-    const response = await square.customersApi.updateCustomer(updateRequest);
+    // ⚠️ Square SDK v42+: Pass customerId and body as separate parameters
+    const response = await square.customersApi.updateCustomer(customerId.trim(), customerBody);
     const apiDuration = Date.now() - apiStartTime;
 
     logApiCall(context, 'customers_update', true, apiDuration, {
       customer_id: customerId,
       tenant_id: tenant.id,
-      fields_updated: Object.keys(updateRequest.body).length,
-      has_email: email !== undefined,
+      fields_updated: Object.keys(customerBody).length,
+      has_email: actualEmail !== undefined,
       has_phone: phoneNumber !== undefined
     });
 

@@ -20,34 +20,6 @@ function methodNotAllowed(req, res) {
 }
 
 /**
- * ElevenLabs webhook handler that checks method
- */
-function handleElevenLabsRequest(req, res, next) {
-  if (req.method === 'POST') {
-    validateContentType(['application/json'])(req, res, err => {
-      if (err) return next(err);
-      return asyncHandler(webhookController.handleElevenLabsPostCall)(req, res, next);
-    });
-  } else {
-    return methodNotAllowed(req, res);
-  }
-}
-
-/**
- * Square payment webhook handler that checks method
- */
-function handleSquarePaymentRequest(req, res, next) {
-  if (req.method === 'POST') {
-    validateContentType(['application/json'])(req, res, err => {
-      if (err) return next(err);
-      return asyncHandler(webhookController.handleSquarePayment)(req, res, next);
-    });
-  } else {
-    return methodNotAllowed(req, res);
-  }
-}
-
-/**
  * Square booking webhook handler that checks method
  */
 function handleSquareBookingRequest(req, res, next) {
@@ -74,16 +46,6 @@ function handleRetellRequest(req, res, next) {
     return methodNotAllowed(req, res);
   }
 }
-
-/**
- * ElevenLabs post-call webhook
- */
-router.all('/elevenlabs/post-call', handleElevenLabsRequest);
-
-/**
- * Square payment webhook
- */
-router.all('/square/payment', handleSquarePaymentRequest);
 
 /**
  * Square booking webhook

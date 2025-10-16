@@ -72,9 +72,20 @@ function formatCost(costInCents, threshold = 10) {
 /**
  * Create HTML email content for Retell call analysis
  */
-function createRetellEmailContent(callData) {
+function createRetellEmailContent(callData, businessName = null) {
   const call = callData.call;
   const analysis = call.call_analysis || {};
+
+  // Check if this is a spam identification call
+  const currentAgentState = call?.collected_dynamic_variables?.current_agent_state;
+  const isSpamCall = currentAgentState === 'identify_spam_call';
+
+  // Extract business name from various possible sources
+  const extractedBusinessName =
+    businessName || // Passed as parameter
+    call.retell_llm_dynamic_variables?.business_name || // From Retell dynamic vars
+    call.agent_metadata?.business_name || // From agent metadata
+    'Elite Barber Boutique'; // Default fallback
 
   // Extract key information
   const customerName = call.retell_llm_dynamic_variables?.customer_first_name || 'Unknown Customer';
@@ -84,7 +95,8 @@ function createRetellEmailContent(callData) {
   const isSuccessful = analysis.call_successful;
   const sentiment = analysis.user_sentiment;
   const isNegative = sentiment === 'Negative';
-  const isIssue = !isSuccessful || isNegative;
+  // Don't mark spam identification calls as issues
+  const isIssue = !isSpamCall && (!isSuccessful || isNegative);
 
   // Format costs (convert from cents to dollars)
   const totalCost = formatCost(call.call_cost?.combined_cost || 0);
@@ -133,7 +145,10 @@ function createRetellEmailContent(callData) {
         
         <!-- Header -->
         <div class="header">
-          <h1>${isIssue ? '🚨 CALL ISSUE DETECTED' : '📞 Retell Call Report'}</h1>
+          <h1>${isIssue ? '🚨 CALL ISSUE DETECTED' : isSpamCall ? '🚫 SPAM CALL DETECTED' : '📞 Call Report'}</h1>
+          <div style="font-size: 18px; margin-top: 5px; font-weight: bold;">
+            ${extractedBusinessName}
+          </div>
           <div style="font-size: 16px; margin-top: 10px;">
             ${customerFullName} • ${formatTimestamp(call.start_timestamp)}
           </div>
@@ -361,6 +376,7 @@ function createRetellEmailContent(callData) {
         <!-- Footer -->
         <div class="section" style="text-align: center; background: #f8f9fa;">
           <div class="metadata">
+            <strong>${extractedBusinessName}</strong><br>
             <strong>Retell AI Call Analysis</strong><br>
             Generated: ${new Date().toLocaleString()}<br>
             Call ID: ${call.call_id}
@@ -381,30 +397,65 @@ async function sendRetellPostCallEmail(callData, correlationId) {
     const call = callData.call;
     const analysis = call.call_analysis || {};
 
+    // Check if customer ever spoke during the call
+    const transcript = call.transcript || '';
+    const transcriptWithToolCalls = call.transcript_with_tool_calls || [];
+
+    // Check if there are any user/customer messages in the transcript
+    const customerSpoke = transcriptWithToolCalls.some(
+      turn => turn.role === 'user' && turn.content && turn.content.trim().length > 0
+    );
+
+    // Alternative check: see if transcript contains actual conversation (not just agent speaking)
+    const hasRealConversation = transcript.length > 50 && customerSpoke;
+
+    // Don't send email if customer never spoke
+    if (!hasRealConversation && !customerSpoke) {
+      logEvent('retell_email_skipped_no_customer_speech', {
+        correlationId,
+        callId: call.call_id,
+        transcriptLength: transcript.length,
+        reason: 'Customer never spoke during the call'
+      });
+
+      return {
+        success: true,
+        skipped: true,
+        message: 'Email skipped - customer never spoke during the call'
+      };
+    }
+
     // Check if this is a spam identification call
     const currentAgentState = call?.collected_dynamic_variables?.current_agent_state;
     const isSpamCall = currentAgentState === 'identify_spam_call';
+
+    // Extract business name from call data
+    const businessName =
+      call.retell_llm_dynamic_variables?.business_name ||
+      call.agent_metadata?.business_name ||
+      'Elite Barber Boutique'; // Default fallback
 
     // Extract customer info for subject
     const customerName = call.retell_llm_dynamic_variables?.customer_first_name || 'Unknown Customer';
     const isSuccessful = analysis.call_successful;
     const sentiment = analysis.user_sentiment;
-    const isIssue = !isSuccessful || sentiment === 'Negative';
+    // Don't mark spam identification calls as issues
+    subject = `�️ ${businessName} - Spam Call Detected`;
 
     // Create subject line
     let subject;
     if (isSpamCall) {
       // Special case for spam identification calls
-      subject = '📞 Call Report - Spam Identified';
+      subject = `🗑️ ${businessName} - Spam Call Detected`;
     } else if (isIssue) {
       const issueType = !isSuccessful ? 'Failed Call' : 'Negative Sentiment';
-      subject = `🚨 URGENT - Retell Call Issue - ${customerName} - ${issueType}`;
+      subject = `🚨 ${businessName} - ${customerName} - ${issueType}`;
     } else {
-      subject = `📞 Retell Call Report - ${customerName} - Success`;
+      subject = `✅ ${businessName} - Call Report - ${customerName}`;
     }
 
     // Create email content
-    const emailHtml = createRetellEmailContent(callData);
+    const emailHtml = createRetellEmailContent(callData, businessName);
 
     // Send email
     const transporter = createEmailTransporter();

@@ -7,11 +7,13 @@ This codebase has been cleaned up and is ready to be copied to a new repository 
 ### What Was Updated
 
 1. **Package Identity**
+
    - Name: `square-middleware`
    - Version: 2.0.0
    - Description: Multi-tenant Express.js middleware for Square API integration
 
 2. **Branding**
+
    - README completely rewritten as generic Square middleware
    - Service name updated to "Square Middleware API"
    - All barberboutique references removed from main code
@@ -43,32 +45,24 @@ npm test
 
 ### Files Included
 
-✅ All source code (`src/`)
-✅ All tests (`tests/`)
-✅ Deployment scripts (`deploy/`)
-✅ Documentation (`docs/`)
-✅ GitHub Actions (`.github/`)
-✅ Configuration files
-✅ Clean README
-✅ Migration guides
+✅ All source code (`src/`) ✅ All tests (`tests/`) ✅ Deployment scripts (`deploy/`) ✅ Documentation
+(`docs/`) ✅ GitHub Actions (`.github/`) ✅ Configuration files ✅ Clean README ✅ Migration guides
 
 ### Files Excluded
 
-❌ `node_modules/` - Reinstall with `npm install`
-❌ `coverage/` - Regenerate with tests
-❌ `deployments/` - Old artifacts
-❌ Temporary files
+❌ `node_modules/` - Reinstall with `npm install` ❌ `coverage/` - Regenerate with tests ❌ `deployments/` -
+Old artifacts ❌ Temporary files
 
 ## Production Status
 
 ### Azure Resources
 
-| Resource | Name | Status |
-|----------|------|--------|
-| Resource Group | square-middleware-prod-rg | ✅ Active |
-| App Service | square-middleware-prod-api | ✅ Running |
-| Key Vault | square-middleware-kv | ✅ Configured |
-| App Insights | square-middleware-prod-insights | ✅ Collecting Data |
+| Resource       | Name                            | Status             |
+| -------------- | ------------------------------- | ------------------ |
+| Resource Group | square-middleware-prod-rg       | ✅ Active          |
+| App Service    | square-middleware-prod-api      | ✅ Running         |
+| Key Vault      | square-middleware-kv            | ✅ Configured      |
+| App Insights   | square-middleware-prod-insights | ✅ Collecting Data |
 
 ### Health Check
 
@@ -77,6 +71,7 @@ curl https://square-middleware-prod-api.azurewebsites.net/api/health
 ```
 
 Response:
+
 ```json
 {
   "success": true,
@@ -129,6 +124,7 @@ az keyvault secret set \
 ### 3. Configure Retell Webhook
 
 Update your Retell agent to use:
+
 ```
 Webhook URL: https://square-middleware-prod-api.azurewebsites.net/api/webhooks/retell
 ```
@@ -138,6 +134,7 @@ Webhook URL: https://square-middleware-prod-api.azurewebsites.net/api/webhooks/r
 The GitHub Actions workflow is already configured in `.github/workflows/main.yml`.
 
 Add these secrets to your GitHub repo:
+
 - `AZURE_WEBAPP_NAME`: square-middleware-prod-api
 - `AZURE_WEBAPP_PUBLISH_PROFILE`: (download from Azure Portal)
 
@@ -154,6 +151,7 @@ All documentation is included:
 ## Cost
 
 Monthly Azure costs: **~$14**
+
 - App Service B1: $13
 - Key Vault: $0.30
 - App Insights: Free tier
@@ -161,6 +159,7 @@ Monthly Azure costs: **~$14**
 ## Support
 
 For issues:
+
 1. Check Application Insights logs
 2. Review `/docs` folder
 3. Use `az webapp log tail` for live logs
@@ -173,6 +172,5 @@ You can now copy this entire directory to create your new `squareMiddleware` rep
 
 The production app is deployed, tested, and ready to use!
 
-**Production URL**: https://square-middleware-prod-api.azurewebsites.net
-**Status**: ✅ HEALTHY
-**Date**: October 14, 2025
+**Production URL**: https://square-middleware-prod-api.azurewebsites.net **Status**: ✅ HEALTHY **Date**:
+October 14, 2025

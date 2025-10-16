@@ -186,11 +186,26 @@ async function handleRetellWebhook(req, res) {
 
       // Extract dynamic variables from customer response - handle both success and error cases
       let dynamicVariables = {};
+
+      // Get business name from tenant context (from result)
+      const businessName = result.tenant?.businessName || 'us';
+
       if (result.customerResponse?.dynamic_variables) {
         // Customer lookup succeeded - use the full ElevenLabs response but ensure all values are strings
         const rawVariables = result.customerResponse.dynamic_variables;
+        const customerFirstName = String(rawVariables.customer_first_name || '');
+        const isReturning = String(rawVariables.is_returning_customer || 'false') === 'true';
+
+        // Generate personalized initial message
+        let initialMessage;
+        if (isReturning && customerFirstName) {
+          initialMessage = `Thank you for calling ${businessName}, am I speaking to ${customerFirstName}?`;
+        } else {
+          initialMessage = `Thank you for calling ${businessName}, who am I speaking with today?`;
+        }
+
         dynamicVariables = {
-          customer_first_name: String(rawVariables.customer_first_name || ''),
+          customer_first_name: customerFirstName,
           customer_last_name: String(rawVariables.customer_last_name || ''),
           customer_full_name: String(rawVariables.customer_full_name || ''),
           customer_email: String(rawVariables.customer_email || ''),
@@ -205,9 +220,7 @@ async function handleRetellWebhook(req, res) {
           available_services: String(rawVariables.available_services || ''),
           available_barbers: String(rawVariables.available_barbers || ''),
           caller_id: String(rawVariables.caller_id || ''),
-          // Use initial_message from rawVariables, or default to generic greeting
-          initial_message:
-            rawVariables.initial_message || 'Thank you for calling, who am I speaking with today?'
+          initial_message: initialMessage
         };
       } else {
         // Customer lookup failed, provide default dynamic variables matching ElevenLabs format exactly
@@ -240,7 +253,7 @@ async function handleRetellWebhook(req, res) {
           available_services: 'Hair Cut, Beard Trim, Hair Wash, Styling',
           available_barbers: 'Our Team',
           caller_id: result.fromNumber ? result.fromNumber.replace(/\D/g, '').slice(-10) : '',
-          initial_message: 'Thank you for calling, who am I speaking with today?'
+          initial_message: `Thank you for calling ${businessName}, who am I speaking with today?`
         };
       }
       console.log(
@@ -488,10 +501,10 @@ async function handleCallInbound(call_inbound, correlationId) {
       // Create tenant context from agent configuration
       tenant = {
         id: agentConfig.agentId || agent_id,
-        squareAccessToken: agentConfig.squareAccessToken,
-        squareLocationId: agentConfig.squareLocationId,
-        squareApplicationId: agentConfig.squareApplicationId,
-        squareEnvironment: agentConfig.squareEnvironment,
+        accessToken: agentConfig.squareAccessToken, // ✅ FIX: Use 'accessToken' not 'squareAccessToken'
+        locationId: agentConfig.squareLocationId,
+        applicationId: agentConfig.squareApplicationId,
+        environment: agentConfig.squareEnvironment,
         timezone: agentConfig.timezone,
         staffEmail: agentConfig.staffEmail,
         businessName: agentConfig.businessName
@@ -508,9 +521,9 @@ async function handleCallInbound(call_inbound, correlationId) {
 
       tenant = {
         id: 'default',
-        squareAccessToken: config.square.accessToken,
-        squareLocationId: config.square.locationId,
-        squareEnvironment: config.square.environment || 'sandbox',
+        accessToken: config.square.accessToken, // ✅ FIX: Use 'accessToken' not 'squareAccessToken'
+        locationId: config.square.locationId,
+        environment: config.square.environment || 'sandbox',
         timezone: config.server.timezone || 'America/New_York'
       };
 
@@ -548,13 +561,14 @@ async function handleCallInbound(call_inbound, correlationId) {
     console.log('🔍 [RETELL DEBUG] Customer lookup completed for inbound call');
     console.log('🔍 [RETELL DEBUG] Customer response received:', JSON.stringify(customerResponse, null, 2));
 
-    // Return the exact same response format as ElevenLabs
+    // Return the exact same response format as ElevenLabs, including tenant info for business name
     const result = {
       processed: true,
       event: 'call_inbound',
       agentId: agent_id,
       fromNumber: from_number,
       customerResponse: customerResponse,
+      tenant: tenant, // Include tenant for business name access
       summary: `Inbound call processed for agent ${agent_id}`
     };
 

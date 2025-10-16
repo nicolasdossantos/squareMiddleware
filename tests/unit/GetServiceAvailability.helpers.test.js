@@ -41,19 +41,22 @@ describe('GetServiceAvailability helpers', () => {
     jest.clearAllMocks();
 
     // Create mock square client that will be returned by createSquareClient
+    // Square SDK v42+ response structure: { result: { availabilities: [...] } }
     mockSquareClient = {
       bookingsApi: {
         searchAvailability: jest.fn().mockResolvedValue({
-          availabilities: [
-            {
-              startAt: '2025-01-20T10:00:00Z',
-              appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
-            },
-            {
-              startAt: '2025-01-20T11:00:00Z',
-              appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
-            }
-          ]
+          result: {
+            availabilities: [
+              {
+                startAt: '2025-01-20T10:00:00Z',
+                appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
+              },
+              {
+                startAt: '2025-01-20T11:00:00Z',
+                appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
+              }
+            ]
+          }
         })
       }
     };
@@ -79,18 +82,20 @@ describe('GetServiceAvailability helpers', () => {
     const endIso = '2025-01-20T18:00:00Z';
 
     test('should load availability for single service', async () => {
-      // Mock successful Square API response
+      // Mock successful Square API response (Square SDK v42+ format)
       mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
-        availabilities: [
-          {
-            startAt: '2025-01-20T10:00:00Z',
-            appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
-          },
-          {
-            startAt: '2025-01-20T11:00:00Z',
-            appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
-          }
-        ]
+        result: {
+          availabilities: [
+            {
+              startAt: '2025-01-20T10:00:00Z',
+              appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
+            },
+            {
+              startAt: '2025-01-20T11:00:00Z',
+              appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
+            }
+          ]
+        }
       });
 
       const result = await loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext);
@@ -144,15 +149,17 @@ describe('GetServiceAvailability helpers', () => {
       const serviceIds = ['SERVICE_1', 'SERVICE_2'];
 
       mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
-        availabilities: [
-          {
-            startAt: '2025-01-20T10:00:00Z',
-            appointmentSegments: [
-              { serviceVariationId: 'SERVICE_1', durationMinutes: 20 },
-              { serviceVariationId: 'SERVICE_2', durationMinutes: 15 }
-            ]
-          }
-        ]
+        result: {
+          availabilities: [
+            {
+              startAt: '2025-01-20T10:00:00Z',
+              appointmentSegments: [
+                { serviceVariationId: 'SERVICE_1', durationMinutes: 20 },
+                { serviceVariationId: 'SERVICE_2', durationMinutes: 15 }
+              ]
+            }
+          ]
+        }
       });
 
       const result = await loadAvailability(mockTenant, serviceIds, null, startIso, endIso, mockContext);
@@ -245,14 +252,16 @@ describe('GetServiceAvailability helpers', () => {
     });
 
     test('should handle single string service ID (backward compatibility)', async () => {
-      // Mock successful Square API response
+      // Mock successful Square API response (Square SDK v42+ format)
       mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
-        availabilities: [
-          {
-            startAt: '2025-01-20T10:00:00Z',
-            appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
-          }
-        ]
+        result: {
+          availabilities: [
+            {
+              startAt: '2025-01-20T10:00:00Z',
+              appointmentSegments: [{ serviceVariationId: 'SERVICE_1', durationMinutes: 20 }]
+            }
+          ]
+        }
       });
 
       const result = await loadAvailability(mockTenant, 'SERVICE_1', null, startIso, endIso, mockContext);
@@ -262,9 +271,11 @@ describe('GetServiceAvailability helpers', () => {
     });
 
     test('should handle empty availability response', async () => {
-      // Override mock for this specific test
+      // Override mock for this specific test (Square SDK v42+ format)
       mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
-        availabilities: []
+        result: {
+          availabilities: []
+        }
       });
 
       const result = await loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext);
@@ -282,8 +293,10 @@ describe('GetServiceAvailability helpers', () => {
     });
 
     test('should handle missing availabilities property', async () => {
-      // Override mock for this specific test
-      mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({});
+      // Override mock for this specific test (Square SDK v42+ format with missing availabilities)
+      mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
+        result: {}
+      });
 
       const result = await loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext);
 
@@ -291,14 +304,16 @@ describe('GetServiceAvailability helpers', () => {
     });
 
     test('should handle missing appointmentSegments', async () => {
-      // Override mock for this specific test
+      // Override mock for this specific test (Square SDK v42+ format)
       mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
-        availabilities: [
-          {
-            startAt: '2025-01-20T10:00:00Z'
-            // appointmentSegments missing
-          }
-        ]
+        result: {
+          availabilities: [
+            {
+              startAt: '2025-01-20T10:00:00Z'
+              // appointmentSegments missing
+            }
+          ]
+        }
       });
 
       const result = await loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext);
