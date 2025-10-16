@@ -1,47 +1,54 @@
 name: Deploy to Azure App Service
 
 on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
 
 env:
-  AZURE_WEBAPP_NAME: square-middleware-prod-api
-  AZURE_WEBAPP_PACKAGE_PATH: '.'
-  NODE_VERSION: '20.x'
+    AZURE_WEBAPP_NAME: square-middleware-prod-api
+    AZURE_WEBAPP_PACKAGE_PATH: "."
+    NODE_VERSION: "20.x"
+
+permissions:
+    id-token: write
+    contents: read
 
 jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+    build-and-deploy:
+        runs-on: ubuntu-latest
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-    - name: Install dependencies
-      run: npm ci
+            - name: Set up Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: "npm"
 
-    - name: Run tests
-      run: npm test
+            - name: Install dependencies
+              run: npm ci
 
-    - name: Azure Login
-      uses: azure/login@v1
-      with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+            - name: Run tests
+              run: npm test
 
-    - name: Deploy to Azure Web App
-      uses: azure/webapps-deploy@v2
-      with:
-        app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+            - name: Azure Login
+              uses: azure/login@v2
+              with:
+                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
+                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+                  enable-AzPSSession: false
 
-    - name: Azure Logout
-      if: always()
-      run: az logout
+            - name: Deploy to Azure Web App
+              uses: azure/webapps-deploy@v2
+              with:
+                  app-name: ${{ env.AZURE_WEBAPP_NAME }}
+                  package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+
+            - name: Azure Logout
+              if: always()
+              run: az logout
