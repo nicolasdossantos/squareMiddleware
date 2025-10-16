@@ -1,0 +1,21 @@
+{
+  "debug.internalConsoleOptions": "neverOpen",
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact"
+  ],
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/coverage": true,
+    "**/.env": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/coverage": true
+  }
+}
