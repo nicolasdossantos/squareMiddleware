@@ -7,6 +7,7 @@
 const express = require('express');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const correlationId = require('../middlewares/correlationId');
+const agentAuth = require('../middlewares/agentAuth');
 const customerController = require('../controllers/customerController');
 const bookingController = require('../controllers/bookingController');
 
@@ -14,6 +15,9 @@ const router = express.Router();
 
 // Apply correlation ID middleware to all API routes
 router.use(correlationId);
+
+// Apply agent authentication to all API routes
+router.use(agentAuth);
 
 /**
  * GET/POST /api/customer/info

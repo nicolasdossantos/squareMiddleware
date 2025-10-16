@@ -155,7 +155,9 @@ class SmokeTestRunner {
 
     const passed = this.results.filter(r => r.status === 'PASS').length;
     const failed = this.results.filter(r => r.status === 'FAIL').length;
-    const avgDuration = Math.round(this.results.reduce((sum, r) => sum + r.duration, 0) / this.results.length);
+    const avgDuration = Math.round(
+      this.results.reduce((sum, r) => sum + r.duration, 0) / this.results.length
+    );
 
     console.log(`✅ Passed: ${passed}`);
     console.log(`❌ Failed: ${failed}`);

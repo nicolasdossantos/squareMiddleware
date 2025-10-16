@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const keyVaultService = require('../services/keyVaultService');
+const config = require('../config');
 
 /**
  * Retell Signature Verification Middleware
@@ -49,12 +49,22 @@ async function retellAuthMiddleware(req, res, next) {
   }
 
   try {
-    // 3. Fetch Retell API key from Key Vault
-    const apiKey = await keyVaultService.getRetellApiKey();
+    // 3. Get Retell API key from environment
+    const apiKey = config.retell.apiKey;
+
+    if (!apiKey) {
+      console.error('[RetellAuth] RETELL_API_KEY not configured');
+      return res.status(500).json({
+        error: 'Retell API key not configured'
+      });
+    }
 
     // 4. Compute expected signature
     const payload = JSON.stringify(req.body);
-    const expectedSignature = crypto.createHmac('sha256', apiKey).update(`${timestamp}.${payload}`).digest('hex');
+    const expectedSignature = crypto
+      .createHmac('sha256', apiKey)
+      .update(`${timestamp}.${payload}`)
+      .digest('hex');
 
     // 5. Compare signatures (timing-safe comparison)
     const isValid = crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));

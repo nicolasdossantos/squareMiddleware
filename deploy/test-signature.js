@@ -46,7 +46,9 @@ console.log(`  ${payloadString}`);
 console.log('');
 console.log('Full curl command:');
 console.log('');
-console.log('curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/webhooks/retell/call-started \\');
+console.log(
+  'curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/webhooks/retell/call-started \\'
+);
 console.log('  -H "Content-Type: application/json" \\');
 console.log(`  -H "x-retell-signature: ${signature}" \\`);
 console.log(`  -H "x-retell-timestamp: ${timestamp}" \\`);

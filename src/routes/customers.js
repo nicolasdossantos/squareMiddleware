@@ -8,8 +8,12 @@ const { asyncHandler } = require('../middlewares/errorHandler');
 const { validateSchema, validateContentType } = require('../middlewares/validation');
 const { validateCustomerInfo } = require('../utils/inputValidation');
 const customerController = require('../controllers/customerController');
+const agentAuth = require('../middlewares/agentAuth');
 
 const router = express.Router();
+
+// Apply agent authentication to all customer routes
+router.use(agentAuth);
 
 /**
  * COMPATIBILITY ROUTES FOR AZURE FUNCTIONS MIGRATION

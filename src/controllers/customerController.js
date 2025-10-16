@@ -7,6 +7,7 @@ const { sendSuccess, sendError, sendNotFound } = require('../utils/responseBuild
 const { logPerformance, logEvent } = require('../utils/logger');
 const logger = require('../utils/logger');
 const customerService = require('../services/customerService');
+const { getRelativeTimeframe } = require('../utils/helpers/dateHelpers');
 
 /**
  * Get customer by ID
@@ -110,7 +111,8 @@ async function updateCustomerInfo(req, res) {
   });
 
   // Support both Express.js (customerId) and Azure Functions (customer_id) formats
-  const customerId = req.query.customerId || req.params.customerId || req.body.customerId || req.body.customer_id;
+  const customerId =
+    req.query.customerId || req.params.customerId || req.body.customerId || req.body.customer_id;
 
   console.log('🔍 [UPDATE CUSTOMER] Customer ID extraction:', {
     queryCustomerId: req.query.customerId,
@@ -274,8 +276,12 @@ async function getCustomerInfoByPhone(req, res) {
           }
           // Try formatted versions
           if (cleanPhone.length === 10) {
-            fallbackFormats.push(`(${cleanPhone.slice(0, 3)}) ${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`);
-            fallbackFormats.push(`${cleanPhone.slice(0, 3)}-${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`);
+            fallbackFormats.push(
+              `(${cleanPhone.slice(0, 3)}) ${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`
+            );
+            fallbackFormats.push(
+              `${cleanPhone.slice(0, 3)}-${cleanPhone.slice(3, 6)}-${cleanPhone.slice(6)}`
+            );
           }
         }
       }
@@ -283,7 +289,10 @@ async function getCustomerInfoByPhone(req, res) {
       // Try each fallback format
       for (const format of fallbackFormats) {
         if (format !== customerPhone) {
-          logger.info('Trying fallback phone format', { format, correlationId });
+          logger.info('Trying fallback phone format', {
+            format,
+            correlationId
+          });
           try {
             const fallbackResult = await customerService.getCustomerInfo(tenant, format);
             if (fallbackResult?.customer) {
@@ -296,7 +305,10 @@ async function getCustomerInfoByPhone(req, res) {
               break;
             }
           } catch (fallbackError) {
-            logger.warn('Fallback search failed for format', { format, error: fallbackError.message });
+            logger.warn('Fallback search failed for format', {
+              format,
+              error: fallbackError.message
+            });
           }
         }
       }
@@ -341,35 +353,36 @@ async function getCustomerInfoByPhone(req, res) {
     if (customerData) {
       try {
         // Get future bookings (from now onwards) - will filter for ACCEPTED and PENDING later
-        const futureBookingsPromise = square.bookings.list({
-          customerId: customerData.id,
-          startAtMin: now.toISOString(),
-          limit: 10
-        });
+        // Note: listBookings expects individual parameters, not an object
+        const futureBookingsPromise = square.bookingsApi.listBookings(
+          10, // limit
+          undefined, // cursor
+          customerData.id, // customerId
+          undefined, // teamMemberId
+          undefined, // locationId
+          now.toISOString() // startAtMin
+        );
 
         // Get past bookings (last 30 days only) - will filter for ACCEPTED later
-        const pastBookingsPromise = square.bookings.list({
-          customerId: customerData.id,
-          startAtMin: thirtyDaysAgo.toISOString(),
-          startAtMax: now.toISOString(),
-          limit: 50
-        });
+        const pastBookingsPromise = square.bookingsApi.listBookings(
+          50, // limit
+          undefined, // cursor
+          customerData.id, // customerId
+          undefined, // teamMemberId
+          undefined, // locationId
+          thirtyDaysAgo.toISOString(), // startAtMin
+          now.toISOString() // startAtMax
+        );
 
         // Execute both API calls in parallel
-        const [futureResponse, pastResponse] = await Promise.all([futureBookingsPromise, pastBookingsPromise]);
+        const [futureResponse, pastResponse] = await Promise.all([
+          futureBookingsPromise,
+          pastBookingsPromise
+        ]);
 
-        // Extract bookings from responses (handle different response formats)
-        if (futureResponse.result?.bookings) {
-          futureBookings = futureResponse.result.bookings;
-        } else if (Array.isArray(futureResponse.data)) {
-          futureBookings = futureResponse.data;
-        }
-
-        if (pastResponse.result?.bookings) {
-          pastBookings = pastResponse.result.bookings;
-        } else if (Array.isArray(pastResponse.data)) {
-          pastBookings = pastResponse.data;
-        }
+        // Extract bookings from responses (Square SDK v42+ uses result.bookings)
+        futureBookings = futureResponse.result?.bookings || [];
+        pastBookings = pastResponse.result?.bookings || [];
 
         logger.info('📊 Square API bookings retrieved', {
           futureBookings: futureBookings.length,
@@ -391,8 +404,16 @@ async function getCustomerInfoByPhone(req, res) {
     logger.info('🔍 Debug: Bookings structure from Square API', {
       futureBookingsCount: cleanedFutureBookings.length,
       pastBookingsCount: cleanedPastBookings.length,
-      futureBookingStatuses: cleanedFutureBookings.map(b => ({ id: b.id, status: b.status, startAt: b.startAt })),
-      pastBookingStatuses: cleanedPastBookings.map(b => ({ id: b.id, status: b.status, startAt: b.startAt })),
+      futureBookingStatuses: cleanedFutureBookings.map(b => ({
+        id: b.id,
+        status: b.status,
+        startAt: b.startAt
+      })),
+      pastBookingStatuses: cleanedPastBookings.map(b => ({
+        id: b.id,
+        status: b.status,
+        startAt: b.startAt
+      })),
       correlationId
     });
 
@@ -435,6 +456,7 @@ async function getCustomerInfoByPhone(req, res) {
         date: formatter.format(startDate),
         time: timeFormatter.format(startDate),
         days_away: daysAway,
+        relative_time: getRelativeTimeframe(booking.startAt, 'America/New_York'),
         service_variation_id: booking.appointmentSegments?.[0]?.serviceVariationId || '',
         team_member_id: booking.appointmentSegments?.[0]?.teamMemberId || '',
         location_id: booking.locationId,

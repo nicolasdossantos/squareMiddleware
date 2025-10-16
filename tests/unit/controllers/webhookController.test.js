@@ -161,7 +161,11 @@ describe('Webhook Controller', () => {
         merchantId: 'merchant123'
       });
 
-      expect(webhookService.verifySquareSignature).toHaveBeenCalledWith(mockReq.body, 'valid-signature', undefined);
+      expect(webhookService.verifySquareSignature).toHaveBeenCalledWith(
+        mockReq.body,
+        'valid-signature',
+        undefined
+      );
 
       expect(sendSuccess).toHaveBeenCalledWith(mockRes, mockResult, 'Payment webhook processed successfully');
     });
@@ -171,7 +175,11 @@ describe('Webhook Controller', () => {
 
       await webhookController.handleSquarePayment(mockReq, mockRes);
 
-      expect(logSecurityEvent).toHaveBeenCalledWith('missing_webhook_signature', { source: 'square_payment' }, mockReq);
+      expect(logSecurityEvent).toHaveBeenCalledWith(
+        'missing_webhook_signature',
+        { source: 'square_payment' },
+        mockReq
+      );
 
       expect(sendError).toHaveBeenCalledWith(mockRes, 'Missing webhook signature', 401);
     });
@@ -242,7 +250,11 @@ describe('Webhook Controller', () => {
 
       await webhookController.handleSquareBooking(mockReq, mockRes);
 
-      expect(logSecurityEvent).toHaveBeenCalledWith('missing_webhook_signature', { source: 'square_booking' }, mockReq);
+      expect(logSecurityEvent).toHaveBeenCalledWith(
+        'missing_webhook_signature',
+        { source: 'square_booking' },
+        mockReq
+      );
 
       expect(sendError).toHaveBeenCalledWith(mockRes, 'Missing webhook signature', 401);
     });

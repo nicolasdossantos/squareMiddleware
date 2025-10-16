@@ -99,7 +99,9 @@ function validateBookingData(bookingData, isPartialUpdate = false) {
     const { firstName, lastName, email, phoneNumber } = bookingData;
 
     if (!firstName && !lastName && !email && !phoneNumber) {
-      errors.push('Either customerId or customer information (firstName, lastName, email, phoneNumber) is required');
+      errors.push(
+        'Either customerId or customer information (firstName, lastName, email, phoneNumber) is required'
+      );
     }
 
     // Validate email format if provided
@@ -202,7 +204,7 @@ async function createBooking(context, tenant, bookingData) {
 
       // Create tenant-specific Square client for conflict check
       const square = createSquareClient(tenant.accessToken);
-      const existingBookingsResponse = await square.bookings.list({
+      const existingBookingsResponse = await square.bookingsApi.listBookings({
         customerId,
         startAtMin: searchStart.toISOString(),
         startAtMax: searchEnd.toISOString(),
@@ -250,7 +252,9 @@ async function createBooking(context, tenant, bookingData) {
             status: b.status
           }))
         });
-        throw new Error('Customer already has an appointment at this time. Please select a different time slot.');
+        throw new Error(
+          'Customer already has an appointment at this time. Please select a different time slot.'
+        );
       }
 
       context.log('✅ [CONFLICT CHECK] No booking conflicts found, proceeding with booking');
@@ -261,7 +265,10 @@ async function createBooking(context, tenant, bookingData) {
       }
 
       // Log but don't fail the booking for API errors
-      context.log('⚠️ [CONFLICT CHECK] Conflict check failed, proceeding with booking attempt:', conflictError.message);
+      context.log(
+        '⚠️ [CONFLICT CHECK] Conflict check failed, proceeding with booking attempt:',
+        conflictError.message
+      );
     }
 
     const bookingPayload = {
@@ -291,7 +298,7 @@ async function createBooking(context, tenant, bookingData) {
 
     // Create tenant-specific Square client
     const square = createSquareClient(tenant.accessToken);
-    const response = await square.bookings.create(bookingPayload);
+    const response = await square.bookingsApi.createBooking(bookingPayload);
 
     context.log('✅ Booking created successfully:', response.result?.booking?.id || response.booking?.id);
 
@@ -347,7 +354,7 @@ async function updateBooking(context, tenant, bookingId, updateData) {
 
     // Create tenant-specific Square client
     const square = createSquareClient(tenant.accessToken);
-    const response = await square.bookings.update(updateRequest);
+    const response = await square.bookingsApi.updateBooking(updateRequest);
 
     return { booking: response };
   } catch (error) {
@@ -383,7 +390,7 @@ async function cancelBooking(context, tenant, bookingId) {
 
     // Create tenant-specific Square client
     const square = createSquareClient(tenant.accessToken);
-    const response = await square.bookings.cancel({ bookingId });
+    const response = await square.bookingsApi.cancelBooking({ bookingId });
 
     // Clean BigInt values before logging
     const { cleanBigIntFromObject } = require('./bigIntUtils');
@@ -422,7 +429,7 @@ async function getBooking(context, tenant, bookingId) {
 
     // Create tenant-specific Square client
     const square = createSquareClient(tenant.accessToken);
-    const response = await square.bookings.get({ bookingId });
+    const response = await square.bookingsApi.retrieveBooking({ bookingId });
 
     // Clean BigInt values before logging
     const { cleanBigIntFromObject } = require('./bigIntUtils');
@@ -481,7 +488,7 @@ async function getActiveBookingsByCustomer(context, tenant, customerId, phoneNum
     try {
       // Add timeout protection for booking lookup
       const BOOKING_TIMEOUT = 1500; // Reduced to 1.5 seconds max
-      const bookingPromise = square.bookings.list({
+      const bookingPromise = square.bookingsApi.listBookings({
         customerId,
         limit: 5 // Aggressively reduced for fastest response
       });
@@ -505,28 +512,24 @@ async function getActiveBookingsByCustomer(context, tenant, customerId, phoneNum
       context.log('Response type:', typeof response);
       context.log('Response keys:', Object.keys(response));
 
-      // Try different response structures
+      // Square SDK v42+ uses response.result.bookings
       if (response.result && response.result.bookings) {
         allBookings = response.result.bookings;
         context.log(`📄 Found bookings in response.result.bookings: ${allBookings.length}`);
-      } else if (response.data) {
-        allBookings = response.data;
-        context.log(`📄 Found bookings in response.data: ${allBookings.length}`);
-      } else if (response.response && response.response.bookings) {
-        allBookings = response.response.bookings;
-        context.log(`📄 Found bookings in response.response.bookings: ${allBookings.length}`);
       } else if (Array.isArray(response)) {
         allBookings = response;
         context.log(`📄 Response is array: ${allBookings.length}`);
       } else {
-        context.log('❌ No bookings found in any expected response structure');
+        context.log('❌ No bookings found in expected response structure');
         context.log('Available response keys:', Object.keys(response));
         allBookings = [];
       }
 
       // Skip pagination for fastest response - only use first page
       if (allBookings.length > 0) {
-        context.log(`📄 Using only first page: ${allBookings.length} bookings (pagination disabled for performance)`);
+        context.log(
+          `📄 Using only first page: ${allBookings.length} bookings (pagination disabled for performance)`
+        );
       }
     } catch (apiError) {
       context.log(`❌ Square API error fetching bookings for customer ${customerId}:`, {
@@ -581,7 +584,9 @@ async function getActiveBookingsByCustomer(context, tenant, customerId, phoneNum
       booking_found: finalBooking.length > 0
     });
 
-    context.log(`✅ Closest booking search for customer ${customerId}: Found ${finalBooking.length} active booking(s)`);
+    context.log(
+      `✅ Closest booking search for customer ${customerId}: Found ${finalBooking.length} active booking(s)`
+    );
 
     return { bookings: finalBooking };
   } catch (error) {
@@ -633,7 +638,7 @@ async function getAllBookingsByCustomer(context, tenant, customerId, phoneNumber
 
     // Start with the first page request
     const apiStartTime = Date.now();
-    let listResponse = await square.bookings.list({
+    let listResponse = await square.bookingsApi.listBookings({
       customerId,
       limit: 100 // Maximum allowed by Square API
     });
@@ -653,16 +658,11 @@ async function getAllBookingsByCustomer(context, tenant, customerId, phoneNumber
         throw new Error('No response from Square bookings API');
       }
 
-      // Handle different response formats from Square API
-      let bookings = [];
-      if (listResponse.result?.bookings) {
-        bookings = listResponse.result.bookings;
-      } else if (Array.isArray(listResponse.data)) {
-        bookings = listResponse.data;
-      }
+      // Square SDK v42+ uses response.result.bookings
+      const bookings = listResponse.result?.bookings || [];
 
       const responseBookingCount = bookings.length;
-      // Removed: square.customers.update(); - This was causing issues
+      // Removed: square.customersApi.updateCustomer(); - This was causing issues
 
       // Log response structure for monitoring
       const hasNextPage = typeof listResponse.hasNextPage === 'function' ? listResponse.hasNextPage() : false;
@@ -677,7 +677,9 @@ async function getAllBookingsByCustomer(context, tenant, customerId, phoneNumber
         customer_id: customerId
       });
 
-      context.log(`📄 Page ${pageCount}: Fetched ${responseBookingCount} bookings for customer ${customerId}`);
+      context.log(
+        `📄 Page ${pageCount}: Fetched ${responseBookingCount} bookings for customer ${customerId}`
+      );
 
       if (bookings.length > 0) {
         // Check if adding these bookings would exceed our limit
@@ -797,7 +799,9 @@ async function getNextBookingForElevenLabs(context, customerId, services, barber
 
     if (appointmentSegment) {
       // Find service details
-      const service = services.find(s => s.variations.some(v => v.id === appointmentSegment.serviceVariationId));
+      const service = services.find(s =>
+        s.variations.some(v => v.id === appointmentSegment.serviceVariationId)
+      );
       if (service) {
         const variation = service.variations.find(v => v.id === appointmentSegment.serviceVariationId);
         serviceName = `${service.name}${variation?.name && variation.name !== 'Regular' ? ` - ${variation.name}` : ''}`;

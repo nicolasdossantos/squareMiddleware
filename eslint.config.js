@@ -47,7 +47,17 @@ module.exports = [
       'comma-dangle': ['error', 'never'],
       quotes: ['error', 'single', { avoidEscape: true }],
       semi: ['error', 'always'],
-      'max-len': ['error', { code: 120, ignoreUrls: true }],
+      'max-len': [
+        'error',
+        {
+          code: 120,
+          ignoreUrls: true,
+          ignoreStrings: true,
+          ignoreTemplateLiterals: true,
+          ignoreRegExpLiterals: true,
+          ignoreComments: false
+        }
+      ],
       'no-trailing-spaces': 'error',
       'eol-last': 'error'
     },

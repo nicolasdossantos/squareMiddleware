@@ -97,7 +97,8 @@ const getConfig = () => ({
     ? parseInt(process.env.RATE_LIMIT_MAX_REQUESTS)
     : currentConfig.RATE_LIMIT_MAX_REQUESTS,
 
-  ENABLE_RATE_LIMITING: process.env.ENABLE_RATE_LIMITING === 'true' ? true : currentConfig.ENABLE_RATE_LIMITING,
+  ENABLE_RATE_LIMITING:
+    process.env.ENABLE_RATE_LIMITING === 'true' ? true : currentConfig.ENABLE_RATE_LIMITING,
 
   // CORS configuration - allow environment variable override
   CORS_ORIGINS: process.env.CORS_ORIGINS

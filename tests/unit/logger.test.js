@@ -206,7 +206,9 @@ describe('Logger', () => {
       logger.logApiStart('GetAvailability', { location: 'test' });
 
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"level":"DEBUG"'));
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"message":"🚀 GetAvailability started"'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('"message":"🚀 GetAvailability started"')
+      );
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"operation":"GetAvailability"'));
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"location":"test"'));
 
@@ -225,7 +227,9 @@ describe('Logger', () => {
       logger.logApiSuccess('GetAvailability', 150, { response_size: 42 });
 
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"level":"INFO"'));
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"message":"✅ GetAvailability completed"'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('"message":"✅ GetAvailability completed"')
+      );
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"operation":"GetAvailability"'));
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"duration_ms":150'));
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"success":true'));
@@ -261,7 +265,9 @@ describe('Logger', () => {
       logger.logApiError('GetAvailability', 300, testError, { attempts: 3 });
 
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"level":"ERROR"'));
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"message":"❌ GetAvailability failed"'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('"message":"❌ GetAvailability failed"')
+      );
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"operation":"GetAvailability"'));
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"duration_ms":300'));
       expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"error_message":"Test error"'));
@@ -335,13 +341,17 @@ describe('Logger', () => {
     test('should include timestamp in log entry', () => {
       logger.info('Test message');
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"timestamp":"2023-01-01T12:00:00.000Z"'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('"timestamp":"2023-01-01T12:00:00.000Z"')
+      );
     });
 
     test('should include correlation_id from metadata', () => {
       logger.info('Test message', { correlation_id: 'test-correlation-123' });
 
-      expect(mockConsoleLog).toHaveBeenCalledWith(expect.stringContaining('"correlation_id":"test-correlation-123"'));
+      expect(mockConsoleLog).toHaveBeenCalledWith(
+        expect.stringContaining('"correlation_id":"test-correlation-123"')
+      );
     });
 
     test('should include function_name from metadata', () => {

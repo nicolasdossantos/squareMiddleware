@@ -15,7 +15,7 @@ const agentRateLimiter = rateLimit({
   max: 100, // Max 100 requests per window per agent
 
   // Use agent ID as key (from x-agent-id header), fallback to IP
-  keyGenerator: (req) => {
+  keyGenerator: req => {
     const agentId = req.headers['x-agent-id'];
     return agentId || req.ip || 'unknown';
   },
@@ -30,7 +30,7 @@ const agentRateLimiter = rateLimit({
   },
 
   // Skip successful requests to health endpoints
-  skip: (req) => {
+  skip: req => {
     return req.path.startsWith('/health');
   },
 

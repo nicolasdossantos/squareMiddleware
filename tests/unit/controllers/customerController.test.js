@@ -63,7 +63,9 @@ describe('Customer Controller', () => {
       const error = new Error('Database error');
       customerService.getCustomerInfo.mockRejectedValue(error);
 
-      await expect(customerController.getCustomerById(mockTenant, 'cust123')).rejects.toThrow('Database error');
+      await expect(customerController.getCustomerById(mockTenant, 'cust123')).rejects.toThrow(
+        'Database error'
+      );
       expect(logger.error).toHaveBeenCalledWith('Error getting customer by ID:', error);
     });
   });
@@ -127,7 +129,9 @@ describe('Customer Controller', () => {
       const error = new Error('Update failed');
       customerService.updateCustomerInfo.mockRejectedValue(error);
 
-      await expect(customerController.updateCustomer(mockTenant, 'cust123', {})).rejects.toThrow('Update failed');
+      await expect(customerController.updateCustomer(mockTenant, 'cust123', {})).rejects.toThrow(
+        'Update failed'
+      );
       expect(logger.error).toHaveBeenCalledWith('Error updating customer:', error);
     });
   });
@@ -249,7 +253,12 @@ describe('Customer Controller', () => {
 
       await customerController.updateCustomerInfo(mockReq, mockRes);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Failed to update customer information', 500, 'Database error');
+      expect(sendError).toHaveBeenCalledWith(
+        mockRes,
+        'Failed to update customer information',
+        500,
+        'Database error'
+      );
     });
   });
 
@@ -271,7 +280,11 @@ describe('Customer Controller', () => {
         endDate: undefined,
         limit: 10
       });
-      expect(sendSuccess).toHaveBeenCalledWith(mockRes, mockBookings, 'Customer bookings retrieved successfully');
+      expect(sendSuccess).toHaveBeenCalledWith(
+        mockRes,
+        mockBookings,
+        'Customer bookings retrieved successfully'
+      );
     });
 
     it('should handle errors in getting bookings', async () => {

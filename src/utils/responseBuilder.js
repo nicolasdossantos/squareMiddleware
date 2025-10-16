@@ -76,7 +76,12 @@ function createErrorResponse(status, error, details = null, correlationId = null
  * @returns {Object} Azure Function response object
  */
 function createValidationErrorResponse(errors, correlationId = null) {
-  return createErrorResponse(400, 'Validation failed', Array.isArray(errors) ? errors : [errors], correlationId);
+  return createErrorResponse(
+    400,
+    'Validation failed',
+    Array.isArray(errors) ? errors : [errors],
+    correlationId
+  );
 }
 
 /**
@@ -111,7 +116,10 @@ function createInternalErrorResponse(message = 'Internal server error', correlat
  * @param {string} correlationId - Correlation ID for tracking
  * @returns {Object} Azure Function response object
  */
-function createMethodNotAllowedResponse(allowedMethods = 'GET, POST, PUT, DELETE, OPTIONS', correlationId = null) {
+function createMethodNotAllowedResponse(
+  allowedMethods = 'GET, POST, PUT, DELETE, OPTIONS',
+  correlationId = null
+) {
   return createErrorResponse(405, 'Method not allowed', `Allowed methods: ${allowedMethods}`, correlationId, {
     Allow: allowedMethods
   });
@@ -170,7 +178,13 @@ function sendSuccess(res, data, message = 'Success', status = 200, correlationId
  * @param {string|Object} details - Error details
  * @param {string} correlationId - Correlation ID for tracking
  */
-function sendError(res, message = 'Internal server error', status = 500, details = null, correlationId = null) {
+function sendError(
+  res,
+  message = 'Internal server error',
+  status = 500,
+  details = null,
+  correlationId = null
+) {
   const response = {
     success: false,
     error: message,

@@ -49,9 +49,7 @@ const config = {
     whatsappFrom: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886',
     smsFrom: process.env.TWILIO_SMS_FROM || '+12675130090', // Regular SMS from number
     businessOwnerWhatsapp:
-      process.env.BUSINESS_OWNER_WHATSAPP ||
-      process.env.BARBERSHOP_OWNER_WHATSAPP ||
-      'whatsapp:+12678040148',
+      process.env.BUSINESS_OWNER_WHATSAPP || process.env.BARBERSHOP_OWNER_WHATSAPP || 'whatsapp:+12678040148',
     businessMessagesTo:
       process.env.BUSINESS_MESSAGES_TO || process.env.BARBERSHOP_MESSAGES_TO || '+12677210098' // SMS format
   },

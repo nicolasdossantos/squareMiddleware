@@ -70,12 +70,21 @@ describe('squareUtils', () => {
     });
 
     test('should reject out of range values', () => {
-      expect(validateDaysAhead('0')).toEqual({ isValid: false, error: 'Days ahead must be between 1 and 90' });
-      expect(validateDaysAhead('91')).toEqual({ isValid: false, error: 'Days ahead must be between 1 and 90' });
+      expect(validateDaysAhead('0')).toEqual({
+        isValid: false,
+        error: 'Days ahead must be between 1 and 90'
+      });
+      expect(validateDaysAhead('91')).toEqual({
+        isValid: false,
+        error: 'Days ahead must be between 1 and 90'
+      });
     });
 
     test('should reject non-numeric values', () => {
-      expect(validateDaysAhead('abc')).toEqual({ isValid: false, error: 'Days ahead must be between 1 and 90' });
+      expect(validateDaysAhead('abc')).toEqual({
+        isValid: false,
+        error: 'Days ahead must be between 1 and 90'
+      });
     });
   });
 

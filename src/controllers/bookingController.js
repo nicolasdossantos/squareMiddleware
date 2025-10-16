@@ -70,7 +70,7 @@ async function createBookingCore(tenant, bookingData, correlationId) {
     const searchStart = new Date(requestedStartTime.getTime() - 30 * 60 * 1000);
     const searchEnd = new Date(requestedStartTime.getTime() + 30 * 60 * 1000);
 
-    const availabilityResponse = await square.bookings.searchAvailability({
+    const availabilityResponse = await square.bookingsApi.searchAvailability({
       query: {
         filter: {
           startAtRange: {
@@ -84,7 +84,8 @@ async function createBookingCore(tenant, bookingData, correlationId) {
     });
 
     // Square returns availabilities array directly in result
-    const availableSlots = availabilityResponse.result?.availabilities || availabilityResponse.availabilities || [];
+    const availableSlots =
+      availabilityResponse.result?.availabilities || availabilityResponse.availabilities || [];
 
     logger.info('🔍 [AVAILABILITY CHECK] Square API response:', {
       availableSlotsCount: availableSlots.length,
@@ -109,7 +110,9 @@ async function createBookingCore(tenant, bookingData, correlationId) {
         correlationId
       });
 
-      const error = new Error('The requested time slot is no longer available. Please select a different time.');
+      const error = new Error(
+        'The requested time slot is no longer available. Please select a different time.'
+      );
       error.statusCode = 409;
       error.code = 'SLOT_UNAVAILABLE';
       error.availableSlots = availableSlots.slice(0, 10).map(s => ({
@@ -156,7 +159,7 @@ async function createBookingCore(tenant, bookingData, correlationId) {
       const searchStart = new Date(requestedStartTime.getTime() - bufferMinutes * 60 * 1000);
       const searchEnd = new Date(requestedStartTime.getTime() + bufferMinutes * 60 * 1000);
 
-      const existingBookingsResponse = await square.bookings.list({
+      const existingBookingsResponse = await square.bookingsApi.listBookings({
         customerId: bookingData.customerId,
         startAtMin: searchStart.toISOString(),
         startAtMax: searchEnd.toISOString(),
@@ -346,7 +349,9 @@ async function createBooking(req, res, next) {
         success: false,
         message: error.message,
         code: error.code,
-        ...(error.conflictingBookings && { conflictingBookings: cleanBigIntFromObject(error.conflictingBookings) }),
+        ...(error.conflictingBookings && {
+          conflictingBookings: cleanBigIntFromObject(error.conflictingBookings)
+        }),
         ...(error.availableSlots && { availableSlots: cleanBigIntFromObject(error.availableSlots) }),
         timestamp: new Date().toISOString(),
         correlationId
@@ -578,7 +583,8 @@ async function cancelBooking(req, res) {
 
   try {
     // EXACT AZURE FUNCTIONS LOGIC - Convert URLSearchParams to plain object if needed
-    const query = req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
+    const query =
+      req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
 
     // EXACT AZURE FUNCTIONS LOGIC - Get bookingId from query or params
     const bookingId = query.bookingId || req.params.bookingId || req.params.action;
@@ -1139,7 +1145,8 @@ function getActionFromMethod(method) {
 
 async function handleCancelBooking(req, correlationId) {
   // EXACT AZURE FUNCTIONS LOGIC
-  const query = req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
+  const query =
+    req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
   const bookingId = query.bookingId || req.params.bookingId || req.params.action;
 
   if (!bookingId) {
@@ -1190,7 +1197,8 @@ async function handleCancelBooking(req, correlationId) {
 
 async function handleGetBooking(req, correlationId) {
   // EXACT AZURE FUNCTIONS LOGIC
-  const query = req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
+  const query =
+    req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
   const bookingId = query.bookingId || req.params.bookingId || req.params.action;
 
   if (!bookingId) {
@@ -1350,7 +1358,16 @@ async function handleUpdateBooking(req, correlationId) {
       finalSegments: segments
     });
 
-    const result = await updateBookingCore(tenant, bookingId, startAt, note, customerId, customerNote, endAt, segments);
+    const result = await updateBookingCore(
+      tenant,
+      bookingId,
+      startAt,
+      note,
+      customerId,
+      customerNote,
+      endAt,
+      segments
+    );
 
     // Success - convert to Azure Functions format
     return {

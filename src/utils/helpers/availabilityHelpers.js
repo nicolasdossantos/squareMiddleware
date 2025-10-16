@@ -85,14 +85,17 @@ async function loadAvailability(tenant, serviceVariationIds, staffMemberId, star
     };
 
     // Debug log the exact parameters being sent to Square
-    context.log('🔍 [SQUARE DEBUG] searchParams being sent to Square API:', JSON.stringify(searchParams, null, 2));
+    context.log(
+      '🔍 [SQUARE DEBUG] searchParams being sent to Square API:',
+      JSON.stringify(searchParams, null, 2)
+    );
     context.log('🔍 [SQUARE DEBUG] segmentFilters:', JSON.stringify(segmentFilters, null, 2));
 
     // Create tenant-specific Square client
     const square = createSquareClient(tenant.accessToken);
 
     const apiStartTime = Date.now();
-    const resp = await square.bookings.searchAvailability(searchParams);
+    const resp = await square.bookingsApi.searchAvailability(searchParams);
     const apiDuration = Date.now() - apiStartTime;
 
     logApiCall(context, 'search_availability', true, apiDuration, {

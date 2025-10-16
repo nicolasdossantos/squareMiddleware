@@ -38,7 +38,9 @@ describe('SMS Routes Basic Integration', () => {
         })
         .expect(400);
 
-      expect(response.body.details).toContain('Field "to" must be a valid phone number in format +1234567890');
+      expect(response.body.details).toContain(
+        'Field "to" must be a valid phone number in format +1234567890'
+      );
     });
 
     it('should validate message length', async () => {
@@ -84,7 +86,9 @@ describe('SMS Routes Basic Integration', () => {
         })
         .expect(400);
 
-      expect(response.body.details).toContain('Field "messageTo" must be a valid phone number in format +1234567890');
+      expect(response.body.details).toContain(
+        'Field "messageTo" must be a valid phone number in format +1234567890'
+      );
     });
   });
 

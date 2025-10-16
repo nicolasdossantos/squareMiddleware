@@ -155,7 +155,10 @@ describe('Security Module', () => {
       expect(headers).toHaveProperty('X-Frame-Options', 'DENY');
       expect(headers).toHaveProperty('X-XSS-Protection', '1; mode=block');
       expect(headers).toHaveProperty('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-      expect(headers).toHaveProperty('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none';");
+      expect(headers).toHaveProperty(
+        'Content-Security-Policy',
+        "default-src 'none'; frame-ancestors 'none';"
+      );
       expect(headers).toHaveProperty('Referrer-Policy', 'strict-origin-when-cross-origin');
       expect(headers).toHaveProperty('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
     });

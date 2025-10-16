@@ -7,7 +7,7 @@ const { sendSuccess, sendError } = require('../utils/responseBuilder');
 const { logPerformance, logEvent, logSecurityEvent } = require('../utils/logger');
 const customerService = require('../services/customerService');
 const retellWebhookService = require('../services/retellWebhookService');
-const keyVaultService = require('../services/keyVaultService');
+const agentConfigService = require('../services/agentConfigService');
 const { config } = require('../config');
 
 /**
@@ -49,7 +49,13 @@ async function handleRetellWebhook(req, res) {
 
     if (Array.isArray(webhookData)) {
       console.log('🔍 [RETELL DEBUG] Body is an array, length:', webhookData.length);
-      return sendError(res, 'Invalid request body format', 400, 'Expected JSON object, got array', correlationId);
+      return sendError(
+        res,
+        'Invalid request body format',
+        400,
+        'Expected JSON object, got array',
+        correlationId
+      );
     }
 
     logEvent('retell_webhook_received', {
@@ -173,7 +179,10 @@ async function handleRetellWebhook(req, res) {
     if (event === 'call_inbound') {
       console.log('🔍 [RETELL DEBUG] Sending JSON response for call_inbound');
       console.log('🔍 [RETELL DEBUG] Raw result object:', JSON.stringify(result, null, 2));
-      console.log('🔍 [RETELL DEBUG] Customer response data:', JSON.stringify(result.customerResponse, null, 2));
+      console.log(
+        '🔍 [RETELL DEBUG] Customer response data:',
+        JSON.stringify(result.customerResponse, null, 2)
+      );
 
       // Extract dynamic variables from customer response - handle both success and error cases
       let dynamicVariables = {};
@@ -197,7 +206,8 @@ async function handleRetellWebhook(req, res) {
           available_barbers: String(rawVariables.available_barbers || ''),
           caller_id: String(rawVariables.caller_id || ''),
           // Use initial_message from rawVariables, or default to generic greeting
-          initial_message: rawVariables.initial_message || 'Thank you for calling, who am I speaking with today?'
+          initial_message:
+            rawVariables.initial_message || 'Thank you for calling, who am I speaking with today?'
         };
       } else {
         // Customer lookup failed, provide default dynamic variables matching ElevenLabs format exactly
@@ -233,7 +243,10 @@ async function handleRetellWebhook(req, res) {
           initial_message: 'Thank you for calling, who am I speaking with today?'
         };
       }
-      console.log('🔍 [RETELL DEBUG] Dynamic variables extracted:', JSON.stringify(dynamicVariables, null, 2));
+      console.log(
+        '🔍 [RETELL DEBUG] Dynamic variables extracted:',
+        JSON.stringify(dynamicVariables, null, 2)
+      );
 
       const response = {
         call_inbound: {
@@ -351,7 +364,9 @@ async function handleCallStarted(call, correlationId, tenant = null) {
           upcoming_bookings_json: '[]',
           booking_history_json: '[]',
           is_returning_customer: false,
-          current_datetime_store_timezone: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
+          current_datetime_store_timezone: new Date().toLocaleString('en-US', {
+            timeZone: 'America/New_York'
+          }),
           service_variations_json: '{}',
           barbers_with_ids_json: '[]',
           available_services: '',
@@ -464,28 +479,31 @@ async function handleCallInbound(call_inbound, correlationId) {
   });
 
   try {
-    // 🔐 MULTI-TENANT: Fetch agent configuration from Key Vault
+    // 🔐 MULTI-TENANT: Fetch agent configuration from App Settings
     let tenant;
     try {
-      console.log(`🔍 [RETELL DEBUG] Fetching agent config from Key Vault for agent_id: ${agent_id}`);
-      const agentConfig = await keyVaultService.getAgentConfig(agent_id);
+      console.log(`🔍 [RETELL DEBUG] Fetching agent config for agent_id: ${agent_id}`);
+      const agentConfig = agentConfigService.getAgentConfig(agent_id);
 
       // Create tenant context from agent configuration
       tenant = {
         id: agentConfig.agentId || agent_id,
         squareAccessToken: agentConfig.squareAccessToken,
         squareLocationId: agentConfig.squareLocationId,
-        squareEnvironment: agentConfig.squareEnvironment || 'production',
-        timezone: agentConfig.timezone || 'America/New_York'
+        squareApplicationId: agentConfig.squareApplicationId,
+        squareEnvironment: agentConfig.squareEnvironment,
+        timezone: agentConfig.timezone,
+        staffEmail: agentConfig.staffEmail,
+        businessName: agentConfig.businessName
       };
 
       console.log(`✅ [RETELL DEBUG] Agent config loaded successfully for tenant: ${tenant.id}`);
-    } catch (keyVaultError) {
-      // Fallback to environment variables if Key Vault lookup fails
+    } catch (configError) {
+      // Fallback to environment variables if config lookup fails
       console.warn(
-        `⚠️ [RETELL DEBUG] Key Vault lookup failed for agent ${agent_id}, ` +
+        `⚠️ [RETELL DEBUG] Agent config lookup failed for agent ${agent_id}, ` +
           'falling back to environment variables:',
-        keyVaultError.message
+        configError.message
       );
 
       tenant = {
@@ -496,10 +514,10 @@ async function handleCallInbound(call_inbound, correlationId) {
         timezone: config.server.timezone || 'America/New_York'
       };
 
-      logEvent('retell_keyvault_fallback', {
+      logEvent('retell_config_fallback', {
         correlationId,
         agentId: agent_id,
-        error: keyVaultError.message,
+        error: configError.message,
         fallbackTenantId: tenant.id
       });
     }
@@ -540,7 +558,10 @@ async function handleCallInbound(call_inbound, correlationId) {
       summary: `Inbound call processed for agent ${agent_id}`
     };
 
-    console.log('🔍 [RETELL DEBUG] Returning result from handleCallInbound:', JSON.stringify(result, null, 2));
+    console.log(
+      '🔍 [RETELL DEBUG] Returning result from handleCallInbound:',
+      JSON.stringify(result, null, 2)
+    );
     return result;
   } catch (error) {
     logEvent('retell_call_inbound_error', {
@@ -568,7 +589,9 @@ async function handleCallInbound(call_inbound, correlationId) {
           upcoming_bookings_json: '[]',
           booking_history_json: '[]',
           is_returning_customer: false,
-          current_datetime_store_timezone: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }),
+          current_datetime_store_timezone: new Date().toLocaleString('en-US', {
+            timeZone: 'America/New_York'
+          }),
           service_variations_json: '{}',
           barbers_with_ids_json: '[]',
           available_services: '',

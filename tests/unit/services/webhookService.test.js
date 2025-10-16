@@ -37,7 +37,10 @@ describe('Webhook Service', () => {
     const payload = 'test-payload';
 
     it('should verify valid signature successfully', async () => {
-      const expectedSignature = crypto.createHmac('sha256', 'test-elevenlabs-secret').update(payload).digest('hex');
+      const expectedSignature = crypto
+        .createHmac('sha256', 'test-elevenlabs-secret')
+        .update(payload)
+        .digest('hex');
 
       const signature = `sha256=${expectedSignature}`;
 
@@ -78,7 +81,10 @@ describe('Webhook Service', () => {
     });
 
     it('should handle signature without sha256 prefix', async () => {
-      const expectedSignature = crypto.createHmac('sha256', 'test-elevenlabs-secret').update(payload).digest('hex');
+      const expectedSignature = crypto
+        .createHmac('sha256', 'test-elevenlabs-secret')
+        .update(payload)
+        .digest('hex');
 
       const result = await webhookService.verifyElevenLabsSignature(payload, expectedSignature);
 
@@ -109,7 +115,10 @@ describe('Webhook Service', () => {
 
     it('should verify valid signature successfully', async () => {
       const stringToSign = url + JSON.stringify(body);
-      const expectedSignature = crypto.createHmac('sha256', 'test-square-secret').update(stringToSign).digest('base64');
+      const expectedSignature = crypto
+        .createHmac('sha256', 'test-square-secret')
+        .update(stringToSign)
+        .digest('base64');
 
       const result = await webhookService.verifySquareSignature(body, expectedSignature);
 
@@ -125,7 +134,10 @@ describe('Webhook Service', () => {
 
     it('should prefer hmacSignature over regular signature', async () => {
       const stringToSign = url + JSON.stringify(body);
-      const expectedSignature = crypto.createHmac('sha256', 'test-square-secret').update(stringToSign).digest('base64');
+      const expectedSignature = crypto
+        .createHmac('sha256', 'test-square-secret')
+        .update(stringToSign)
+        .digest('base64');
 
       const result = await webhookService.verifySquareSignature(body, 'wrong-signature', expectedSignature);
 

@@ -189,15 +189,27 @@ async function runSafeBookingTestSuite() {
       })
       .expect(200);
 
-    console.log(`✅ Validation test passed: ${validationResponse.body.data.availableSlots?.length || 0} slots found`);
-    results.push({ test: 'Validation', success: true, slots: validationResponse.body.data.availableSlots?.length });
+    console.log(
+      `✅ Validation test passed: ${validationResponse.body.data.availableSlots?.length || 0} slots found`
+    );
+    results.push({
+      test: 'Validation',
+      success: true,
+      slots: validationResponse.body.data.availableSlots?.length
+    });
 
     // Test 3: Customer bookings (Read-only)
     console.log('\n📋 Test 3: Customer Bookings (Read-only)');
     const customerResponse = await request(app).get('/api/bookings/customer/TEST_CUSTOMER_ID').expect(200);
 
-    console.log(`✅ Customer bookings test passed: ${customerResponse.body.data.bookings?.length || 0} bookings found`);
-    results.push({ test: 'Customer Bookings', success: true, count: customerResponse.body.data.bookings?.length });
+    console.log(
+      `✅ Customer bookings test passed: ${customerResponse.body.data.bookings?.length || 0} bookings found`
+    );
+    results.push({
+      test: 'Customer Bookings',
+      success: true,
+      count: customerResponse.body.data.bookings?.length
+    });
 
     const suiteDuration = Date.now() - suiteStartTime;
     console.log(`\n🎉 ALL TESTS COMPLETED SUCCESSFULLY in ${suiteDuration}ms`);

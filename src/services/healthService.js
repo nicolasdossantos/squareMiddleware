@@ -3,7 +3,7 @@
  * System health monitoring and dependency checks
  */
 
-const { SquareClient, SquareEnvironment } = require('square');
+const { Client: SquareClient, Environment } = require('square/legacy');
 const { logPerformance, logEvent, logError } = require('../utils/logger');
 const { config } = require('../config');
 const emailService = require('./emailService');
@@ -14,7 +14,7 @@ function getSquareClient() {
   if (!squareClient) {
     squareClient = new SquareClient({
       accessToken: config.square.accessToken,
-      environment: config.square.environment === 'production' ? SquareEnvironment.Production : SquareEnvironment.Sandbox
+      environment: config.square.environment === 'production' ? Environment.Production : Environment.Sandbox
     });
   }
   return squareClient;

@@ -1,73 +1,73 @@
 name: Deploy to Azure App Service
 
 on:
-    push:
-        branches:
-            - main
-    workflow_dispatch:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 env:
-    AZURE_WEBAPP_NAME: square-middleware-prod-api
-    AZURE_WEBAPP_PACKAGE_PATH: "."
-    NODE_VERSION: "20.x"
+  AZURE_WEBAPP_NAME: square-middleware-prod-api
+  AZURE_WEBAPP_PACKAGE_PATH: '.'
+  NODE_VERSION: '20.x'
 
 permissions:
-    id-token: write
-    contents: read
+  id-token: write
+  contents: read
 
 jobs:
-    build-and-deploy:
-        runs-on: ubuntu-latest
+  build-and-deploy:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Set up Node.js
-              uses: actions/setup-node@v4
-              with:
-                  node-version: ${{ env.NODE_VERSION }}
-                  cache: "npm"
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
-            - name: Install dependencies
-              run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-            - name: Run tests
-              run: npm test
+      - name: Run tests
+        run: npm test
 
-            - name: Azure Login
-              uses: azure/login@v2
-              with:
-                  client-id: ${{ secrets.AZURE_CLIENT_ID }}
-                  tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-                  subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-                  enable-AzPSSession: false
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: false
 
-            - name: Deploy to Azure Web App
-              run: |
-                  # Create a clean deployment directory
-                  mkdir -p deploy
+      - name: Deploy to Azure Web App
+        run: |
+          # Create a clean deployment directory
+          mkdir -p deploy
 
-                  # Copy necessary files (exclude tests, coverage, etc.)
-                  cp -r src package.json package-lock.json deploy/
-                  cp -r deploy/ 2>/dev/null || echo "deploy scripts not found"
+          # Copy necessary files (exclude tests, coverage, etc.)
+          cp -r src package.json package-lock.json deploy/
+          cp -r deploy/ 2>/dev/null || echo "deploy scripts not found"
 
-                  # Change to deploy directory and install production dependencies
-                  cd deploy
-                  npm ci --omit=dev
+          # Change to deploy directory and install production dependencies
+          cd deploy
+          npm ci --omit=dev
 
-                  # Create deployment package
-                  zip -r ../deployment.zip .
-                  cd ..
+          # Create deployment package
+          zip -r ../deployment.zip .
+          cd ..
 
-                  echo "Deploying to Web App: ${{ env.AZURE_WEBAPP_NAME }}"
+          echo "Deploying to Web App: ${{ env.AZURE_WEBAPP_NAME }}"
 
-                  # Deploy to Azure Web App
-                  az webapp deployment source config-zip \
-                    --resource-group square-middleware-prod-rg \
-                    --name ${{ env.AZURE_WEBAPP_NAME }} \
-                    --src deployment.zip
+          # Deploy to Azure Web App
+          az webapp deployment source config-zip \
+            --resource-group square-middleware-prod-rg \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --src deployment.zip
 
-            - name: Azure Logout
-              if: always()
-              run: az logout
+      - name: Azure Logout
+        if: always()
+        run: az logout

@@ -8,12 +8,12 @@ process.env.TZ = 'America/New_York';
 // Mock the square client and utilities
 jest.mock('../../src/utils/squareUtils', () => ({
   square: {
-    bookings: {
+    bookingsApi: {
       searchAvailability: jest.fn()
     }
   },
   createSquareClient: jest.fn(() => ({
-    bookings: {
+    bookingsApi: {
       searchAvailability: jest.fn()
     }
   })),
@@ -24,7 +24,13 @@ jest.mock('../../src/utils/squareUtils', () => ({
 }));
 
 const { loadAvailability } = require('../../src/utils/helpers/availabilityHelpers');
-const { square, createSquareClient, logApiCall, trackException, fmtLocal } = require('../../src/utils/squareUtils');
+const {
+  square,
+  createSquareClient,
+  logApiCall,
+  trackException,
+  fmtLocal
+} = require('../../src/utils/squareUtils');
 
 describe('GetServiceAvailability helpers', () => {
   let mockContext;
@@ -36,7 +42,7 @@ describe('GetServiceAvailability helpers', () => {
 
     // Create mock square client that will be returned by createSquareClient
     mockSquareClient = {
-      bookings: {
+      bookingsApi: {
         searchAvailability: jest.fn().mockResolvedValue({
           availabilities: [
             {
@@ -74,7 +80,7 @@ describe('GetServiceAvailability helpers', () => {
 
     test('should load availability for single service', async () => {
       // Mock successful Square API response
-      mockSquareClient.bookings.searchAvailability.mockResolvedValue({
+      mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
         availabilities: [
           {
             startAt: '2025-01-20T10:00:00Z',
@@ -89,7 +95,7 @@ describe('GetServiceAvailability helpers', () => {
 
       const result = await loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext);
 
-      expect(mockSquareClient.bookings.searchAvailability).toHaveBeenCalledWith({
+      expect(mockSquareClient.bookingsApi.searchAvailability).toHaveBeenCalledWith({
         query: {
           filter: {
             startAtRange: {
@@ -137,7 +143,7 @@ describe('GetServiceAvailability helpers', () => {
     test('should load availability for multiple services', async () => {
       const serviceIds = ['SERVICE_1', 'SERVICE_2'];
 
-      mockSquareClient.bookings.searchAvailability.mockResolvedValue({
+      mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
         availabilities: [
           {
             startAt: '2025-01-20T10:00:00Z',
@@ -151,7 +157,7 @@ describe('GetServiceAvailability helpers', () => {
 
       const result = await loadAvailability(mockTenant, serviceIds, null, startIso, endIso, mockContext);
 
-      expect(mockSquareClient.bookings.searchAvailability).toHaveBeenCalledWith({
+      expect(mockSquareClient.bookingsApi.searchAvailability).toHaveBeenCalledWith({
         query: {
           filter: {
             startAtRange: {
@@ -174,7 +180,7 @@ describe('GetServiceAvailability helpers', () => {
 
       await loadAvailability(mockTenant, ['SERVICE_1'], staffMemberId, startIso, endIso, mockContext);
 
-      expect(mockSquareClient.bookings.searchAvailability).toHaveBeenCalledWith({
+      expect(mockSquareClient.bookingsApi.searchAvailability).toHaveBeenCalledWith({
         query: {
           filter: {
             startAtRange: {
@@ -211,7 +217,7 @@ describe('GetServiceAvailability helpers', () => {
 
       await loadAvailability(mockTenant, serviceIds, staffMemberId, startIso, endIso, mockContext);
 
-      expect(mockSquareClient.bookings.searchAvailability).toHaveBeenCalledWith({
+      expect(mockSquareClient.bookingsApi.searchAvailability).toHaveBeenCalledWith({
         query: {
           filter: {
             startAtRange: {
@@ -240,7 +246,7 @@ describe('GetServiceAvailability helpers', () => {
 
     test('should handle single string service ID (backward compatibility)', async () => {
       // Mock successful Square API response
-      mockSquareClient.bookings.searchAvailability.mockResolvedValue({
+      mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
         availabilities: [
           {
             startAt: '2025-01-20T10:00:00Z',
@@ -257,7 +263,7 @@ describe('GetServiceAvailability helpers', () => {
 
     test('should handle empty availability response', async () => {
       // Override mock for this specific test
-      mockSquareClient.bookings.searchAvailability.mockResolvedValue({
+      mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
         availabilities: []
       });
 
@@ -277,7 +283,7 @@ describe('GetServiceAvailability helpers', () => {
 
     test('should handle missing availabilities property', async () => {
       // Override mock for this specific test
-      mockSquareClient.bookings.searchAvailability.mockResolvedValue({});
+      mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({});
 
       const result = await loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext);
 
@@ -286,7 +292,7 @@ describe('GetServiceAvailability helpers', () => {
 
     test('should handle missing appointmentSegments', async () => {
       // Override mock for this specific test
-      mockSquareClient.bookings.searchAvailability.mockResolvedValue({
+      mockSquareClient.bookingsApi.searchAvailability.mockResolvedValue({
         availabilities: [
           {
             startAt: '2025-01-20T10:00:00Z'
@@ -311,11 +317,11 @@ describe('GetServiceAvailability helpers', () => {
     test('should handle Square API error', async () => {
       // Override mock for this specific test
       const apiError = new Error('Square API rate limit exceeded');
-      mockSquareClient.bookings.searchAvailability.mockRejectedValue(apiError);
+      mockSquareClient.bookingsApi.searchAvailability.mockRejectedValue(apiError);
 
-      await expect(loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext)).rejects.toThrow(
-        'Square API rate limit exceeded'
-      );
+      await expect(
+        loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext)
+      ).rejects.toThrow('Square API rate limit exceeded');
 
       expect(trackException).toHaveBeenCalledWith(apiError, expect.any(Object));
     });
@@ -328,7 +334,7 @@ describe('GetServiceAvailability helpers', () => {
       await loadAvailability(mockTenant, ['SERVICE_1', 'SERVICE_2'], null, startIso, endIso, mockContext);
 
       // Should have made 4 separate API calls (no caching)
-      expect(mockSquareClient.bookings.searchAvailability).toHaveBeenCalledTimes(4);
+      expect(mockSquareClient.bookingsApi.searchAvailability).toHaveBeenCalledTimes(4);
     });
 
     test('should measure and log API call duration', async () => {

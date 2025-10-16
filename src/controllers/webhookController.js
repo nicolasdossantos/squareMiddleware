@@ -5,7 +5,10 @@
 
 const { sendSuccess, sendError } = require('../utils/responseBuilder');
 const { logPerformance, logEvent, logSecurityEvent } = require('../utils/logger');
-const { verifyWebhookSignature, processElevenLabsPostCall } = require('../services/comprehensiveWebhookService');
+const {
+  verifyWebhookSignature,
+  processElevenLabsPostCall
+} = require('../services/comprehensiveWebhookService');
 const webhookService = require('../services/webhookService');
 const { config } = require('../config');
 

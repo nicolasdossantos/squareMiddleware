@@ -51,7 +51,9 @@ describe('GetCustomerInfo ElevenLabs Response Validation', () => {
           teamMemberIds: ['TMjrjeysZMBiYlvw']
         }
       }),
-      barbers_with_ids_json: JSON.stringify([{ id: 'TMjrjeysZMBiYlvw', name: 'Junior', displayName: 'Junior' }])
+      barbers_with_ids_json: JSON.stringify([
+        { id: 'TMjrjeysZMBiYlvw', name: 'Junior', displayName: 'Junior' }
+      ])
     };
 
     // Verify the data can be serialized/deserialized

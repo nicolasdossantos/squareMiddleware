@@ -149,7 +149,8 @@ function createTranscriptSection(transcript) {
         ${turn.tool_calls
           .map((call, i) => {
             const callStyle =
-              'background: #fff3cd; padding: 10px; margin: 5px 0; border-radius: 5px; ' + 'border: 1px solid #ffeaa7;';
+              'background: #fff3cd; padding: 10px; margin: 5px 0; border-radius: 5px; ' +
+              'border: 1px solid #ffeaa7;';
             return `
             <div style="${callStyle}">
               <strong>${call.tool_name || 'Unknown Tool'}</strong>
@@ -170,7 +171,8 @@ function createTranscriptSection(transcript) {
         ${turn.tool_results
           .map((result, i) => {
             const resultStyle =
-              'background: #d4edda; padding: 10px; margin: 5px 0; border-radius: 5px; ' + 'border: 1px solid #c3e6cb;';
+              'background: #d4edda; padding: 10px; margin: 5px 0; border-radius: 5px; ' +
+              'border: 1px solid #c3e6cb;';
             const latencySpan = result.tool_latency_secs
               ? `<span style="color: #6c757d;"> (${result.tool_latency_secs.toFixed(2)}s)</span>`
               : '';
@@ -258,7 +260,8 @@ function createEmailContent(requestBody, toolsUsed = 0) {
     'display: inline-block; margin: 10px; padding: 10px; background: white; ' +
     'border-radius: 5px; border: 1px solid #dee2e6;';
   const footerStyle =
-    'margin-top: 30px; padding: 20px; border-top: 2px solid #e9ecef; ' + 'color: #6c757d; text-align: center;';
+    'margin-top: 30px; padding: 20px; border-top: 2px solid #e9ecef; ' +
+    'color: #6c757d; text-align: center;';
 
   return `
     <html>

@@ -178,7 +178,12 @@ describe('Health Controller', () => {
         error: 'Health service failed'
       });
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Detailed health check failed', 500, 'Health service failed');
+      expect(sendError).toHaveBeenCalledWith(
+        mockRes,
+        'Detailed health check failed',
+        500,
+        'Health service failed'
+      );
     });
   });
 
@@ -238,7 +243,12 @@ describe('Health Controller', () => {
         error: 'Readiness check failed'
       });
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Readiness check failed', 503, 'Readiness check failed');
+      expect(sendError).toHaveBeenCalledWith(
+        mockRes,
+        'Readiness check failed',
+        503,
+        'Readiness check failed'
+      );
     });
   });
 

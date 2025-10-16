@@ -100,7 +100,11 @@ function durationToMinutes(duration) {
   if (!duration) return 0;
 
   const durationMs =
-    typeof duration === 'bigint' ? Number(duration) : typeof duration === 'string' ? parseInt(duration, 10) : duration;
+    typeof duration === 'bigint'
+      ? Number(duration)
+      : typeof duration === 'string'
+        ? parseInt(duration, 10)
+        : duration;
 
   return Math.round(durationMs / 60000);
 }

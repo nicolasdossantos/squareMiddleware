@@ -32,7 +32,7 @@ function tenantContext(req, res, next) {
         squareEnvironment: req.retellContext.squareEnvironment || 'production',
         timezone: req.retellContext.timezone || 'America/New_York'
       };
-      
+
       logger.info('Tenant context created from agentAuth', {
         tenantId: req.tenant.id,
         correlationId: req.correlationId
@@ -46,7 +46,7 @@ function tenantContext(req, res, next) {
         squareEnvironment: config.square.environment || 'sandbox',
         timezone: config.server.timezone || 'America/New_York'
       };
-      
+
       if (!req.path.includes('/health') && !req.path.includes('/warmup')) {
         logger.debug('Tenant context created from environment variables', {
           tenantId: req.tenant.id,
@@ -54,14 +54,14 @@ function tenantContext(req, res, next) {
         });
       }
     }
-    
+
     next();
   } catch (error) {
     logger.error('Failed to create tenant context', {
       error: error.message,
       correlationId: req.correlationId
     });
-    
+
     // Don't fail the request - fall back to default tenant
     req.tenant = {
       id: 'fallback',
@@ -70,7 +70,7 @@ function tenantContext(req, res, next) {
       squareEnvironment: config.square.environment || 'sandbox',
       timezone: config.server.timezone || 'America/New_York'
     };
-    
+
     next();
   }
 }

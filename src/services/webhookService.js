@@ -96,8 +96,14 @@ async function processElevenLabsPostCall(webhookData) {
       callDuration: webhookData.call_length_secs
     });
 
-    const { conversation_id, call_length_secs, call_successful, transcript, analysis, customer_phone_number } =
-      webhookData;
+    const {
+      conversation_id,
+      call_length_secs,
+      call_successful,
+      transcript,
+      analysis,
+      customer_phone_number
+    } = webhookData;
 
     // Extract booking information from transcript/analysis
     const bookingInfo = extractBookingInfo(transcript, analysis);

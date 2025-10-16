@@ -1,5 +1,5 @@
 // shared/squareUtils.js
-const { SquareClient, SquareEnvironment } = require('square');
+const { Client: SquareClient, Environment } = require('square/legacy');
 const { logCacheHit, logApiCall, trackException } = require('./telemetry');
 const { toBigInt, bigIntReplacer, cleanBigIntFromObject } = require('./helpers/bigIntUtils');
 
@@ -19,10 +19,25 @@ const staffCaches = new Map(); // Renamed from barberCache
  * @returns {SquareClient} Configured Square client instance
  */
 function createSquareClient(accessToken, environment = 'production') {
-  return new SquareClient({
-    token: accessToken,
-    environment: environment === 'sandbox' ? SquareEnvironment.Sandbox : SquareEnvironment.Production
+  console.log('[createSquareClient] Creating client', {
+    hasToken: !!accessToken,
+    tokenLength: accessToken?.length,
+    environment,
+    SquareClientType: typeof SquareClient,
+    EnvironmentType: typeof Environment
   });
+
+  const client = new SquareClient({
+    accessToken: accessToken,
+    environment: environment === 'sandbox' ? Environment.Sandbox : Environment.Production
+  });
+
+  console.log('[createSquareClient] Client created', {
+    hasCustomers: !!client.customers,
+    clientKeys: Object.keys(client).slice(0, 10)
+  });
+
+  return client;
 }
 
 /**
@@ -79,7 +94,9 @@ function validateEnvironment() {
     process.env.SQUARE_ACCESS_TOKEN.includes('your_square_access_token_here') ||
     process.env.SQUARE_LOCATION_ID.includes('your_square_location_id_here')
   ) {
-    throw new Error('Square environment variables contain placeholder values. Please configure real credentials.');
+    throw new Error(
+      'Square environment variables contain placeholder values. Please configure real credentials.'
+    );
   }
 
   // Basic validation for Square token format
@@ -117,22 +134,28 @@ async function loadServiceVariations(context, tenant) {
 
     do {
       const apiStartTime = Date.now();
-      const resp = await square.catalog.search();
+      const resp = await square.catalogApi.searchCatalogObjects({
+        objectTypes: ['ITEM'],
+        includeRelatedObjects: true,
+        cursor: cursor
+      });
 
       const apiDuration = Date.now() - apiStartTime;
 
+      const objects = resp.result?.objects || [];
+
       logApiCall(context, 'catalog_search', true, apiDuration, {
-        object_count: resp.objects?.length || 0,
+        object_count: objects.length,
         tenant_id: tenant.id
       });
 
-      context.log('Catalog response received, object count:', resp.objects?.length || 0);
+      context.log('Catalog response received, object count:', objects.length);
 
-      if (resp.objects) {
-        allServices.push(...resp.objects);
+      if (objects.length > 0) {
+        allServices.push(...objects);
       }
 
-      cursor = resp.cursor;
+      cursor = resp.result?.cursor;
     } while (cursor);
 
     const services = allServices
@@ -203,22 +226,21 @@ async function loadStaffMembers(context, tenant) {
     const square = createSquareClient(tenant.accessToken);
 
     const apiStartTime = Date.now();
-    const resp = await square.employees.list({
-      locationId: tenant.locationId,
-      status: 'ACTIVE'
-    });
+    const resp = await square.employeesApi.listEmployees(tenant.locationId, 'ACTIVE');
     const apiDuration = Date.now() - apiStartTime;
 
+    const employees = resp.result?.employees || [];
+
     logApiCall(context, 'employees_list', true, apiDuration, {
-      employee_count: resp.data?.length || 0,
+      employee_count: employees.length,
       tenant_id: tenant.id
     });
 
-    context.log(`Staff members response received, employee count: ${resp.data?.length || 0}`);
+    context.log(`Staff members response received, employee count: ${employees.length}`);
 
     // Transform employee data
     const staffMembers =
-      resp.data?.map(employee => ({
+      employees.map(employee => ({
         id: employee.id,
         firstName: employee.firstName,
         lastName: employee.lastName,
@@ -284,7 +306,8 @@ function validateServiceVariationId(serviceVariationId, servicesArray = null) {
   // If services array is provided, validate against actual catalog
   if (servicesArray && Array.isArray(servicesArray)) {
     const serviceExists = servicesArray.some(
-      service => service.variations && service.variations.some(variation => variation.id === serviceVariationId)
+      service =>
+        service.variations && service.variations.some(variation => variation.id === serviceVariationId)
     );
 
     if (!serviceExists) {
@@ -619,7 +642,7 @@ async function createCustomer(context, tenant, customerData) {
     const square = createSquareClient(tenant.accessToken);
 
     const apiStartTime = Date.now();
-    const response = await square.customers.create(createRequest);
+    const response = await square.customersApi.createCustomer(createRequest);
     const apiDuration = Date.now() - apiStartTime;
 
     logApiCall(context, 'customers_create', true, apiDuration, {
@@ -635,7 +658,9 @@ async function createCustomer(context, tenant, customerData) {
       throw new Error('No customer returned from Square API');
     }
 
-    context.log(`✅ Successfully created customer: ${customer.id} (${customer.givenName} ${customer.familyName})`);
+    context.log(
+      `✅ Successfully created customer: ${customer.id} (${customer.givenName} ${customer.familyName})`
+    );
 
     // Clean BigInt values before returning
     return sanitizeCustomerData(cleanBigIntFromObject(customer));
@@ -760,7 +785,7 @@ async function updateCustomer(context, tenant, customerId, updateData) {
     const square = createSquareClient(tenant.accessToken);
 
     const apiStartTime = Date.now();
-    const response = await square.customers.update(updateRequest);
+    const response = await square.customersApi.updateCustomer(updateRequest);
     const apiDuration = Date.now() - apiStartTime;
 
     logApiCall(context, 'customers_update', true, apiDuration, {
@@ -782,7 +807,9 @@ async function updateCustomer(context, tenant, customerId, updateData) {
       throw new Error('No customer returned from Square API');
     }
 
-    context.log(`✅ Successfully updated customer: ${customer.id} (${customer.givenName} ${customer.familyName})`);
+    context.log(
+      `✅ Successfully updated customer: ${customer.id} (${customer.givenName} ${customer.familyName})`
+    );
 
     return sanitizeCustomerData(customer);
   } catch (error) {
@@ -836,11 +863,17 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
     context.log(`🔍 Formatted phone for exact search: ${formattedPhone}`);
 
     // Create tenant-specific Square client
+    console.log('[squareUtils] Creating Square client for tenant:', {
+      tenantId: tenant.id,
+      hasAccessToken: !!tenant.accessToken,
+      accessTokenLength: tenant.accessToken?.length,
+      tenantKeys: Object.keys(tenant)
+    });
     const square = createSquareClient(tenant.accessToken);
 
     // First try exact search with E164 formatted phone number
     const apiStartTime = Date.now();
-    let searchResponse = await square.customers.search({
+    let searchResponse = await square.customersApi.searchCustomers({
       query: {
         filter: {
           phoneNumber: {
@@ -851,15 +884,17 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
     });
     const apiDuration = Date.now() - apiStartTime;
 
+    const customers = searchResponse.result?.customers || [];
+
     logApiCall(context, 'customers_search_exact', true, apiDuration, {
       phone_number: phoneNumber,
-      customer_count: searchResponse.customers?.length || 0,
+      customer_count: customers.length,
       tenant_id: tenant.id
     });
 
     // Check if exact search found a customer
-    if (searchResponse.customers && searchResponse.customers.length > 0) {
-      const customer = searchResponse.customers[0]; // Take the first match
+    if (customers.length > 0) {
+      const customer = customers[0]; // Take the first match
       context.log(
         `✅ Found customer (exact match): ${customer.givenName || 'N/A'} ` +
           `${customer.familyName || 'N/A'} (${customer.phoneNumber})`
@@ -876,14 +911,14 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
       return sanitizeCustomerData(customer);
     }
 
-    context.log(`📄 Exact search returned ${searchResponse.customers?.length || 0} customers`);
+    context.log(`📄 Exact search returned ${customers.length} customers`);
 
     // If exact search didn't find anything, try fuzzy search with normalized digits
     const normalizedPhone = phoneNumber.replace(/\D/g, '');
     context.log(`🔍 Trying fuzzy search with normalized digits: ${normalizedPhone}`);
 
     const fuzzyApiStartTime = Date.now();
-    searchResponse = await square.customers.search({
+    searchResponse = await square.customersApi.searchCustomers({
       query: {
         filter: {
           phoneNumber: {
@@ -894,20 +929,22 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
     });
     const fuzzyApiDuration = Date.now() - fuzzyApiStartTime;
 
+    const fuzzyCustomers = searchResponse.result?.customers || [];
+
     logApiCall(context, 'customers_search_fuzzy', true, fuzzyApiDuration, {
       phone_number: normalizedPhone,
-      customer_count: searchResponse.customers?.length || 0
+      customer_count: fuzzyCustomers.length
     });
 
-    context.log(`📄 Fuzzy search returned ${searchResponse.customers?.length || 0} customers`);
+    context.log(`📄 Fuzzy search returned ${fuzzyCustomers.length} customers`);
 
     // If fuzzy search found customers, find the best match
-    if (searchResponse.customers && searchResponse.customers.length > 0) {
+    if (fuzzyCustomers.length > 0) {
       // Normalize the search phone number for comparison
       const searchPhoneDigits = normalizedPhone;
 
       // Find the best match by comparing normalized phone numbers
-      for (const customer of searchResponse.customers) {
+      for (const customer of fuzzyCustomers) {
         if (!customer.phoneNumber) continue;
 
         // Normalize customer phone number to digits only
@@ -940,7 +977,7 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
             search_type: 'fuzzy',
             customer_found: true,
             customer_id: customer.id,
-            customers_checked: searchResponse.customers.length
+            customers_checked: fuzzyCustomers.length
           });
 
           return sanitizeCustomerData(customer);
@@ -948,7 +985,7 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
       }
 
       // If we have fuzzy results but no exact match, log the issue
-      context.log(`⚠️ Fuzzy search found ${searchResponse.customers.length} customers but none matched exactly`);
+      context.log(`⚠️ Fuzzy search found ${fuzzyCustomers.length} customers but none matched exactly`);
     }
 
     // No customer found

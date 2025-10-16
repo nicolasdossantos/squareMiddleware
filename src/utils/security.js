@@ -94,12 +94,14 @@ function getSecurityHeaders(origin = null) {
   // Add CORS headers if enabled and origin is allowed
   if (config.ENABLE_CORS) {
     // Check if the origin is in our allowed list or if no origin is provided (same-origin)
-    const isAllowedOrigin = !origin || config.CORS_ORIGINS.includes(origin) || config.CORS_ORIGINS.includes('*');
+    const isAllowedOrigin =
+      !origin || config.CORS_ORIGINS.includes(origin) || config.CORS_ORIGINS.includes('*');
 
     if (isAllowedOrigin) {
       headers['Access-Control-Allow-Origin'] = origin || '*';
       headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
-      headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, X-Correlation-ID';
+      headers['Access-Control-Allow-Headers'] =
+        'Content-Type, Authorization, X-Requested-With, X-Correlation-ID';
       headers['Access-Control-Max-Age'] = '86400'; // 24 hours
       headers['Access-Control-Allow-Credentials'] = 'false';
     }
@@ -116,7 +118,8 @@ function handleCORSPreflight(origin) {
     return null;
   }
 
-  const isAllowedOrigin = !origin || config.CORS_ORIGINS.includes(origin) || config.CORS_ORIGINS.includes('*');
+  const isAllowedOrigin =
+    !origin || config.CORS_ORIGINS.includes(origin) || config.CORS_ORIGINS.includes('*');
 
   if (!isAllowedOrigin) {
     return {
@@ -153,7 +156,9 @@ function sanitizeQueryParams(params) {
       cleaned = cleaned.replace(/^data:[^,]*,/, '');
 
       // Remove script tags and javascript: protocols
-      cleaned = cleaned.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/javascript:/gi, '');
+      cleaned = cleaned
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/javascript:/gi, '');
 
       // Trim and keep non-empty result
       cleaned = cleaned.trim();
