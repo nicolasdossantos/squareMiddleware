@@ -35,20 +35,6 @@ jobs:
             - name: Run tests
               run: npm test
 
-            - name: Create deployment package
-              run: |
-                  mkdir -p deploy
-                  rsync -av --progress . deploy/ \
-                    --exclude node_modules \
-                    --exclude .git \
-                    --exclude coverage \
-                    --exclude tests \
-                    --exclude deploy \
-                    --exclude '*.zip' \
-                    --exclude '.env*' \
-                    --exclude '.DS_Store'
-                  cd deploy && zip -r ../deploy.zip . && cd ..
-
             - name: Azure Login
               uses: azure/login@v2
               with:
@@ -58,10 +44,29 @@ jobs:
                   enable-AzPSSession: false
 
             - name: Deploy to Azure Web App
-              uses: azure/webapps-deploy@v2
-              with:
-                  app-name: ${{ env.AZURE_WEBAPP_NAME }}
-                  package: deploy.zip
+              run: |
+                  # Create a clean deployment directory
+                  mkdir -p deploy
+
+                  # Copy necessary files (exclude tests, coverage, etc.)
+                  cp -r src package.json package-lock.json deploy/
+                  cp -r deploy/ 2>/dev/null || echo "deploy scripts not found"
+
+                  # Change to deploy directory and install production dependencies
+                  cd deploy
+                  npm ci --omit=dev
+
+                  # Create deployment package
+                  zip -r ../deployment.zip .
+                  cd ..
+
+                  echo "Deploying to Web App: ${{ env.AZURE_WEBAPP_NAME }}"
+
+                  # Deploy to Azure Web App
+                  az webapp deployment source config-zip \
+                    --resource-group square-middleware-prod-rg \
+                    --name ${{ env.AZURE_WEBAPP_NAME }} \
+                    --src deployment.zip
 
             - name: Azure Logout
               if: always()
