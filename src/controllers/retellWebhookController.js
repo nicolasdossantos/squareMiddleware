@@ -7,6 +7,7 @@ const { sendSuccess, sendError } = require('../utils/responseBuilder');
 const { logPerformance, logEvent, logSecurityEvent } = require('../utils/logger');
 const customerService = require('../services/customerService');
 const retellWebhookService = require('../services/retellWebhookService');
+const keyVaultService = require('../services/keyVaultService');
 const { config } = require('../config');
 
 /**
@@ -114,11 +115,14 @@ async function handleRetellWebhook(req, res) {
     const call = webhookData.call || null;
     const call_inbound = webhookData.call_inbound || null;
 
+    // Get tenant context from request (set by tenantContext middleware)
+    const { tenant } = req;
+
     let result;
 
     switch (event) {
       case 'call_started':
-        result = await handleCallStarted(call, correlationId);
+        result = await handleCallStarted(call, correlationId, tenant);
         break;
 
       case 'call_analyzed':
@@ -139,7 +143,7 @@ async function handleRetellWebhook(req, res) {
       case 'inbound':
         // Handle legacy inbound call event - treat it similar to call_started
         console.log('🔍 [RETELL DEBUG] Processing legacy inbound call event');
-        result = await handleCallStarted(call, correlationId);
+        result = await handleCallStarted(call, correlationId, tenant);
         break;
 
       default:
@@ -272,7 +276,7 @@ async function handleRetellWebhook(req, res) {
  * Handle call_started event
  * Uses from_number to get customer info (same format as ElevenLabs GetCustomerInfo)
  */
-async function handleCallStarted(call, correlationId) {
+async function handleCallStarted(call, correlationId, tenant = null) {
   const { call_id, from_number, to_number, direction } = call;
 
   logEvent('retell_call_started', {
@@ -283,13 +287,23 @@ async function handleCallStarted(call, correlationId) {
   });
 
   try {
+    // Use tenant from request if available, otherwise fall back to environment
+    const useTenant = tenant || {
+      id: 'default',
+      squareAccessToken: config.square.accessToken,
+      squareLocationId: config.square.locationId,
+      squareEnvironment: config.square.environment || 'sandbox',
+      timezone: config.server.timezone || 'America/New_York'
+    };
+
     // Use the same customer lookup logic as ElevenLabs GetCustomerInfo
     const customerController = require('./customerController');
 
     // Create a mock request/response to reuse the existing getCustomerInfoByPhone logic
     const mockReq = {
       body: { phone: from_number },
-      correlationId: correlationId
+      correlationId: correlationId,
+      tenant: useTenant // ✅ PASS TENANT CONTEXT
     };
 
     let customerResponse = null;
@@ -450,6 +464,46 @@ async function handleCallInbound(call_inbound, correlationId) {
   });
 
   try {
+    // 🔐 MULTI-TENANT: Fetch agent configuration from Key Vault
+    let tenant;
+    try {
+      console.log(`🔍 [RETELL DEBUG] Fetching agent config from Key Vault for agent_id: ${agent_id}`);
+      const agentConfig = await keyVaultService.getAgentConfig(agent_id);
+
+      // Create tenant context from agent configuration
+      tenant = {
+        id: agentConfig.agentId || agent_id,
+        squareAccessToken: agentConfig.squareAccessToken,
+        squareLocationId: agentConfig.squareLocationId,
+        squareEnvironment: agentConfig.squareEnvironment || 'production',
+        timezone: agentConfig.timezone || 'America/New_York'
+      };
+
+      console.log(`✅ [RETELL DEBUG] Agent config loaded successfully for tenant: ${tenant.id}`);
+    } catch (keyVaultError) {
+      // Fallback to environment variables if Key Vault lookup fails
+      console.warn(
+        `⚠️ [RETELL DEBUG] Key Vault lookup failed for agent ${agent_id}, ` +
+          'falling back to environment variables:',
+        keyVaultError.message
+      );
+
+      tenant = {
+        id: 'default',
+        squareAccessToken: config.square.accessToken,
+        squareLocationId: config.square.locationId,
+        squareEnvironment: config.square.environment || 'sandbox',
+        timezone: config.server.timezone || 'America/New_York'
+      };
+
+      logEvent('retell_keyvault_fallback', {
+        correlationId,
+        agentId: agent_id,
+        error: keyVaultError.message,
+        fallbackTenantId: tenant.id
+      });
+    }
+
     // For inbound calls, we'll treat it similar to call_started but with the inbound call structure
     // Use the same customer lookup logic as regular calls
     const customerController = require('./customerController');
@@ -457,7 +511,8 @@ async function handleCallInbound(call_inbound, correlationId) {
     // Create a mock request/response to reuse the existing getCustomerInfoByPhone logic
     const mockReq = {
       body: { phone: from_number },
-      correlationId: correlationId
+      correlationId: correlationId,
+      tenant: tenant // ✅ PASS TENANT CONTEXT
     };
 
     let customerResponse = null;
