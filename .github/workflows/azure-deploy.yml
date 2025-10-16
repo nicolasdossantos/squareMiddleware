@@ -35,6 +35,20 @@ jobs:
             - name: Run tests
               run: npm test
 
+            - name: Create deployment package
+              run: |
+                  mkdir -p deploy
+                  rsync -av --progress . deploy/ \
+                    --exclude node_modules \
+                    --exclude .git \
+                    --exclude coverage \
+                    --exclude tests \
+                    --exclude deploy \
+                    --exclude '*.zip' \
+                    --exclude '.env*' \
+                    --exclude '.DS_Store'
+                  cd deploy && zip -r ../deploy.zip . && cd ..
+
             - name: Azure Login
               uses: azure/login@v2
               with:
@@ -47,7 +61,7 @@ jobs:
               uses: azure/webapps-deploy@v2
               with:
                   app-name: ${{ env.AZURE_WEBAPP_NAME }}
-                  package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+                  package: deploy.zip
 
             - name: Azure Logout
               if: always()
