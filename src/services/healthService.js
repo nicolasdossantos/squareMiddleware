@@ -8,11 +8,19 @@ const { logPerformance, logEvent, logError } = require('../utils/logger');
 const { config } = require('../config');
 const emailService = require('./emailService');
 
-// Initialize Square client for health checks
-const squareClient = new SquareClient({
-  accessToken: config.square.accessToken,
-  environment: config.square.environment === 'production' ? SquareEnvironment.Production : SquareEnvironment.Sandbox
-}); /**
+// Lazy initialization of Square client for health checks
+let squareClient = null;
+function getSquareClient() {
+  if (!squareClient) {
+    squareClient = new SquareClient({
+      accessToken: config.square.accessToken,
+      environment: config.square.environment === 'production' ? SquareEnvironment.Production : SquareEnvironment.Sandbox
+    });
+  }
+  return squareClient;
+}
+
+/**
  * Get detailed health status with dependency checks
  */
 async function getDetailedHealth() {
@@ -133,7 +141,8 @@ async function checkSquareConnection() {
 
   try {
     // Simple API call to verify connection
-    await squareClient.locationsApi.listLocations();
+    const client = getSquareClient();
+    await client.locationsApi.listLocations();
 
     const responseTime = Date.now() - startTime;
 
