@@ -48,26 +48,26 @@ async function processCallAnalysis({
 
     // Send post-call email using retellEmailService
     let emailResult = null;
-    if (tenant && tenant.staffEmail && callData) {
+    if (callData) {
       try {
-        console.log(`📧 [RETELL EMAIL] Sending post-call email to ${tenant.staffEmail}`);
+        const emailTo = process.env.EMAIL_TO || tenant?.staffEmail;
+        console.log(`📧 [RETELL EMAIL] Sending post-call email to ${emailTo}`);
 
         await retellEmailService.sendRetellPostCallEmail(
           callData,
-          tenant.staffEmail,
-          tenant.businessName
+          correlationId
         );
 
         emailResult = {
           type: 'email_sent',
-          target: tenant.staffEmail,
+          target: emailTo,
           success: true
         };
 
         logEvent('retell_email_sent', {
           correlationId,
           callId,
-          recipient: tenant.staffEmail
+          recipient: emailTo
         });
       } catch (emailError) {
         console.error('❌ [RETELL EMAIL] Failed to send email:', emailError);
@@ -80,14 +80,13 @@ async function processCallAnalysis({
 
         emailResult = {
           type: 'email_failed',
-          target: tenant.staffEmail,
+          target: process.env.EMAIL_TO || tenant?.staffEmail,
           error: emailError.message
         };
       }
     } else {
       console.warn(
-        `⚠️ [RETELL EMAIL] Skipping email - missing tenant: ${!!tenant}, ` +
-          `staffEmail: ${tenant?.staffEmail}, callData: ${!!callData}`
+        '⚠️ [RETELL EMAIL] Skipping email - missing callData'
       );
     }
 
