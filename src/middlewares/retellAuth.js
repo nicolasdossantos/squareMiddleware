@@ -74,8 +74,13 @@ async function retellAuthMiddleware(req, res, next) {
 
     // 5. Compute expected signature
     // Retell signature: HMAC-SHA256(timestamp + "." + body, api_key)
-    const payload = JSON.stringify(req.body);
+    // IMPORTANT: Must use raw body, not JSON.stringify(req.body)
+    const payload = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
     const signaturePayload = `${timestamp}.${payload}`;
+
+    console.log('[RetellAuth] DEBUG - Timestamp:', timestamp);
+    console.log('[RetellAuth] DEBUG - Using rawBody:', !!req.rawBody);
+    console.log('[RetellAuth] DEBUG - Payload (first 200 chars):', payload.substring(0, 200));
 
     const expectedSignature = crypto.createHmac('sha256', apiKey).update(signaturePayload).digest('hex');
 
