@@ -42,6 +42,11 @@ const config = {
     webhookSecret: process.env.ELEVENLABS_WEBHOOK_SECRET
   },
 
+  // Retell AI configuration
+  retell: {
+    apiKey: process.env.RETELL_API_KEY
+  },
+
   // Twilio configuration
   twilio: {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
