@@ -63,10 +63,16 @@ async function retellAuthMiddleware(req, res, next) {
     }
 
     // 4. Get Retell API key from environment
-    const apiKey = config.retell.apiKey;
+    console.log('[RetellAuth] DEBUG - config object:', JSON.stringify(config, null, 2));
+    console.log('[RetellAuth] DEBUG - config.retell:', config.retell);
+    console.log('[RetellAuth] DEBUG - process.env.RETELL_API_KEY:', process.env.RETELL_API_KEY);
+    
+    const apiKey = config.retell?.apiKey || process.env.RETELL_API_KEY;
 
     if (!apiKey) {
       console.error('[RetellAuth] RETELL_API_KEY not configured');
+      console.error('[RetellAuth] config.retell:', config.retell);
+      console.error('[RetellAuth] process.env.RETELL_API_KEY:', process.env.RETELL_API_KEY);
       return res.status(500).json({
         error: 'Retell API key not configured'
       });
@@ -77,10 +83,7 @@ async function retellAuthMiddleware(req, res, next) {
     const payload = JSON.stringify(req.body);
     const signaturePayload = `${timestamp}.${payload}`;
 
-    const expectedSignature = crypto
-      .createHmac('sha256', apiKey)
-      .update(signaturePayload)
-      .digest('hex');
+    const expectedSignature = crypto.createHmac('sha256', apiKey).update(signaturePayload).digest('hex');
 
     // 6. Compare signatures (timing-safe comparison)
     if (signature.length !== expectedSignature.length) {
