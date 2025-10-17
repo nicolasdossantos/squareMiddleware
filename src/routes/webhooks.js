@@ -6,7 +6,7 @@
 const express = require('express');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { validateContentType } = require('../middlewares/validation');
-const { retellAuth } = require('../middlewares/retellAuth');
+const retellAuth = require('../middlewares/retellAuth');
 const webhookController = require('../controllers/webhookController');
 const retellWebhookController = require('../controllers/retellWebhookController');
 const { sendError } = require('../utils/responseBuilder');
