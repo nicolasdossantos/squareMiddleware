@@ -2,6 +2,9 @@
 node_modules/
 package-lock.json
 
+# Deployment scripts (should not be in version control)
+deploy/
+
 # Environment variables
 .env
 .env.local
