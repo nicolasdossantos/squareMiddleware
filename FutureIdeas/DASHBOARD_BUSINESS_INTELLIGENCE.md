@@ -1,13 +1,16 @@
 # AI Receptionist Dashboard - Business Intelligence
 
 ## Overview
-A comprehensive dashboard for business owners to monitor their AI receptionist's performance, customer interactions, and business insights extracted from call analysis.
+
+A comprehensive dashboard for business owners to monitor their AI receptionist's performance, customer
+interactions, and business insights extracted from call analysis.
 
 ## Dashboard Sections
 
 ### 1. 📊 Real-Time Performance Metrics
 
 #### Call Volume Stats
+
 ```
 ┌─────────────────────────────────────────┐
 │  Today's Calls                          │
@@ -20,6 +23,7 @@ A comprehensive dashboard for business owners to monitor their AI receptionist's
 ```
 
 **Data Points:**
+
 - Total calls (today, week, month)
 - Success rate percentage
 - Average call duration
@@ -27,14 +31,15 @@ A comprehensive dashboard for business owners to monitor their AI receptionist's
 - Busiest days of week
 
 **SQL Query:**
+
 ```sql
-SELECT 
+SELECT
   COUNT(*) as total_calls,
   AVG(call_duration_seconds) as avg_duration,
   SUM(CASE WHEN call_successful = true THEN 1 ELSE 0 END)::float / COUNT(*) * 100 as success_rate,
   SUM(CASE WHEN spam_detected = true THEN 1 ELSE 0 END) as spam_calls
 FROM call_history
-WHERE tenant_id = $1 
+WHERE tenant_id = $1
   AND call_start_time >= NOW() - INTERVAL '24 hours';
 ```
 
@@ -43,6 +48,7 @@ WHERE tenant_id = $1
 ### 2. 💰 Revenue Impact
 
 #### Booking Conversion
+
 ```
 ┌─────────────────────────────────────────┐
 │  Booking Performance                     │
@@ -55,6 +61,7 @@ WHERE tenant_id = $1
 ```
 
 **Data Points:**
+
 - Total bookings created by AI
 - Estimated revenue (service prices × bookings)
 - Booking conversion rate (bookings/successful calls)
@@ -63,14 +70,15 @@ WHERE tenant_id = $1
 - Peak booking times
 
 **SQL Query:**
+
 ```sql
-SELECT 
+SELECT
   COUNT(*) FILTER (WHERE booking_created = true) as total_bookings,
-  COUNT(*) FILTER (WHERE booking_created = true)::float / 
+  COUNT(*) FILTER (WHERE booking_created = true)::float /
     COUNT(*) FILTER (WHERE call_successful = true) * 100 as conversion_rate,
   AVG(call_duration_seconds) FILTER (WHERE booking_created = true) as avg_booking_time
 FROM call_history
-WHERE tenant_id = $1 
+WHERE tenant_id = $1
   AND call_start_time >= NOW() - INTERVAL '7 days';
 ```
 
@@ -79,6 +87,7 @@ WHERE tenant_id = $1
 ### 3. 😊 Customer Sentiment Analysis
 
 #### Sentiment Breakdown
+
 ```
 ┌─────────────────────────────────────────┐
 │  Customer Sentiment (Last 7 Days)       │
@@ -92,6 +101,7 @@ WHERE tenant_id = $1
 ```
 
 **Data Points:**
+
 - Sentiment distribution (Positive/Neutral/Negative)
 - Sentiment trends over time
 - Correlation: sentiment vs booking success
@@ -99,13 +109,14 @@ WHERE tenant_id = $1
 - Most common negative feedback themes
 
 **SQL Query:**
+
 ```sql
-SELECT 
+SELECT
   user_sentiment,
   COUNT(*) as count,
   COUNT(*)::float / SUM(COUNT(*)) OVER () * 100 as percentage
 FROM call_history
-WHERE tenant_id = $1 
+WHERE tenant_id = $1
   AND call_start_time >= NOW() - INTERVAL '7 days'
   AND user_sentiment IS NOT NULL
 GROUP BY user_sentiment;
@@ -116,6 +127,7 @@ GROUP BY user_sentiment;
 ### 4. 🗣️ Language Distribution
 
 #### Multi-Language Support
+
 ```
 ┌─────────────────────────────────────────┐
 │  Languages Detected                      │
@@ -129,6 +141,7 @@ GROUP BY user_sentiment;
 ```
 
 **Data Points:**
+
 - Language distribution
 - Preference accuracy (detected vs stored)
 - Language-specific conversion rates
@@ -139,6 +152,7 @@ GROUP BY user_sentiment;
 ### 5. 👥 Customer Insights
 
 #### Customer Behavior
+
 ```
 ┌─────────────────────────────────────────┐
 │  Customer Base                           │
@@ -153,6 +167,7 @@ GROUP BY user_sentiment;
 ```
 
 **Data Points:**
+
 - Total unique customers
 - New vs returning customer ratio
 - Most frequent customers
@@ -161,9 +176,10 @@ GROUP BY user_sentiment;
 - Customer retention rate
 
 **SQL Query:**
+
 ```sql
 WITH customer_stats AS (
-  SELECT 
+  SELECT
     cp.id,
     cp.first_name,
     cp.last_name,
@@ -175,7 +191,7 @@ WITH customer_stats AS (
   WHERE cp.tenant_id = $1
   GROUP BY cp.id
 )
-SELECT 
+SELECT
   COUNT(*) as total_customers,
   COUNT(*) FILTER (WHERE recent_calls > 0) as active_customers,
   COUNT(*) FILTER (WHERE total_calls = 1) as new_customers,
@@ -188,6 +204,7 @@ FROM customer_stats;
 ### 6. ⚠️ Issues & Follow-ups
 
 #### Action Required
+
 ```
 ┌─────────────────────────────────────────┐
 │  Open Issues (Requires Attention)       │
@@ -208,6 +225,7 @@ Recent Issues:
 ```
 
 **Data Points:**
+
 - Open issues by priority
 - Issue type distribution
 - Average resolution time
@@ -219,6 +237,7 @@ Recent Issues:
 ### 7. 🎯 Popular Services & Times
 
 #### Booking Intelligence
+
 ```
 ┌─────────────────────────────────────────┐
 │  Most Requested Services                 │
@@ -236,6 +255,7 @@ Recent Issues:
 ```
 
 **Data Points:**
+
 - Service popularity ranking
 - Service revenue contribution
 - Preferred booking times
@@ -247,6 +267,7 @@ Recent Issues:
 ### 8. 🏆 AI Performance Score
 
 #### Agent Effectiveness
+
 ```
 ┌─────────────────────────────────────────┐
 │  AI Receptionist Score: 94/100 ⭐       │
@@ -261,23 +282,24 @@ Recent Issues:
 ```
 
 **Scoring Algorithm:**
+
 ```javascript
 const aiPerformanceScore = {
-  callSuccessRate: weight(0.30),    // 30% weight
-  bookingConversion: weight(0.25),  // 25% weight
-  customerSentiment: weight(0.20),  // 20% weight
-  responseTime: weight(0.15),       // 15% weight
-  issueResolution: weight(0.10)     // 10% weight
+  callSuccessRate: weight(0.3), // 30% weight
+  bookingConversion: weight(0.25), // 25% weight
+  customerSentiment: weight(0.2), // 20% weight
+  responseTime: weight(0.15), // 15% weight
+  issueResolution: weight(0.1) // 10% weight
 };
 
 // Example calculation
-score = (
-  (successRate * 0.30) +
-  (conversionRate * 0.25) +
-  (sentimentScore * 0.20) +
-  (responseScore * 0.15) +
-  (resolutionRate * 0.10)
-) * 100;
+score =
+  (successRate * 0.3 +
+    conversionRate * 0.25 +
+    sentimentScore * 0.2 +
+    responseScore * 0.15 +
+    resolutionRate * 0.1) *
+  100;
 ```
 
 ---
@@ -285,6 +307,7 @@ score = (
 ### 9. 📅 Call Timeline (Interactive)
 
 #### Recent Calls Feed
+
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Today's Call Activity                                   │
@@ -315,6 +338,7 @@ score = (
 ```
 
 **Features:**
+
 - Real-time updates (WebSocket)
 - Filterable by status/sentiment/language
 - Click to expand full transcript
@@ -326,6 +350,7 @@ score = (
 ### 10. 💡 Smart Recommendations
 
 #### AI-Powered Insights
+
 ```
 ┌─────────────────────────────────────────┐
 │  Recommendations for You                 │
@@ -345,6 +370,7 @@ score = (
 ```
 
 **Recommendation Engine Rules:**
+
 - High demand + low availability = add slots
 - Frequent questions = update FAQ/training
 - Language patterns = hire multilingual staff
@@ -356,6 +382,7 @@ score = (
 ## Technical Implementation
 
 ### Frontend Stack
+
 ```
 React Dashboard
 ├── Real-time updates (Socket.io)
@@ -415,6 +442,7 @@ React Dashboard
 ```
 
 ### Data Refresh Strategy
+
 - **Real-time:** Call feed, issue alerts (WebSocket)
 - **Every 5 minutes:** Metrics, sentiment
 - **Every hour:** Recommendations, trends
@@ -436,18 +464,21 @@ React Dashboard
 ### Dashboard Access Levels:
 
 **Owner/Admin:**
+
 - Full access to all metrics
 - Export capabilities
 - Issue management
 - Settings configuration
 
 **Staff/Manager:**
+
 - View metrics
 - Respond to issues
 - Limited exports
 - No settings access
 
 **Read-Only (Accountant/Investor):**
+
 - Revenue metrics
 - Call volume stats
 - Trends over time
@@ -458,6 +489,7 @@ React Dashboard
 ## Mobile Dashboard (Simplified)
 
 ### Owner Mobile App - Key Widgets:
+
 ```
 ┌─────────────────────────┐
 │  📊 Today                │
@@ -472,6 +504,7 @@ React Dashboard
 ```
 
 Push notifications for:
+
 - 🚨 High priority issues
 - 📉 Performance drops
 - 💰 Revenue milestones

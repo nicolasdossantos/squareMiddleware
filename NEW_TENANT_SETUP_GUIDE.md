@@ -53,6 +53,7 @@ AGENT_CONFIGS=[
 ```
 
 **Required Fields:**
+
 - `agentId` - Unique identifier (use Retell's agent ID)
 - `bearerToken` - Secret token for authentication
 - `squareAccessToken` - Square API access token
@@ -86,11 +87,13 @@ az webapp restart \
 In [Retell Dashboard](https://beta.retellai.com):
 
 **Create Agent:**
+
 - [ ] Name: "New Business Name - Receptionist"
 - [ ] Voice: Choose preferred voice
 - [ ] Language: English (or other)
 
 **Set Agent Variables:**
+
 ```json
 {
   "agent_id": "<NEW_AGENT_ID>",
@@ -103,6 +106,7 @@ In [Retell Dashboard](https://beta.retellai.com):
 For each function (GetCustomerInfo, CreateBooking, etc.):
 
 **Headers:**
+
 ```json
 {
   "Authorization": "Bearer {{agent_bearer_token}}",
@@ -112,6 +116,7 @@ For each function (GetCustomerInfo, CreateBooking, etc.):
 ```
 
 **Function URLs:**
+
 - `GetCustomerInfo`: `https://square-middleware-prod-api.azurewebsites.net/api/customers/info`
 - `SearchCustomers`: `https://square-middleware-prod-api.azurewebsites.net/api/customers/search`
 - `CreateBooking`: `https://square-middleware-prod-api.azurewebsites.net/api/bookings`
@@ -138,6 +143,7 @@ curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/customers/
 ```
 
 **Test all endpoints:**
+
 - [ ] GET `/health` - Health check
 - [ ] POST `/api/customers/info` - Customer lookup
 - [ ] GET `/api/customers/search` - Customer search
@@ -158,6 +164,7 @@ curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/customers/
 ### 8. Monitor and Verify ✓
 
 **Check Logs:**
+
 ```bash
 # View application logs
 az webapp log tail \
@@ -170,12 +177,14 @@ az webapp log tail \
 ```
 
 **Check Application Insights:**
+
 - Go to Azure Portal
 - Navigate to Application Insights
 - Check for errors or warnings
 - Verify API calls are successful
 
 **Verify Data Isolation:**
+
 ```bash
 # Call with new agent credentials
 curl ... -H "x-agent-id: <NEW_AGENT_ID>" \
@@ -195,6 +204,7 @@ curl ... -H "x-agent-id: 895480dde586e4c3712bd4c770" \
 **Cause:** AGENT_CONFIGS not updated in Azure
 
 **Fix:**
+
 ```bash
 ./deploy/configure-azure-env.sh
 az webapp restart --resource-group square-middleware-prod-rg --name square-middleware-prod-api
@@ -205,6 +215,7 @@ az webapp restart --resource-group square-middleware-prod-rg --name square-middl
 **Cause:** Mismatch between .env.local and Retell agent variables
 
 **Fix:** Verify bearer token matches in both:
+
 - `.env.local` → `AGENT_CONFIGS[].bearerToken`
 - Retell Dashboard → Agent Variables → `agent_bearer_token`
 
@@ -213,6 +224,7 @@ az webapp restart --resource-group square-middleware-prod-rg --name square-middl
 **Cause:** Invalid Square credentials
 
 **Fix:**
+
 1. Verify Square access token is valid
 2. Check token has correct permissions
 3. Verify location ID exists
@@ -223,6 +235,7 @@ az webapp restart --resource-group square-middleware-prod-rg --name square-middl
 **Cause:** Wrong agent ID in Retell configuration
 
 **Fix:**
+
 1. Check Retell agent variable `agent_id`
 2. Verify it matches `agentId` in AGENT_CONFIGS
 3. Restart Retell agent
@@ -270,17 +283,20 @@ az webapp restart \
 ## Next Steps After Setup
 
 1. **Configure Retell Prompt:**
+
    - Update greeting with business name
    - Set working hours
    - Add business-specific FAQs
 
 2. **Test Edge Cases:**
+
    - No availability scenarios
    - Customer not found
    - Booking conflicts
    - After-hours calls
 
 3. **Set Up Monitoring:**
+
    - Configure alerts in Application Insights
    - Set up email notifications for errors
    - Monitor call quality in Retell

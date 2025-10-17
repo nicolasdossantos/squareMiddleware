@@ -53,10 +53,7 @@ async function processCallAnalysis({
         const emailTo = process.env.EMAIL_TO || tenant?.staffEmail;
         console.log(`📧 [RETELL EMAIL] Sending post-call email to ${emailTo}`);
 
-        await retellEmailService.sendRetellPostCallEmail(
-          callData,
-          correlationId
-        );
+        await retellEmailService.sendRetellPostCallEmail(callData, correlationId);
 
         emailResult = {
           type: 'email_sent',
@@ -85,9 +82,7 @@ async function processCallAnalysis({
         };
       }
     } else {
-      console.warn(
-        '⚠️ [RETELL EMAIL] Skipping email - missing callData'
-      );
+      console.warn('⚠️ [RETELL EMAIL] Skipping email - missing callData');
     }
 
     // Log performance

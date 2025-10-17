@@ -3,10 +3,12 @@
 ## Currently Configured ✅
 
 ### language_preference
+
 - **Type:** Selector
-- **Model:** GPT-5 Nano  
+- **Model:** GPT-5 Nano
 - **Optional:** Yes
-- **Description:** "Has the user expressed preference for a different language other than English? If, so, what language?"
+- **Description:** "Has the user expressed preference for a different language other than English? If, so,
+  what language?"
 - **Choices:**
   - Brazilian Portuguese
   - Russian
@@ -19,14 +21,17 @@
 ## Recommended Additional Fields
 
 ### 1. unresolved_issue
+
 - **Type:** String (Free Text)
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
-- **Description:** "Did the customer mention any problem, question, or request that was not resolved during this call? Provide a brief summary."
+- **Description:** "Did the customer mention any problem, question, or request that was not resolved during
+  this call? Provide a brief summary."
 
 **Database Mapping:** → `open_issues.issue_description`
 
 **Example Responses:**
+
 - "Customer wanted to know about color treatment pricing but we didn't have the stylist available to quote"
 - "Asked about Saturday availability but system showed no slots"
 - null (if everything was resolved)
@@ -34,6 +39,7 @@
 ---
 
 ### 2. callback_requested
+
 - **Type:** Boolean
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
@@ -44,6 +50,7 @@
 ---
 
 ### 3. preferred_stylist
+
 - **Type:** String (Free Text)
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
@@ -52,6 +59,7 @@
 **Database Mapping:** → `conversation_context.context_key` = 'favorite_stylist'
 
 **Example Responses:**
+
 - "Carmen"
 - "Maria"
 - "The guy who did my last haircut"
@@ -60,6 +68,7 @@
 ---
 
 ### 4. service_interest
+
 - **Type:** String (Free Text)
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
@@ -68,6 +77,7 @@
 **Database Mapping:** → `conversation_context.context_key` = 'service_interest'
 
 **Example Responses:**
+
 - "Haircut and beard trim"
 - "Color treatment for special event"
 - "Basic haircut"
@@ -75,6 +85,7 @@
 ---
 
 ### 5. special_occasion
+
 - **Type:** String (Free Text)
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
@@ -83,6 +94,7 @@
 **Database Mapping:** → `conversation_context.context_key` = 'special_occasion'
 
 **Example Responses:**
+
 - "Wedding next month"
 - "Quinceañera in June"
 - "Job interview"
@@ -91,6 +103,7 @@
 ---
 
 ### 6. preferred_time_of_day
+
 - **Type:** Selector
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
@@ -107,6 +120,7 @@
 ---
 
 ### 7. price_sensitive
+
 - **Type:** Boolean
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
@@ -117,6 +131,7 @@
 ---
 
 ### 8. referral_source
+
 - **Type:** String (Free Text)
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
@@ -127,19 +142,25 @@
 ---
 
 ### 9. hallucination_detected
+
 - **Type:** Boolean
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
-- **Description:** "Did the AI agent provide any information that contradicts what the custom functions (tool calls) returned, or made up details that couldn't be verified? Compare what the agent SAID to customers vs what the tools (GetAvailability, GetCustomerInfo, etc.) actually RETURNED. Examples: agent confirms 2pm slot but GetAvailability showed no slots; agent quotes $25 but tool returned $45; agent mentions services not in the catalog."
+- **Description:** "Did the AI agent provide any information that contradicts what the custom functions (tool
+  calls) returned, or made up details that couldn't be verified? Compare what the agent SAID to customers vs
+  what the tools (GetAvailability, GetCustomerInfo, etc.) actually RETURNED. Examples: agent confirms 2pm slot
+  but GetAvailability showed no slots; agent quotes $25 but tool returned $45; agent mentions services not in
+  the catalog."
 
 **Database Mapping:** → `call_history.hallucination_detected` (add column)
 
-**Why This Works:**
-The post-call analysis has access to `transcript_with_tool_calls`, so it can compare:
+**Why This Works:** The post-call analysis has access to `transcript_with_tool_calls`, so it can compare:
+
 - What the agent told the customer
 - What your middleware tools actually returned
 
 **Example Scenarios:**
+
 - ✅ Detect: Agent says "Carmen available Saturday 2pm" BUT GetAvailability returned `{ slots: [] }`
 - ✅ Detect: Agent says "Haircut is $25" BUT service catalog shows $45
 - ✅ Detect: Agent says "We offer laser removal" BUT service not in GetServiceList response
@@ -149,14 +170,17 @@ The post-call analysis has access to `transcript_with_tool_calls`, so it can com
 ---
 
 ### 10. hallucination_details
+
 - **Type:** String (Free Text)
 - **Model:** GPT-5 Nano
 - **Optional:** Yes
-- **Description:** "If hallucination was detected, describe exactly what incorrect information was provided and what the correct information should have been."
+- **Description:** "If hallucination was detected, describe exactly what incorrect information was provided
+  and what the correct information should have been."
 
 **Database Mapping:** → `call_history.hallucination_details` (add column)
 
 **Example Responses:**
+
 - "Agent stated haircut price is $30 but actual price is $45"
 - "Agent confirmed Saturday 3pm availability but no slots exist in system"
 - "Agent mentioned services we don't offer: eyebrow tinting, facials"
@@ -167,18 +191,21 @@ The post-call analysis has access to `transcript_with_tool_calls`, so it can com
 ## Priority Implementation Order
 
 ### Phase 1 (MVP - Do First) 🚀
+
 1. ✅ `language_preference` (Already done!)
 2. `unresolved_issue` - Critical for follow-up
 3. `callback_requested` - Important for customer service
 4. `hallucination_detected` - **CRITICAL for quality control**
 
 ### Phase 2 (High Value) 💎
+
 5. `hallucination_details` - Understand what went wrong
 6. `preferred_stylist` - Builds loyalty
 7. `service_interest` - Helps with recommendations
 8. `preferred_time_of_day` - Improves booking success
 
 ### Phase 3 (Nice to Have) ⭐
+
 9. `special_occasion` - Personalization
 10. `price_sensitive` - Sales intelligence
 11. `referral_source` - Marketing data
@@ -188,6 +215,7 @@ The post-call analysis has access to `transcript_with_tool_calls`, so it can com
 ## How These Map to Database
 
 ### Example Call Analysis Response
+
 ```json
 {
   "call_analysis": {
@@ -211,6 +239,7 @@ The post-call analysis has access to `transcript_with_tool_calls`, so it can com
 ### Database Updates Triggered
 
 **1. customer_profiles**
+
 ```sql
 UPDATE customer_profiles SET
   preferred_language = 'es',
@@ -220,6 +249,7 @@ WHERE square_customer_id = 'CUST123';
 ```
 
 **2. call_history**
+
 ```sql
 INSERT INTO call_history (
   retell_call_id,
@@ -239,6 +269,7 @@ INSERT INTO call_history (
 ```
 
 **3. open_issues**
+
 ```sql
 INSERT INTO open_issues (
   customer_profile_id,
@@ -256,9 +287,10 @@ INSERT INTO open_issues (
 ```
 
 **4. conversation_context** (Multiple inserts)
+
 ```sql
 INSERT INTO conversation_context (customer_profile_id, context_key, context_value, source)
-VALUES 
+VALUES
   ('uuid-123', 'favorite_stylist', 'Carmen', 'explicit_statement'),
   ('uuid-123', 'service_interest', 'Haircut and color for wedding', 'explicit_statement'),
   ('uuid-123', 'special_occasion', 'Wedding next month', 'explicit_statement'),
@@ -271,18 +303,22 @@ VALUES
 ## Testing Strategy
 
 ### 1. Start Simple
+
 Add fields one at a time and test extraction quality:
+
 - Make test calls with explicit mentions
 - Check if GPT-5 Nano extracts correctly
 - Verify data appears in webhook
 
 ### 2. Test Edge Cases
+
 - Customer mentions multiple languages
 - Vague answers ("sometime next week")
 - No clear preference stated
 - Customer changes mind during call
 
 ### 3. Validate with Real Calls
+
 - Monitor first 10-20 real calls
 - Check extraction accuracy
 - Adjust descriptions if needed
@@ -293,6 +329,7 @@ Add fields one at a time and test extraction quality:
 ## Quick Setup in Retell Dashboard
 
 For each field:
+
 1. Go to **Post-Call Analysis** section
 2. Click **"+ Add"**
 3. Fill in:
@@ -311,15 +348,16 @@ For each field:
 ### What Data Does Retell AI Have Access To?
 
 **✅ YES - Post-Call Analysis Has Access To:**
+
 - 📝 **Full transcript** - Everything said in the conversation
 - 🔧 **Tool calls** - Via `transcript_with_tool_calls` field in webhook
 - 🎯 **Custom function responses** - What your middleware returned
 - 📊 **LLM dynamic variables** - Context passed to the agent
 
-**This Means:**
-The post-call analysis LLM can **compare what the agent said vs what the tools returned**!
+**This Means:** The post-call analysis LLM can **compare what the agent said vs what the tools returned**!
 
 **Example Detection:**
+
 ```json
 // Tool returned this:
 GetAvailability() → { slots: [] }  // NO availability
@@ -334,16 +372,16 @@ hallucination_details: "Agent confirmed 2pm Saturday slot but GetAvailability re
 
 ### Why This Matters
 
-**The Risk:**
-LLMs can confidently state incorrect information, which in a business context can:
+**The Risk:** LLMs can confidently state incorrect information, which in a business context can:
+
 - ❌ Quote wrong prices → lost revenue or angry customers
 - ❌ Confirm fake availability → double bookings or no-shows
 - ❌ Promise services you don't offer → disappointed customers
 - ❌ Provide wrong business hours → customers show up when closed
 - ❌ Make up policies → legal/compliance issues
 
-**The Solution:**
-Detect hallucinations in post-call analysis so you can:
+**The Solution:** Detect hallucinations in post-call analysis so you can:
+
 1. **Immediately flag the call** for manual review
 2. **Contact the customer** to correct misinformation
 3. **Improve your agent prompt** to prevent future occurrences
@@ -353,6 +391,7 @@ Detect hallucinations in post-call analysis so you can:
 ### How to Configure in Retell
 
 **Field 1: hallucination_detected**
+
 ```
 Name: hallucination_detected
 Type: Boolean
@@ -360,13 +399,14 @@ Optional: Yes
 Model: GPT-5 Nano
 
 Description:
-"Did the AI agent provide any information that was factually incorrect, 
-made up details, or stated something it couldn't verify from available 
-data? Examples: wrong prices, incorrect availability, made-up services, 
+"Did the AI agent provide any information that was factually incorrect,
+made up details, or stated something it couldn't verify from available
+data? Examples: wrong prices, incorrect availability, made-up services,
 false business hours."
 ```
 
 **Field 2: hallucination_details**
+
 ```
 Name: hallucination_details
 Type: String (Free Text)
@@ -374,27 +414,29 @@ Optional: Yes
 Model: GPT-5 Nano
 
 Description:
-"If hallucination was detected, describe exactly what incorrect 
-information was provided and what the correct information should 
+"If hallucination was detected, describe exactly what incorrect
+information was provided and what the correct information should
 have been."
 ```
 
 ### Implementation in Your System
 
 #### 1. Database Schema Update
+
 ```sql
 -- Add columns to call_history table
-ALTER TABLE call_history 
+ALTER TABLE call_history
 ADD COLUMN hallucination_detected BOOLEAN DEFAULT FALSE,
 ADD COLUMN hallucination_details TEXT;
 
 -- Create index for quick lookup
-CREATE INDEX idx_hallucinations 
-ON call_history(tenant_id, hallucination_detected) 
+CREATE INDEX idx_hallucinations
+ON call_history(tenant_id, hallucination_detected)
 WHERE hallucination_detected = true;
 ```
 
 #### 2. Auto-Alert on Hallucination
+
 ```javascript
 // In webhook handler
 if (callAnalysis.hallucination_detected) {
@@ -406,13 +448,13 @@ if (callAnalysis.hallucination_detected) {
     details: callAnalysis.hallucination_details,
     requiresImmediate: true
   });
-  
+
   // Notify business owner immediately
   await sendUrgentNotification({
     type: 'sms',
     message: `🚨 URGENT: AI provided incorrect info to ${customerName}. Review immediately.`
   });
-  
+
   // Log for your platform monitoring
   await logPlatformIssue({
     severity: 'high',
@@ -424,6 +466,7 @@ if (callAnalysis.hallucination_detected) {
 ```
 
 #### 3. Dashboard Widget
+
 ```
 ┌─────────────────────────────────────────┐
 │  🎯 Quality Control                     │
@@ -440,6 +483,7 @@ if (callAnalysis.hallucination_detected) {
 ```
 
 #### 4. Pattern Analysis
+
 ```javascript
 // Detect hallucination patterns across tenants
 async function analyzeHallucinationPatterns() {
@@ -455,7 +499,7 @@ async function analyzeHallucinationPatterns() {
     HAVING COUNT(*) >= 2
     ORDER BY occurrences DESC
   `);
-  
+
   // If same hallucination across tenants = PROMPT ISSUE
   if (patterns.affected_tenants.length > 1) {
     await notifyPlatformTeam({
@@ -472,21 +516,25 @@ async function analyzeHallucinationPatterns() {
 #### Test Scenarios:
 
 **Test 1: Wrong Price**
+
 - Have agent quote a service price
 - Check if it matches Square API data
 - If mismatch → should detect hallucination
 
 **Test 2: Fake Availability**
+
 - Have agent confirm specific time slot
 - Verify slot actually exists in system
 - If doesn't exist → should detect hallucination
 
 **Test 3: Made-up Service**
+
 - Have agent mention a service
 - Check if service exists in catalog
 - If not in catalog → should detect hallucination
 
 **Test 4: Correct Usage (No hallucination)**
+
 - Agent says "Let me check availability" → GOOD
 - Agent retrieves data from API → GOOD
 - Agent says "I'm not sure" → GOOD
@@ -494,18 +542,21 @@ async function analyzeHallucinationPatterns() {
 ### Business Value
 
 **For YOU (Platform Owner):**
+
 - Maintain high quality standards
 - Identify prompt/agent issues quickly
 - Protect your reputation
 - Improve AI reliability over time
 
 **For YOUR CUSTOMERS (Business Owners):**
+
 - Catch mistakes before they cause problems
 - Maintain customer trust
 - Correct misinformation immediately
 - Sleep better knowing quality is monitored
 
 **For THEIR CUSTOMERS (End Users):**
+
 - Get accurate information
 - Better experience overall
 - Trust the AI system
@@ -515,9 +566,11 @@ async function analyzeHallucinationPatterns() {
 ## Next Steps
 
 Once you add more fields to Retell:
+
 1. I'll update the webhook handler to extract them
 2. We'll map them to the database schema
 3. We'll test with sample calls
 4. We'll inject the context back into new calls
 
-**Ready to add more fields?** Start with Phase 1 (unresolved_issue and callback_requested) - they're the most valuable for customer service! 🎯
+**Ready to add more fields?** Start with Phase 1 (unresolved_issue and callback_requested) - they're the most
+valuable for customer service! 🎯

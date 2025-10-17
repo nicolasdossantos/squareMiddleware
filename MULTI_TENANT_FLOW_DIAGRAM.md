@@ -241,19 +241,23 @@ When agent calls this function, Retell replaces:
 ## Key Takeaways
 
 1. **Each Agent = One Business**
+
    - Elite Barbershop has agent ID `895480dde586e4c3712bd4c770`
    - Nini's Salon has agent ID `new-agent-id-for-ninis`
 
 2. **Authentication is Two-Factor**
+
    - Agent ID (who you are)
    - Bearer Token (prove it)
 
 3. **Credentials are Per-Agent**
+
    - Each agent has own Square access token
    - Each agent has own Square location ID
    - Completely isolated data
 
 4. **Configuration is Centralized**
+
    - All agent configs in `AGENT_CONFIGS` environment variable
    - Deployed to Azure once
    - Retell agents configured with matching credentials

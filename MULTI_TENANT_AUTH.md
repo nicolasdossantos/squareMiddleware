@@ -2,11 +2,13 @@
 
 ## How It Works
 
-The system uses a **multi-tenant architecture** where each Retell AI agent represents a different business (e.g., Elite Barbershop, Nini's Nail Salon). Each agent has its own credentials and configuration.
+The system uses a **multi-tenant architecture** where each Retell AI agent represents a different business
+(e.g., Elite Barbershop, Nini's Nail Salon). Each agent has its own credentials and configuration.
 
 ## Authentication Flow
 
 ### Step 1: Agent Calls API
+
 When a Retell AI agent calls a custom function, it includes these headers:
 
 ```http
@@ -17,6 +19,7 @@ Content-Type: application/json
 ```
 
 ### Step 2: Agent Authentication Middleware
+
 The `agentAuthMiddleware` validates the request:
 
 ```javascript
@@ -34,6 +37,7 @@ The `agentAuthMiddleware` validates the request:
 ```
 
 ### Step 3: Request Proceeds with Agent Context
+
 Once authenticated, all subsequent code uses the agent-specific credentials:
 
 ```javascript
@@ -95,16 +99,19 @@ This is a **JSON array** stored in Azure App Service settings:
 Each agent has metadata/variables you can set:
 
 **Elite Barbershop Agent:**
+
 - `agent_bearer_token` = `test-bearer-token-elite`
 - `agent_id` = `895480dde586e4c3712bd4c770`
 
 **Nini's Nail Salon Agent:**
+
 - `agent_bearer_token` = `bearer-token-ninis-salon`
 - `agent_id` = `new-agent-id-for-ninis`
 
 ### Retell Auto-Substitutes Variables
 
-When the agent calls your API, Retell replaces `{{agent_bearer_token}}` and `{{agent_id}}` with the values from that specific agent's configuration.
+When the agent calls your API, Retell replaces `{{agent_bearer_token}}` and `{{agent_id}}` with the values
+from that specific agent's configuration.
 
 ## Complete Request Flow Example
 
@@ -185,12 +192,14 @@ x-agent-id: new-agent-id-for-ninis             ← Nini's agent ID (WRONG!)
 ```
 
 **What happens:**
+
 1. Middleware looks up agent config for "new-agent-id-for-ninis"
 2. Finds bearer token should be "bearer-token-ninis-salon"
 3. Compares with provided token "test-bearer-token-elite"
 4. **MISMATCH** → Returns 403 Forbidden
 
 **Each agent MUST have matching:**
+
 - Agent ID
 - Bearer Token
 - Square Credentials
@@ -200,6 +209,7 @@ x-agent-id: new-agent-id-for-ninis             ← Nini's agent ID (WRONG!)
 ### Step 1: Get Square Credentials for New Business
 
 From Square Developer Dashboard:
+
 - Create new application (or use existing)
 - Get Access Token for the business
 - Get Location ID
@@ -251,10 +261,12 @@ AGENT_CONFIGS=[
 ### Step 5: Configure Retell Agent
 
 In Retell Dashboard, create new agent with variables:
+
 - `agent_bearer_token` = `<generated-bearer-token>`
 - `agent_id` = `abc123xyz789`
 
 Configure custom function headers:
+
 ```json
 {
   "Authorization": "Bearer {{agent_bearer_token}}",
@@ -275,20 +287,24 @@ curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/customers/
 ## Troubleshooting
 
 ### Error: "Agent not found"
-**Cause:** Agent ID not in AGENT_CONFIGS
-**Solution:** Check Azure App Service settings, ensure AGENT_CONFIGS includes the agent
+
+**Cause:** Agent ID not in AGENT_CONFIGS **Solution:** Check Azure App Service settings, ensure AGENT_CONFIGS
+includes the agent
 
 ### Error: "Invalid bearer token"
-**Cause:** Bearer token doesn't match agent's stored token
-**Solution:** Verify Retell agent variable `agent_bearer_token` matches AGENT_CONFIGS
+
+**Cause:** Bearer token doesn't match agent's stored token **Solution:** Verify Retell agent variable
+`agent_bearer_token` matches AGENT_CONFIGS
 
 ### Error: "Missing x-agent-id header"
-**Cause:** Retell function not configured with custom headers
-**Solution:** Add custom headers in Retell function configuration
+
+**Cause:** Retell function not configured with custom headers **Solution:** Add custom headers in Retell
+function configuration
 
 ### Wrong Business Data Returned
-**Cause:** Wrong agent ID or credentials
-**Solution:** Check req.tenant in logs, verify Square credentials are correct
+
+**Cause:** Wrong agent ID or credentials **Solution:** Check req.tenant in logs, verify Square credentials are
+correct
 
 ## Key Files
 
@@ -301,6 +317,7 @@ curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/customers/
 ## Summary
 
 **How the system knows which agent is calling:**
+
 1. Retell sends `x-agent-id` header with every request
 2. Middleware looks up agent config from `AGENT_CONFIGS`
 3. Validates bearer token matches
@@ -308,12 +325,14 @@ curl -X POST https://square-middleware-prod-api.azurewebsites.net/api/customers/
 5. All subsequent operations use that agent's credentials
 
 **Security:**
+
 - Each agent has unique bearer token
 - Bearer token MUST match agent ID
 - Square credentials are agent-specific
 - No cross-tenant access possible
 
 **Configuration:**
+
 - All agent configs in single `AGENT_CONFIGS` environment variable
 - JSON array format
 - Deployed via script to Azure App Service

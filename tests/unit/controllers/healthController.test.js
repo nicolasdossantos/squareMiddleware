@@ -44,23 +44,22 @@ describe('Health Controller', () => {
     it('should return basic health status successfully', async () => {
       await healthController.basicHealthCheck(mockReq, mockRes);
 
-      expect(logEvent).toHaveBeenCalledWith('health_check', {
-        correlationId: 'test-correlation-id',
-        type: 'basic',
-        status: 'healthy'
-      });
+      // Basic health check no longer uses logEvent for performance
+      expect(logEvent).not.toHaveBeenCalled();
 
-      expect(sendSuccess).toHaveBeenCalledWith(
-        mockRes,
-        {
+      // Should use direct JSON response
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Service is healthy',
+        data: {
           status: 'healthy',
           timestamp: expect.any(String),
           version: '2.1.0',
           environment: 'test',
           uptime: 3600
-        },
-        'Service is healthy'
-      );
+        }
+      });
     });
 
     it('should handle errors gracefully', async () => {
@@ -72,7 +71,12 @@ describe('Health Controller', () => {
 
       await healthController.basicHealthCheck(mockReq, mockRes);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Health check failed', 500, 'Date construction failed');
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Health check failed',
+        error: 'Date construction failed'
+      });
 
       // Restore
       global.Date = originalDate;
@@ -84,14 +88,14 @@ describe('Health Controller', () => {
 
       await healthController.basicHealthCheck(mockReq, mockRes);
 
-      expect(sendSuccess).toHaveBeenCalledWith(
-        mockRes,
-        expect.objectContaining({
+      expect(mockRes.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Service is healthy',
+        data: expect.objectContaining({
           version: '2.0.0',
           environment: 'development'
-        }),
-        'Service is healthy'
-      );
+        })
+      });
     });
   });
 
