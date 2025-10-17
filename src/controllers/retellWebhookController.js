@@ -398,24 +398,70 @@ async function handleCallStarted(call, correlationId, tenant = null) {
  * Similar to PostCallWebhook processing
  */
 async function handleCallAnalyzed(call, correlationId) {
-  const { call_id, from_number, transcript, call_analysis } = call;
+  const { call_id, agent_id, from_number, transcript, call_analysis } = call;
 
   logEvent('retell_call_analyzed', {
     correlationId,
     callId: call_id,
+    agentId: agent_id,
     fromNumber: from_number ? `${from_number.substring(0, 5)}***` : 'unknown',
     hasTranscript: !!transcript,
     hasAnalysis: !!call_analysis
   });
 
   try {
+    // 🔐 MULTI-TENANT: Fetch agent configuration from App Settings
+    let tenant;
+    try {
+      console.log(`🔍 [RETELL DEBUG] Fetching agent config for agent_id: ${agent_id}`);
+      const agentConfig = agentConfigService.getAgentConfig(agent_id);
+
+      // Create tenant context from agent configuration
+      tenant = {
+        id: agentConfig.agentId || agent_id,
+        accessToken: agentConfig.squareAccessToken,
+        locationId: agentConfig.squareLocationId,
+        applicationId: agentConfig.squareApplicationId,
+        environment: agentConfig.squareEnvironment,
+        timezone: agentConfig.timezone,
+        staffEmail: agentConfig.staffEmail,
+        businessName: agentConfig.businessName
+      };
+
+      console.log(`✅ [RETELL DEBUG] Agent config loaded successfully for tenant: ${tenant.id}`);
+    } catch (configError) {
+      // Fallback to environment variables if config lookup fails
+      console.warn(
+        `⚠️ [RETELL DEBUG] Agent config lookup failed for agent ${agent_id}, ` +
+          'falling back to environment variables:',
+        configError.message
+      );
+
+      tenant = {
+        id: 'default',
+        accessToken: config.square.accessToken,
+        locationId: config.square.locationId,
+        environment: config.square.environment || 'sandbox',
+        timezone: config.server.timezone || 'America/New_York'
+      };
+
+      logEvent('retell_config_fallback', {
+        correlationId,
+        agentId: agent_id,
+        error: configError.message,
+        fallbackTenantId: tenant.id
+      });
+    }
+
     // Process the call analysis (similar to ElevenLabs PostCallWebhook)
     const result = await retellWebhookService.processCallAnalysis({
       callId: call_id,
       fromNumber: from_number,
       transcript,
       analysis: call_analysis,
-      correlationId
+      correlationId,
+      tenant, // ✅ Pass tenant context
+      callData: call // ✅ Pass full call data for email
     });
 
     return {

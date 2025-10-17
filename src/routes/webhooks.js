@@ -6,6 +6,7 @@
 const express = require('express');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { validateContentType } = require('../middlewares/validation');
+const { retellAuth } = require('../middlewares/retellAuth');
 const webhookController = require('../controllers/webhookController');
 const retellWebhookController = require('../controllers/retellWebhookController');
 const { sendError } = require('../utils/responseBuilder');
@@ -38,9 +39,13 @@ function handleSquareBookingRequest(req, res, next) {
  */
 function handleRetellRequest(req, res, next) {
   if (req.method === 'POST') {
-    validateContentType(['application/json'])(req, res, err => {
+    // First validate signature, then content type, then process
+    retellAuth(req, res, err => {
       if (err) return next(err);
-      return asyncHandler(retellWebhookController.handleRetellWebhook)(req, res, next);
+      validateContentType(['application/json'])(req, res, err => {
+        if (err) return next(err);
+        return asyncHandler(retellWebhookController.handleRetellWebhook)(req, res, next);
+      });
     });
   } else {
     return methodNotAllowed(req, res);
