@@ -461,7 +461,7 @@ async function handleCallAnalyzed(call, correlationId) {
       analysis: call_analysis,
       correlationId,
       tenant, // ✅ Pass tenant context
-      callData: call // ✅ Pass full call data for email
+      callData: { call } // ✅ Wrap call in object structure expected by email service
     });
 
     return {
