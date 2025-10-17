@@ -45,6 +45,12 @@ jobs:
 
       - name: Deploy to Azure Web App
         run: |
+          # Stop the app temporarily to prevent deployment conflicts
+          echo "Stopping app to prevent deployment conflicts..."
+          az webapp stop \
+            --resource-group square-middleware-prod-rg \
+            --name ${{ env.AZURE_WEBAPP_NAME }} || echo "App already stopped"
+
           # Create a clean deployment directory
           mkdir -p deploy
 
@@ -62,11 +68,15 @@ jobs:
 
           echo "Deploying to Web App: ${{ env.AZURE_WEBAPP_NAME }}"
 
-          # Deploy to Azure Web App
-          az webapp deployment source config-zip \
+          # Deploy to Azure Web App using the new command
+          az webapp deploy \
             --resource-group square-middleware-prod-rg \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --src deployment.zip
+            --src-path deployment.zip \
+            --type zip \
+            --async false \
+            --clean true \
+            --restart true
 
       - name: Configure Health Check
         run: |
