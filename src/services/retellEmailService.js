@@ -439,8 +439,9 @@ async function sendRetellPostCallEmail(callData, correlationId) {
     const customerName = call.retell_llm_dynamic_variables?.customer_first_name || 'Unknown Customer';
     const isSuccessful = analysis.call_successful;
     const sentiment = analysis.user_sentiment;
+    const isNegative = sentiment === 'Negative';
     // Don't mark spam identification calls as issues
-    subject = `�️ ${businessName} - Spam Call Detected`;
+    const isIssue = !isSpamCall && (!isSuccessful || isNegative);
 
     // Create subject line
     let subject;
@@ -457,11 +458,23 @@ async function sendRetellPostCallEmail(callData, correlationId) {
     // Create email content
     const emailHtml = createRetellEmailContent(callData, businessName);
 
+    // Validate email recipient
+    const emailTo = process.env.EMAIL_TO;
+    if (!emailTo) {
+      const error = new Error('EMAIL_TO environment variable is not configured');
+      logError(error, {
+        operation: 'sendRetellPostCallEmail',
+        correlationId,
+        callId: call.call_id
+      });
+      throw error;
+    }
+
     // Send email
     const transporter = createEmailTransporter();
     const mailOptions = {
       from: config.email.from,
-      to: process.env.EMAIL_TO,
+      to: emailTo,
       subject: subject,
       html: emailHtml
     };
@@ -480,7 +493,7 @@ async function sendRetellPostCallEmail(callData, correlationId) {
     logEvent('retell_email_sent_success', {
       correlationId,
       callId: call.call_id,
-      to: process.env.EMAIL_TO,
+      to: emailTo,
       subject
     });
 
