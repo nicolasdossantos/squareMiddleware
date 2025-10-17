@@ -1,13 +1,13 @@
-const crypto = require('crypto');
+const { Retell } = require('retell-sdk');
 const { config } = require('../config');
 
 /**
  * Retell Signature Verification Middleware
  *
- * Verifies webhook signatures from Retell AI using HMAC-SHA256.
+ * Verifies webhook signatures from Retell AI using the official Retell SDK.
  *
  * Security features:
- * - Cryptographic signature verification
+ * - Cryptographic signature verification (HMAC-SHA256)
  * - Replay attack prevention (5-minute timestamp window)
  * - Timing-safe signature comparison
  *
@@ -19,10 +19,10 @@ const { config } = require('../config');
  * @param {Function} next - Express next middleware
  */
 async function retellAuthMiddleware(req, res, next) {
-  const signatureHeader = req.headers['x-retell-signature'];
+  const signature = req.headers['x-retell-signature'];
 
   // 1. Check required header
-  if (!signatureHeader) {
+  if (!signature) {
     console.warn('[RetellAuth] Missing x-retell-signature header');
     return res.status(401).json({
       error: 'Missing x-retell-signature header'
@@ -30,39 +30,7 @@ async function retellAuthMiddleware(req, res, next) {
   }
 
   try {
-    // 2. Parse signature header: "v=<timestamp>,d=<signature>"
-    const parts = signatureHeader.split(',');
-    if (parts.length !== 2) {
-      console.warn('[RetellAuth] Invalid signature format:', signatureHeader);
-      return res.status(401).json({
-        error: 'Invalid signature format'
-      });
-    }
-
-    const timestamp = parts[0].split('=')[1];
-    const signature = parts[1].split('=')[1];
-
-    if (!timestamp || !signature) {
-      console.warn('[RetellAuth] Missing timestamp or signature in header');
-      return res.status(401).json({
-        error: 'Invalid signature header'
-      });
-    }
-
-    // 3. Prevent replay attacks (5-minute window)
-    const requestTime = parseInt(timestamp, 10);
-    const currentTime = Date.now();
-    const timeDiff = Math.abs(currentTime - requestTime);
-
-    if (timeDiff > 300000) {
-      // 5 minutes in milliseconds
-      console.warn('[RetellAuth] Request timestamp too old:', { requestTime, currentTime, timeDiff });
-      return res.status(401).json({
-        error: 'Request timestamp too old (possible replay attack)'
-      });
-    }
-
-    // 4. Get Retell API key from environment
+    // 2. Get Retell API key from configuration
     const apiKey = config.retell?.apiKey;
 
     if (!apiKey) {
@@ -72,44 +40,24 @@ async function retellAuthMiddleware(req, res, next) {
       });
     }
 
-    // 5. Get raw request body (MUST use raw body, not re-stringified JSON)
-    const payload = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
+    // 3. Get raw request body (required for signature verification)
+    const body = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
 
-    // 5. Compute expected signature
-    // Retell SDK signature format (verified from their source code):
-    // HMAC-SHA256(body + timestamp, apiKey)
-    // Note: body and timestamp are concatenated directly with NO separator
-    // Reference: https://github.com/RetellAI/retell-typescript-sdk
-    const signaturePayload = `${payload}${timestamp}`;
-    const expectedSignature = crypto.createHmac('sha256', apiKey).update(signaturePayload).digest('hex');
-
-    // 6. Compare signatures (timing-safe comparison)
-    if (signature.length !== expectedSignature.length) {
-      console.warn('[RetellAuth] Signature length mismatch');
-      return res.status(401).json({
-        error: 'Invalid signature'
-      });
-    }
-
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
-      Buffer.from(expectedSignature, 'hex')
-    );
+    // 4. Verify signature using official Retell SDK
+    // This handles: timestamp validation, HMAC-SHA256 computation, timing-safe comparison
+    const isValid = Retell.verify(body, apiKey, signature);
 
     if (!isValid) {
-      console.warn('[RetellAuth] Signature verification failed after match');
-      console.debug('[RetellAuth] Expected:', expectedSignature);
-      console.debug('[RetellAuth] Received:', signature);
+      console.warn('[RetellAuth] Signature verification failed');
       return res.status(401).json({
         error: 'Invalid signature'
       });
     }
 
     console.log('[RetellAuth] ✅ Signature verified successfully');
-    // Signature valid - proceed to next middleware
     next();
   } catch (error) {
-    console.error('[RetellAuth] Error:', error);
+    console.error('[RetellAuth] Error during signature verification:', error);
     return res.status(500).json({
       error: 'Authentication service error'
     });
