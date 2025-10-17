@@ -68,6 +68,14 @@ jobs:
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --src deployment.zip
 
+      - name: Configure Health Check
+        run: |
+          echo "Configuring health check path..."
+          az webapp config set \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group square-middleware-prod-rg \
+            --health-check-path /api/health
+
       - name: Azure Logout
         if: always()
         run: az logout

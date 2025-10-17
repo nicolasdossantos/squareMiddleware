@@ -8,29 +8,31 @@ const { logEvent } = require('../utils/logger');
 const healthService = require('../services/healthService');
 
 /**
- * Basic health check
+ * Basic health check - FAST for Azure health probes
+ * No external API calls, just process status
  */
 async function basicHealthCheck(req, res) {
-  const { correlationId } = req;
-
   try {
     const health = {
       status: 'healthy',
       timestamp: new Date().toISOString(),
       version: process.env.npm_package_version || '2.0.0',
       environment: process.env.NODE_ENV || 'development',
-      uptime: process.uptime()
+      uptime: Math.round(process.uptime())
     };
 
-    logEvent('health_check', {
-      correlationId,
-      type: 'basic',
-      status: health.status
+    // Fast response for health probes - no logging overhead
+    res.status(200).json({
+      success: true,
+      message: 'Service is healthy',
+      data: health
     });
-
-    sendSuccess(res, health, 'Service is healthy');
   } catch (error) {
-    sendError(res, 'Health check failed', 500, error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Health check failed',
+      error: error.message
+    });
   }
 }
 
