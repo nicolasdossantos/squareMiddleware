@@ -54,15 +54,11 @@ jobs:
           # Create a clean deployment directory
           mkdir -p deploy
 
-          # Copy necessary files (exclude tests, coverage, etc.)
+          # Copy ONLY source code and package files (Azure will install node_modules)
           cp -r src package.json package-lock.json deploy/
-          cp -r deploy/ 2>/dev/null || echo "deploy scripts not found"
 
-          # Change to deploy directory and install production dependencies
+          # Create deployment package WITHOUT node_modules
           cd deploy
-          npm ci --omit=dev
-
-          # Create deployment package
           zip -r ../deployment.zip .
           cd ..
 

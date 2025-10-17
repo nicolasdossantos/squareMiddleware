@@ -3,6 +3,7 @@
 ## Problem
 
 Deployment was failing with:
+
 ```
 ERROR: Deployment endpoint responded with status code 409
 There may be an ongoing deployment or your app setting has WEBSITE_RUN_FROM_PACKAGE.
@@ -19,47 +20,40 @@ There may be an ongoing deployment or your app setting has WEBSITE_RUN_FROM_PACK
 ### 1. Updated to Modern Deployment Command
 
 **Before (deprecated):**
+
 ```yaml
-az webapp deployment source config-zip \
-  --resource-group square-middleware-prod-rg \
-  --name ${{ env.AZURE_WEBAPP_NAME }} \
-  --src deployment.zip
+az webapp deployment source config-zip \ --resource-group square-middleware-prod-rg \ --name ${{
+env.AZURE_WEBAPP_NAME }} \ --src deployment.zip
 ```
 
 **After (current):**
+
 ```yaml
-az webapp deploy \
-  --resource-group square-middleware-prod-rg \
-  --name ${{ env.AZURE_WEBAPP_NAME }} \
-  --src-path deployment.zip \
-  --type zip \
-  --async false \
-  --clean true \
-  --restart true
+az webapp deploy \ --resource-group square-middleware-prod-rg \ --name ${{ env.AZURE_WEBAPP_NAME }} \
+--src-path deployment.zip \ --type zip \ --async false \ --clean true \ --restart true
 ```
 
 ### 2. Added App Stop Before Deployment
 
 ```yaml
 # Stop the app temporarily to prevent deployment conflicts
-az webapp stop \
-  --resource-group square-middleware-prod-rg \
-  --name ${{ env.AZURE_WEBAPP_NAME }}
+az webapp stop \ --resource-group square-middleware-prod-rg \ --name ${{ env.AZURE_WEBAPP_NAME }}
 ```
 
 This ensures:
+
 - ✅ No concurrent deployments
 - ✅ Clean deployment state
 - ✅ No file locking issues
 
 ### 3. Key Parameter Changes
 
-| Parameter | Value | Purpose |
-|-----------|-------|---------|
-| `--async false` | Wait for completion | Ensures deployment finishes before next step |
-| `--clean true` | Remove old files | Prevents stale code from persisting |
-| `--restart true` | Restart after deploy | Applies changes immediately |
-| `--type zip` | Zip deployment | Explicit deployment type |
+| Parameter        | Value                | Purpose                                      |
+| ---------------- | -------------------- | -------------------------------------------- |
+| `--async false`  | Wait for completion  | Ensures deployment finishes before next step |
+| `--clean true`   | Remove old files     | Prevents stale code from persisting          |
+| `--restart true` | Restart after deploy | Applies changes immediately                  |
+| `--type zip`     | Zip deployment       | Explicit deployment type                     |
 
 ## Deployment Flow (Updated)
 
@@ -80,16 +74,19 @@ This ensures:
 ## Monitoring Deployment
 
 **Check GitHub Actions:**
+
 ```
 https://github.com/nicolasdossantos/squareMiddleware/actions
 ```
 
 **Check Azure health after 3-5 minutes:**
+
 ```bash
 ./monitor-azure-health.sh
 ```
 
 Expected output after successful deployment:
+
 ```
 ✅ App is responding (HTTP 200)
 ⏱️  Current Uptime: 45m 32s
@@ -152,9 +149,8 @@ az webapp restart \
 
 ## Summary
 
-✅ **Deployment process fixed** - Using modern Azure CLI commands
-✅ **Concurrent deployment prevention** - App stops before deploy
-✅ **Clean deployment** - Old files removed automatically
-✅ **Automatic restart** - App comes back online after deploy
+✅ **Deployment process fixed** - Using modern Azure CLI commands ✅ **Concurrent deployment prevention** -
+App stops before deploy ✅ **Clean deployment** - Old files removed automatically ✅ **Automatic restart** -
+App comes back online after deploy
 
 **The 409 error should not occur again.**
