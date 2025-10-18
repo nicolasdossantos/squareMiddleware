@@ -45,8 +45,9 @@ jobs:
 
       - name: Create deployment package
         run: |
+          rm -rf deploy
           mkdir -p deploy
-          cp -r src/* deploy/
+          cp -R src deploy/
           cp package.json package-lock.json deploy/
 
       - name: Install production dependencies
