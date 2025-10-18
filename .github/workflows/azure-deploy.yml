@@ -101,24 +101,12 @@ jobs:
           echo "Package size: $(du -h deployment.zip | cut -f1)"
           echo "================================"
 
-          # Stop the app to prevent deployment conflicts
-          echo "Stopping app..."
-          az webapp stop \
-            --resource-group square-middleware-prod-rg \
-            --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --output none
-
-          # Deploy with extended timeout
+          # Deploy using the old reliable method (which was working before)
           echo "Deploying application to Azure..."
-          az webapp deploy \
+          az webapp deployment source config-zip \
             --resource-group square-middleware-prod-rg \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --src-path deployment.zip \
-            --type zip \
-            --async false \
-            --clean true \
-            --restart true \
-            --timeout 900
+            --src deployment.zip
 
           echo "✅ Deployment complete!"
 
