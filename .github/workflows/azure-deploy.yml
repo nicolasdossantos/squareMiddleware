@@ -65,11 +65,9 @@ jobs:
           echo "Configuring health check path..."
           az resource update \
             --resource-group square-middleware-prod-rg \
-            --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --resource-type "Microsoft.Web/sites/config" \
-            --parent "sites/${{ env.AZURE_WEBAPP_NAME }}" \
-            --set properties.healthCheckPath="/api/health" \
-            --api-version 2022-03-01
+            --resource-type Microsoft.Web/sites \
+            --name "${{ env.AZURE_WEBAPP_NAME }}/config/web" \
+            --set properties.healthCheckPath="/api/health"
 
       - name: Azure Logout
         if: always()
