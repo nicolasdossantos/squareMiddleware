@@ -85,19 +85,21 @@ async function getDetailedHealth() {
 
 /**
  * Check if service is ready to accept requests
+ * NOTE: This should be FAST and not make external API calls
+ * Readiness probes are called frequently by orchestrators (Kubernetes, Azure, etc.)
  */
 async function checkReadiness() {
   try {
     logEvent('readiness_check_start');
 
-    // Critical dependencies that must be available for readiness
-    const criticalChecks = await Promise.allSettled([checkSquareConnection(), checkEnvironmentVariables()]);
+    // Only check environment variables - NO external API calls
+    // External dependency checks should be in detailedHealthCheck
+    const envCheck = await checkEnvironmentVariables();
 
-    const isReady = criticalChecks.every(check => check.status === 'fulfilled' && check.value.healthy);
+    const isReady = envCheck.healthy === true;
 
     logEvent('readiness_check_complete', {
-      ready: isReady,
-      criticalChecks: criticalChecks.length
+      ready: isReady
     });
 
     return isReady;
