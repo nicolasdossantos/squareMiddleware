@@ -46,72 +46,34 @@ jobs:
       - name: Deploy to Azure Web App
         run: |
           # Create a clean deployment directory
-          rm -rf deploy-temp deployment.zip
-          mkdir -p deploy-temp
+          mkdir -p deploy
 
-          # Copy only necessary application files
-          echo "Copying application files..."
-          cp -r src deploy-temp/
-          cp package.json package-lock.json deploy-temp/
+          # Copy necessary files (exclude tests, coverage, etc.)
+          cp -r src package.json package-lock.json deploy/
 
-          # Copy minimal deploy scripts (no docs)
-          if [ -d "deploy" ]; then
-            mkdir -p deploy-temp/deploy
-            cp deploy/*.sh deploy-temp/deploy/ 2>/dev/null || true
-          fi
+          # Change to deploy directory and install production dependencies
+          cd deploy
+          npm ci --omit=dev
 
-          # Install ONLY production dependencies
-          cd deploy-temp
-          echo "Installing production dependencies..."
-          npm ci --omit=dev --production --no-audit --no-fund
-
-          # Remove unnecessary files from node_modules
-          echo "Cleaning up node_modules..."
-          find node_modules -type f -name "*.md" -delete 2>/dev/null || true
-          find node_modules -type f -name "*.txt" -delete 2>/dev/null || true  
-          find node_modules -type f -name "*.yml" -delete 2>/dev/null || true
-          find node_modules -type d -name "test" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name "tests" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name "docs" -exec rm -rf {} + 2>/dev/null || true
-          find node_modules -type d -name ".github" -exec rm -rf {} + 2>/dev/null || true
-
-          # Show package contents and size
-          echo "=== Deployment Package Contents ==="
-          echo "Application files:"
-          du -sh src 2>/dev/null || true
-          echo "Node modules:"
-          du -sh node_modules 2>/dev/null || true
-          echo "Total package size:"
-          du -sh .
-          echo "==================================="
-
-          # Create optimized deployment package
-          echo "Creating deployment package..."
-          zip -q -r deployment.zip . \
-            -x "*.log" \
-            -x ".git*"
-
-          # Move zip to parent and return
-          mv deployment.zip ../
+          # Create deployment package
+          zip -r ../deployment.zip .
           cd ..
 
-          # Verify final package
-          echo "=== Final Deployment Package ==="
-          ls -lh deployment.zip
-          echo "Package size: $(du -h deployment.zip | cut -f1)"
-          echo "================================"
+          echo "Deploying to Web App: ${{ env.AZURE_WEBAPP_NAME }}"
 
-          # Deploy using the old reliable method (which was working before)
-          echo "Deploying application to Azure..."
+          # Deploy to Azure Web App
           az webapp deployment source config-zip \
             --resource-group square-middleware-prod-rg \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --src deployment.zip
 
-          echo "✅ Deployment complete!"
-
-          # Cleanup
-          rm -rf deploy-temp deployment.zip
+      - name: Configure Health Check
+        run: |
+          echo "Configuring health check path..."
+          az webapp config set \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group square-middleware-prod-rg \
+            --health-check-path /api/health
 
       - name: Azure Logout
         if: always()
