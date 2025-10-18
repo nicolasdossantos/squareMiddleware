@@ -63,10 +63,13 @@ jobs:
       - name: Configure Health Check
         run: |
           echo "Configuring health check path..."
-          az webapp config set \
-            --name ${{ env.AZURE_WEBAPP_NAME }} \
+          az resource update \
             --resource-group square-middleware-prod-rg \
-            --health-check-path /api/health
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-type "Microsoft.Web/sites/config" \
+            --parent "sites/${{ env.AZURE_WEBAPP_NAME }}" \
+            --set properties.healthCheckPath="/api/health" \
+            --api-version 2022-03-01
 
       - name: Azure Logout
         if: always()
