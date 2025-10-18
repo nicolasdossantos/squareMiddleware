@@ -1,0 +1,64 @@
+# Azure Deployment Ignore File
+# Files and directories to exclude from deployment
+
+# Tests
+tests/
+test/
+*.test.js
+*.spec.js
+__tests__/
+coverage/
+
+# Documentation
+*.md
+!README.md
+docs/
+DEPLOYMENT_CHECKLIST.md
+AZURE_*.md
+BOOKINGS_ANALYSIS.md
+COPY_TO_NEW_REPO.md
+ELITE_BARBERSHOP_ONBOARDING.md
+ENDPOINT_TEST_RESULTS.md
+MULTI_TENANT_*.md
+NEW_TENANT_SETUP_GUIDE.md
+QUICK_DEPLOY_REFERENCE.md
+REQUIRED_SECRETS_AND_KEYS.md
+RETELL_*.md
+SECRETS_STRATEGY.md
+SQUARE_SDK_*.md
+FINAL_CHECKLIST.txt
+
+# Development files
+.git/
+.gitignore
+.github/
+.vscode/
+.env.local
+.env.development
+.env.test
+nodemon.json
+eslint.config.js
+jest.config.json
+.prettierrc
+.editorconfig
+
+# Scripts
+test-*.js
+monitor-*.sh
+onboard-*.sh
+pre-commit-*.sh
+
+# Build artifacts
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
