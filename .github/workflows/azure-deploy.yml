@@ -46,14 +46,18 @@ jobs:
       - name: Deploy to Azure Web App
         run: |
           # Create a clean deployment directory
-          mkdir -p deploy
+          mkdir -p deploy-temp
 
           # Copy necessary files (exclude tests, coverage, etc.)
-          cp -r src package.json package-lock.json deploy/
-          cp -r deploy/ 2>/dev/null || echo "deploy scripts not found"
+          cp -r src package.json package-lock.json deploy-temp/
+          
+          # Copy deploy scripts if they exist
+          if [ -d "deploy" ]; then
+            cp -r deploy/ deploy-temp/ 2>/dev/null || true
+          fi
 
           # Change to deploy directory and install production dependencies
-          cd deploy
+          cd deploy-temp
           npm ci --omit=dev
 
           # Create deployment package
@@ -62,11 +66,27 @@ jobs:
 
           echo "Deploying to Web App: ${{ env.AZURE_WEBAPP_NAME }}"
 
-          # Deploy to Azure Web App
-          az webapp deployment source config-zip \
+          # Stop the app to prevent deployment conflicts
+          echo "Stopping app..."
+          az webapp stop \
+            --resource-group square-middleware-prod-rg \
+            --name ${{ env.AZURE_WEBAPP_NAME }}
+
+          # Deploy using modern deployment command
+          echo "Deploying application..."
+          az webapp deploy \
             --resource-group square-middleware-prod-rg \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --src deployment.zip
+            --src-path deployment.zip \
+            --type zip \
+            --async false \
+            --clean true \
+            --restart true
+
+          echo "Deployment complete!"
+
+          # Cleanup temporary files
+          rm -rf deploy-temp deployment.zip
 
       - name: Azure Logout
         if: always()
