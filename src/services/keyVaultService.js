@@ -18,17 +18,27 @@ class KeyVaultService {
     this.cache = new Map();
     this.cacheTTL = 10 * 60 * 1000; // 10 minutes
     this.client = null;
+    this.initialized = false;
     this.useMock = process.env.NODE_ENV === 'development' && !process.env.USE_REAL_KEYVAULT;
+  }
 
-    // Initialize Key Vault client in production
-    if (!this.useMock) {
-      const keyVaultName = process.env.AZURE_KEY_VAULT_NAME;
-      if (!keyVaultName) {
-        throw new Error('AZURE_KEY_VAULT_NAME environment variable is required');
-      }
-      const keyVaultUrl = `https://${keyVaultName}.vault.azure.net`;
-      this.client = new SecretClient(keyVaultUrl, new DefaultAzureCredential());
+  /**
+   * Initialize Key Vault client (lazy initialization)
+   * Only called when actually needed, not during module load
+   */
+  _ensureInitialized() {
+    if (this.initialized || this.useMock) {
+      return;
     }
+
+    const keyVaultName = process.env.AZURE_KEY_VAULT_NAME;
+    if (!keyVaultName) {
+      throw new Error('AZURE_KEY_VAULT_NAME environment variable is required');
+    }
+
+    const keyVaultUrl = `https://${keyVaultName}.vault.azure.net`;
+    this.client = new SecretClient(keyVaultUrl, new DefaultAzureCredential());
+    this.initialized = true;
   }
 
   /**
@@ -47,6 +57,9 @@ class KeyVaultService {
     if (this.useMock) {
       return this._getMockSecret(secretName);
     }
+
+    // Initialize Key Vault client if needed
+    this._ensureInitialized();
 
     // Fetch from Key Vault
     try {
