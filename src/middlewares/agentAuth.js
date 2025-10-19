@@ -9,7 +9,7 @@ const { config } = require('../config');
  *
  * For Retell agents:
  * - Verifies x-retell-signature using RETELL_API_KEY
- * - Extracts agent_id from request body
+ * - Extracts agent_id from x-agent-id header (Retell provides this with tool calls)
  * - Loads agent config from Key Vault to get Square credentials
  *
  * On success, attaches req.retellContext and req.tenant with:
@@ -25,7 +25,7 @@ const { config } = require('../config');
  */
 async function agentAuthMiddleware(req, res, next) {
   const signatureHeader = req.headers['x-retell-signature'];
-  const agentId = req.body?.agent_id;
+  const agentId = req.headers['x-agent-id'];
 
   // Validate signature header exists
   if (!signatureHeader) {
@@ -34,10 +34,10 @@ async function agentAuthMiddleware(req, res, next) {
     });
   }
 
-  // Validate agent_id in request body
+  // Validate agent_id from header (Retell sends this with tool calls)
   if (!agentId) {
-    return res.status(400).json({
-      error: 'Missing agent_id in request body'
+    return res.status(401).json({
+      error: 'Missing x-agent-id header'
     });
   }
 
