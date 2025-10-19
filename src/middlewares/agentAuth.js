@@ -27,6 +27,12 @@ async function agentAuthMiddleware(req, res, next) {
   const signatureHeader = req.headers['x-retell-signature'];
   const agentId = req.headers['x-agent-id'];
 
+  // Debug: Log all headers to see what's being sent
+  console.log('[AgentAuth] DEBUG - All headers received:', JSON.stringify(req.headers, null, 2));
+  console.log('[AgentAuth] DEBUG - x-retell-signature:', signatureHeader);
+  console.log('[AgentAuth] DEBUG - x-agent-id:', agentId);
+  console.log('[AgentAuth] DEBUG - Request body:', JSON.stringify(req.body, null, 2));
+
   // Validate signature header exists
   if (!signatureHeader) {
     return res.status(401).json({
