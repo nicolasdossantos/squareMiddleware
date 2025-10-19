@@ -313,11 +313,22 @@ function logError(error, context = {}) {
 }
 
 /**
- * Request logging helper
+ * Request logging helper with sensitive header redaction
  */
 function logRequest(req, res, startTime) {
   const duration = Date.now() - startTime;
   const correlationId = req.headers['x-correlation-id'] || req.correlationId;
+  
+  // Redact sensitive headers from logs
+  const sensitiveHeaders = ['authorization', 'x-api-key', 'x-retell-api-key', 'cookie'];
+  const redactedHeaders = {};
+  
+  sensitiveHeaders.forEach(headerName => {
+    if (req.headers[headerName]) {
+      redactedHeaders[headerName] = '[REDACTED]';
+    }
+  });
+
   logger.info('HTTP Request', {
     correlationId,
     method: req.method,
@@ -326,7 +337,8 @@ function logRequest(req, res, startTime) {
     duration,
     userAgent: req.get('user-agent'),
     ip: req.ip,
-    contentLength: res.get('content-length')
+    contentLength: res.get('content-length'),
+    ...(Object.keys(redactedHeaders).length > 0 && { redactedHeaders })
   });
 }
 

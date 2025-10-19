@@ -23,13 +23,21 @@ const keyVaultService = require('../services/keyVaultService');
 async function agentAuthMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'];
   const agentId = req.headers['x-agent-id'];
-  const retellApiKey = req.headers['x-retell-api-key'];
 
-  // 1. Allow Retell agent tool calls using RETELL_API_KEY
-  // Retell cannot pass custom headers in tool definitions, so we use API key auth instead
-  if (retellApiKey && retellApiKey === process.env.RETELL_API_KEY) {
-    // Retell agent authenticated - use environment variables
+  // 1. Check for Bearer token (both Retell agent and standard auth use this now)
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({
+      error: 'Missing or invalid Authorization header'
+    });
+  }
+
+  const bearerToken = authHeader.substring(7); // Remove "Bearer "
+
+  // 2. Try Retell agent authentication first (Bearer token === RETELL_API_KEY)
+  if (bearerToken === process.env.RETELL_API_KEY) {
+    // Retell agent authenticated securely via Bearer token
     // Set both req.retellContext and req.tenant for compatibility
+    // ✅ SECURE: Uses standard Authorization header, API key not in custom headers
     const tenantContext = {
       id: 'retell-agent',
       agentId: 'retell-agent',
@@ -47,33 +55,26 @@ async function agentAuthMiddleware(req, res, next) {
     return next();
   }
 
-  // 2. Check required headers for standard Bearer token auth
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({
-      error: 'Missing or invalid Authorization header'
-    });
-  }
-
+  // 3. Try standard Key Vault agent authentication
+  // For standard agents, also require x-agent-id header
   if (!agentId) {
     return res.status(401).json({
       error: 'Missing x-agent-id header'
     });
   }
 
-  const bearerToken = authHeader.substring(7); // Remove "Bearer "
-
   try {
-    // 2. Fetch agent config from Key Vault
+    // Fetch agent config from Key Vault
     const agentConfig = await keyVaultService.getAgentConfig(agentId);
 
-    // 3. Validate Bearer token
+    // Validate Bearer token
     if (agentConfig.bearerToken !== bearerToken) {
       return res.status(403).json({
         error: 'Invalid bearer token for agent'
       });
     }
 
-    // 4. Attach Retell context to request (replaces old tenantContext)
+    // Attach context to request
     const tenantContext = {
       id: agentId,
       agentId: agentConfig.agentId,
