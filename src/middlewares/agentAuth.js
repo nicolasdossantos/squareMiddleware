@@ -1,15 +1,18 @@
+const { Retell } = require('retell-sdk');
 const keyVaultService = require('../services/keyVaultService');
+const { config } = require('../config');
 
 /**
  * Per-Agent Authorization Middleware
  *
- * Validates agent Bearer token and loads Square credentials from Key Vault.
+ * Validates Retell agent tool call signatures and loads tenant context.
  *
- * Required headers:
- * - Authorization: Bearer <agent-token>
- * - x-agent-id: <agent-id>
+ * For Retell agents:
+ * - Verifies x-retell-signature using RETELL_API_KEY
+ * - Extracts agent_id from request body
+ * - Loads agent config from Key Vault to get Square credentials
  *
- * On success, attaches req.retellContext with:
+ * On success, attaches req.retellContext and req.tenant with:
  * - agentId: Agent identifier
  * - squareAccessToken: Square API access token
  * - squareLocationId: Square location ID
@@ -21,74 +24,67 @@ const keyVaultService = require('../services/keyVaultService');
  * @param {Function} next - Express next middleware
  */
 async function agentAuthMiddleware(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const agentId = req.headers['x-agent-id'];
+  const signatureHeader = req.headers['x-retell-signature'];
+  const agentId = req.body?.agent_id;
 
-  // 1. Check for Bearer token (both Retell agent and standard auth use this now)
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  // Validate signature header exists
+  if (!signatureHeader) {
     return res.status(401).json({
-      error: 'Missing or invalid Authorization header'
+      error: 'Missing x-retell-signature header'
     });
   }
 
-  const bearerToken = authHeader.substring(7); // Remove "Bearer "
-
-  // 2. Try Retell agent authentication first (Bearer token === RETELL_API_KEY)
-  if (bearerToken === process.env.RETELL_API_KEY) {
-    // Retell agent authenticated securely via Bearer token
-    // Set both req.retellContext and req.tenant for compatibility
-    // ✅ SECURE: Uses standard Authorization header, API key not in custom headers
-    const tenantContext = {
-      id: 'retell-agent',
-      agentId: 'retell-agent',
-      accessToken: process.env.SQUARE_ACCESS_TOKEN,
-      locationId: process.env.SQUARE_LOCATION_ID,
-      squareAccessToken: process.env.SQUARE_ACCESS_TOKEN,
-      squareLocationId: process.env.SQUARE_LOCATION_ID,
-      timezone: process.env.TZ || 'America/New_York',
-      environment: process.env.SQUARE_ENVIRONMENT || 'production',
-      authenticated: true,
-      isRetellAgent: true
-    };
-    req.retellContext = tenantContext;
-    req.tenant = tenantContext;
-    return next();
-  }
-
-  // 3. Try standard Key Vault agent authentication
-  // For standard agents, also require x-agent-id header
+  // Validate agent_id in request body
   if (!agentId) {
-    return res.status(401).json({
-      error: 'Missing x-agent-id header'
+    return res.status(400).json({
+      error: 'Missing agent_id in request body'
     });
   }
 
   try {
-    // Fetch agent config from Key Vault
-    const agentConfig = await keyVaultService.getAgentConfig(agentId);
+    const apiKey = config.retell?.apiKey;
 
-    // Validate Bearer token
-    if (agentConfig.bearerToken !== bearerToken) {
-      return res.status(403).json({
-        error: 'Invalid bearer token for agent'
+    if (!apiKey) {
+      console.error('[AgentAuth] RETELL_API_KEY not configured');
+      return res.status(500).json({
+        error: 'Retell API key not configured'
       });
     }
 
-    // Attach context to request
+    // Verify Retell signature
+    // Use raw body if available (set by body parser middleware), otherwise JSON stringify
+    const payload = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
+
+    const isValid = Retell.verify(payload, apiKey, signatureHeader);
+
+    if (!isValid) {
+      console.warn('[AgentAuth] Signature verification failed for agent:', agentId);
+      return res.status(401).json({
+        error: 'Invalid signature'
+      });
+    }
+
+    // Signature verified - load agent config from Key Vault
+    const agentConfig = await keyVaultService.getAgentConfig(agentId);
+
+    // Attach tenant context to request
     const tenantContext = {
       id: agentId,
-      agentId: agentConfig.agentId,
+      agentId: agentId,
       accessToken: agentConfig.squareAccessToken,
       locationId: agentConfig.squareLocationId,
       squareAccessToken: agentConfig.squareAccessToken,
       squareLocationId: agentConfig.squareLocationId,
-      squareEnvironment: agentConfig.squareEnvironment,
-      timezone: agentConfig.timezone
+      squareEnvironment: agentConfig.squareEnvironment || 'production',
+      timezone: agentConfig.timezone || 'America/New_York',
+      authenticated: true,
+      isRetellAgent: true
     };
+
     req.retellContext = tenantContext;
     req.tenant = tenantContext;
 
-    // Authorization successful - proceed
+    console.log('[AgentAuth] ✅ Agent authenticated:', agentId);
     next();
   } catch (error) {
     console.error('[AgentAuth] Error:', error);
