@@ -28,15 +28,22 @@ async function agentAuthMiddleware(req, res, next) {
   // 1. Allow Retell agent tool calls using RETELL_API_KEY
   // Retell cannot pass custom headers in tool definitions, so we use API key auth instead
   if (retellApiKey && retellApiKey === process.env.RETELL_API_KEY) {
-    // Retell agent authenticated - use default agent context
-    req.retellContext = {
+    // Retell agent authenticated - use environment variables
+    // Set both req.retellContext and req.tenant for compatibility
+    const tenantContext = {
+      id: 'retell-agent',
       agentId: 'retell-agent',
+      accessToken: process.env.SQUARE_ACCESS_TOKEN,
+      locationId: process.env.SQUARE_LOCATION_ID,
       squareAccessToken: process.env.SQUARE_ACCESS_TOKEN,
       squareLocationId: process.env.SQUARE_LOCATION_ID,
       timezone: process.env.TZ || 'America/New_York',
+      environment: process.env.SQUARE_ENVIRONMENT || 'production',
       authenticated: true,
       isRetellAgent: true
     };
+    req.retellContext = tenantContext;
+    req.tenant = tenantContext;
     return next();
   }
 
@@ -67,13 +74,18 @@ async function agentAuthMiddleware(req, res, next) {
     }
 
     // 4. Attach Retell context to request (replaces old tenantContext)
-    req.retellContext = {
+    const tenantContext = {
+      id: agentId,
       agentId: agentConfig.agentId,
+      accessToken: agentConfig.squareAccessToken,
+      locationId: agentConfig.squareLocationId,
       squareAccessToken: agentConfig.squareAccessToken,
       squareLocationId: agentConfig.squareLocationId,
       squareEnvironment: agentConfig.squareEnvironment,
       timezone: agentConfig.timezone
     };
+    req.retellContext = tenantContext;
+    req.tenant = tenantContext;
 
     // Authorization successful - proceed
     next();
