@@ -37,8 +37,37 @@ async function agentAuthMiddleware(req, res, next) {
     console.log('[AgentAuth] DEBUG - req.rawBody content:', req.rawBody.toString('utf8'));
   }
 
-  // Validate agent_id from header (Retell sends this with tool calls)
-  if (!agentId) {
+  // If no Retell headers are present, this is not a Retell tool call
+  // Allow it to pass through - it's a regular REST API call
+  if (!agentId && !signatureHeader) {
+    console.log('[AgentAuth] ℹ️  No Retell headers - treating as regular REST API call');
+    // Load Square credentials from environment variables for regular REST calls
+    const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
+    const squareLocationId = process.env.SQUARE_LOCATION_ID;
+
+    if (squareAccessToken && squareLocationId) {
+      const tenantContext = {
+        id: 'default',
+        agentId: 'default',
+        accessToken: squareAccessToken,
+        locationId: squareLocationId,
+        squareAccessToken: squareAccessToken,
+        squareLocationId: squareLocationId,
+        squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'production',
+        timezone: process.env.TZ || 'America/New_York',
+        authenticated: true,
+        isRetellAgent: false
+      };
+
+      req.retellContext = tenantContext;
+      req.tenant = tenantContext;
+    }
+
+    return next();
+  }
+
+  // If agent_id is present but missing, that's an error
+  if (signatureHeader && !agentId) {
     return res.status(401).json({
       error: 'Missing x-agent-id header'
     });
