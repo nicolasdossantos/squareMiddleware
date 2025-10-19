@@ -9,6 +9,7 @@ const customerService = require('../services/customerService');
 const retellWebhookService = require('../services/retellWebhookService');
 const retellEmailService = require('../services/retellEmailService');
 const agentConfigService = require('../services/agentConfigService');
+const sessionStore = require('../services/sessionStore');
 const { config } = require('../config');
 
 /**
@@ -477,11 +478,23 @@ async function handleCallEnded(call, correlationId) {
   });
 
   try {
+    // 🔐 CLEANUP SESSION: Destroy session when call ends
+    // This invalidates all credentials and prevents further tool calls
+    const destroyed = sessionStore.destroySession(call_id);
+
+    if (destroyed) {
+      logEvent('retell_session_destroyed', {
+        correlationId,
+        callId: call_id
+      });
+    }
+
     // Simple acknowledgment - no complex processing needed for call_ended
     return {
       processed: true,
       event: 'call_ended',
       callId: call_id,
+      sessionDestroyed: destroyed,
       summary: `Call ended acknowledged for ${call_id}`
     };
   } catch (error) {
@@ -560,6 +573,34 @@ async function handleCallInbound(call_inbound, correlationId) {
       });
     }
 
+    // 🔐 CREATE SESSION: Generate a unique call_id and create session for this agent
+    // Tool calls during this call will use x-retell-call-id header to access credentials
+    const crypto = require('crypto');
+    const callId = crypto.randomUUID();
+
+    try {
+      sessionStore.createSession(callId, agent_id, {
+        accessToken: tenant.accessToken,
+        locationId: tenant.locationId,
+        environment: tenant.environment,
+        timezone: tenant.timezone
+      }, 600); // 10 minute TTL
+
+      console.log(`[SessionStore] 📝 Session created for agent ${agent_id}: ${callId}`);
+      logEvent('retell_session_created', {
+        correlationId,
+        agentId: agent_id,
+        callId: callId
+      });
+    } catch (sessionError) {
+      console.error('[SessionStore] ❌ Failed to create session:', sessionError);
+      logEvent('retell_session_creation_error', {
+        correlationId,
+        agentId: agent_id,
+        error: sessionError.message
+      });
+    }
+
     // For inbound calls, we'll treat it similar to call_started but with the inbound call structure
     // Use the same customer lookup logic as regular calls
     const customerController = require('./customerController');
@@ -591,6 +632,7 @@ async function handleCallInbound(call_inbound, correlationId) {
       processed: true,
       event: 'call_inbound',
       agentId: agent_id,
+      callId: callId, // 🔐 Include call_id so client can send it back in tool calls
       fromNumber: from_number,
       customerResponse: customerResponse,
       tenant: tenant, // Include tenant for business name access

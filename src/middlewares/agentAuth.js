@@ -1,15 +1,24 @@
 const { Retell } = require('retell-sdk');
 const { config } = require('../config');
+const sessionStore = require('../services/sessionStore');
 
 /**
  * Per-Agent Authorization Middleware
  *
- * Validates Retell agent tool call signatures and loads tenant context.
+ * Handles two authentication flows:
  *
- * For Retell agents:
- * - Verifies x-retell-signature using RETELL_API_KEY
- * - Extracts agent_id from x-agent-id header (Retell provides this with tool calls)
- * - Loads agent config from Key Vault to get Square credentials
+ * 1. RETELL TOOL CALLS (with x-retell-call-id header):
+ *    - Looks up session in sessionStore by call_id
+ *    - Loads agent credentials from session
+ *    - Verifies session not expired
+ *
+ * 2. WEBHOOK CALLS (with x-retell-signature header):
+ *    - Verifies Retell signature
+ *    - Passed to webhook handler which creates session
+ *
+ * 3. REGULAR REST CALLS (no Retell headers):
+ *    - Uses default environment variable credentials
+ *    - For backward compatibility or direct API access
  *
  * On success, attaches req.retellContext and req.tenant with:
  * - agentId: Agent identifier
@@ -24,63 +33,54 @@ const { config } = require('../config');
  */
 async function agentAuthMiddleware(req, res, next) {
   const signatureHeader = req.headers['x-retell-signature'];
+  const callId = req.headers['x-retell-call-id'];
   const agentId = req.headers['x-agent-id'];
 
-  // Debug: Log all headers to see what's being sent
-  console.log('[AgentAuth] DEBUG - All headers received:', JSON.stringify(req.headers, null, 2));
-  console.log('[AgentAuth] DEBUG - x-retell-signature:', signatureHeader);
-  console.log('[AgentAuth] DEBUG - x-agent-id:', agentId);
-  console.log('[AgentAuth] DEBUG - Request body:', JSON.stringify(req.body, null, 2));
-  console.log('[AgentAuth] DEBUG - req.rawBody exists:', !!req.rawBody);
-  if (req.rawBody) {
-    console.log('[AgentAuth] DEBUG - req.rawBody length:', req.rawBody.length);
-    console.log('[AgentAuth] DEBUG - req.rawBody content:', req.rawBody.toString('utf8'));
-  }
+  console.log('[AgentAuth] DEBUG - Headers:', { signatureHeader: !!signatureHeader, callId, agentId });
 
-  // If no Retell headers are present, this is not a Retell tool call
-  // Allow it to pass through - it's a regular REST API call
-  if (!agentId && !signatureHeader) {
-    console.log('[AgentAuth] ℹ️  No Retell headers - treating as regular REST API call');
-    // Load Square credentials from environment variables for regular REST calls
-    const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
-    const squareLocationId = process.env.SQUARE_LOCATION_ID;
+  // FLOW 1: RETELL TOOL CALLS (from Retell agent during active call)
+  // These have x-retell-call-id header - look up session
+  if (callId && !signatureHeader) {
+    console.log(`[AgentAuth] 🔍 Looking up session for call: ${callId}`);
 
-    if (squareAccessToken && squareLocationId) {
-      const tenantContext = {
-        id: 'default',
-        agentId: 'default',
-        accessToken: squareAccessToken,
-        locationId: squareLocationId,
-        squareAccessToken: squareAccessToken,
-        squareLocationId: squareLocationId,
-        squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'production',
-        timezone: process.env.TZ || 'America/New_York',
-        authenticated: true,
-        isRetellAgent: false
-      };
+    const session = sessionStore.getSession(callId);
 
-      req.retellContext = tenantContext;
-      req.tenant = tenantContext;
+    if (!session) {
+      console.error(`[AgentAuth] ❌ Session not found or expired: ${callId}`);
+      return res.status(401).json({
+        error: 'Session expired or not found',
+        callId
+      });
     }
 
+    // Attach tenant context from session
+    const tenantContext = {
+      id: session.agentId,
+      agentId: session.agentId,
+      callId: callId,
+      accessToken: session.credentials.squareAccessToken,
+      locationId: session.credentials.squareLocationId,
+      squareAccessToken: session.credentials.squareAccessToken,
+      squareLocationId: session.credentials.squareLocationId,
+      squareEnvironment: session.credentials.squareEnvironment || 'production',
+      timezone: session.credentials.timezone || 'America/New_York',
+      authenticated: true,
+      isRetellAgent: true,
+      isToolCall: true
+    };
+
+    req.retellContext = tenantContext;
+    req.tenant = tenantContext;
+
+    console.log(`[AgentAuth] ✅ Agent authenticated from session: ${session.agentId}`);
     return next();
   }
 
-  // If agent_id is present but missing, that's an error
-  if (signatureHeader && !agentId) {
-    return res.status(401).json({
-      error: 'Missing x-agent-id header'
-    });
-  }
+  // FLOW 2: WEBHOOK CALLS (with Retell signature)
+  // Verify signature - session creation happens in webhook handler
+  if (signatureHeader) {
+    console.log('[AgentAuth] 🔐 Verifying Retell webhook signature');
 
-  // Check if signature header exists - if not, skip verification for now (debug mode)
-  if (!signatureHeader) {
-    console.log('[AgentAuth] ⚠️  WARNING: No x-retell-signature header. Retell may not be signing tool calls.');
-    console.log('[AgentAuth] ⚠️  This is expected if Retell tool calls are unsigned.');
-    console.log('[AgentAuth] ⚠️  Proceeding without signature verification for testing.');
-    
-    // For now, skip signature verification if header is missing
-    // This allows us to test the rest of the flow
     try {
       const apiKey = config.retell?.apiKey;
 
@@ -91,83 +91,39 @@ async function agentAuthMiddleware(req, res, next) {
         });
       }
 
-      // Load agent config from environment variables
-      const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
-      const squareLocationId = process.env.SQUARE_LOCATION_ID;
+      // Verify Retell signature
+      const payload = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
+      const isValid = Retell.verify(payload, apiKey, signatureHeader);
 
-      if (!squareAccessToken || !squareLocationId) {
-        console.error('[AgentAuth] Missing Square credentials in environment variables');
-        return res.status(500).json({
-          error: 'Square credentials not configured'
+      if (!isValid) {
+        console.warn('[AgentAuth] ❌ Signature verification failed');
+        return res.status(401).json({
+          error: 'Invalid signature'
         });
       }
 
-      // Attach tenant context to request
-      const tenantContext = {
-        id: agentId,
-        agentId: agentId,
-        accessToken: squareAccessToken,
-        locationId: squareLocationId,
-        squareAccessToken: squareAccessToken,
-        squareLocationId: squareLocationId,
-        squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'production',
-        timezone: process.env.TZ || 'America/New_York',
-        authenticated: true,
-        isRetellAgent: true
-      };
-
-      req.retellContext = tenantContext;
-      req.tenant = tenantContext;
-
-      console.log('[AgentAuth] ✅ Agent authenticated (no signature):', agentId);
+      // Signature verified - webhook handler will create session
+      console.log('[AgentAuth] ✅ Webhook signature verified');
       return next();
     } catch (error) {
-      console.error('[AgentAuth] Error:', error);
-
+      console.error('[AgentAuth] Error verifying signature:', error);
       return res.status(500).json({
-        error: 'Authorization service error'
+        error: 'Signature verification error'
       });
     }
   }
 
-  try {
-    const apiKey = config.retell?.apiKey;
+  // FLOW 3: REGULAR REST CALLS (no Retell headers)
+  // Use default environment credentials
+  console.log('[AgentAuth] ℹ️  No Retell headers - treating as regular REST API call');
 
-    if (!apiKey) {
-      console.error('[AgentAuth] RETELL_API_KEY not configured');
-      return res.status(500).json({
-        error: 'Retell API key not configured'
-      });
-    }
+  const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
+  const squareLocationId = process.env.SQUARE_LOCATION_ID;
 
-    // Verify Retell signature
-    // Use raw body if available (set by body parser middleware), otherwise JSON stringify
-    const payload = req.rawBody ? req.rawBody.toString('utf8') : JSON.stringify(req.body);
-
-    const isValid = Retell.verify(payload, apiKey, signatureHeader);
-
-    if (!isValid) {
-      console.warn('[AgentAuth] Signature verification failed for agent:', agentId);
-      return res.status(401).json({
-        error: 'Invalid signature'
-      });
-    }
-
-    // Signature verified - load agent config from environment variables
-    const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
-    const squareLocationId = process.env.SQUARE_LOCATION_ID;
-
-    if (!squareAccessToken || !squareLocationId) {
-      console.error('[AgentAuth] Missing Square credentials in environment variables');
-      return res.status(500).json({
-        error: 'Square credentials not configured'
-      });
-    }
-
-    // Attach tenant context to request
+  if (squareAccessToken && squareLocationId) {
     const tenantContext = {
-      id: agentId,
-      agentId: agentId,
+      id: 'default',
+      agentId: 'default',
       accessToken: squareAccessToken,
       locationId: squareLocationId,
       squareAccessToken: squareAccessToken,
@@ -175,27 +131,15 @@ async function agentAuthMiddleware(req, res, next) {
       squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'production',
       timezone: process.env.TZ || 'America/New_York',
       authenticated: true,
-      isRetellAgent: true
+      isRetellAgent: false,
+      isToolCall: false
     };
 
     req.retellContext = tenantContext;
     req.tenant = tenantContext;
-
-    console.log('[AgentAuth] ✅ Agent authenticated:', agentId);
-    next();
-  } catch (error) {
-    console.error('[AgentAuth] Error:', error);
-
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        error: `Agent ${agentId} not found`
-      });
-    }
-
-    return res.status(500).json({
-      error: 'Authorization service error'
-    });
   }
+
+  return next();
 }
 
 module.exports = agentAuthMiddleware;
