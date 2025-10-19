@@ -1166,7 +1166,7 @@ async function handleCancelBooking(req, correlationId) {
 
     // EXACT AZURE FUNCTIONS LOGIC - Call the shared helper
     const { cancelBooking: cancelBookingHelper } = require('../utils/helpers/bookingHelpers');
-    const result = await cancelBookingHelper(context, bookingId);
+    const result = await cancelBookingHelper(context, tenant, bookingId);
 
     // IMMEDIATELY clean BigInt values before processing
     const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
