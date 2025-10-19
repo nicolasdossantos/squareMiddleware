@@ -1,5 +1,4 @@
 const { Retell } = require('retell-sdk');
-const keyVaultService = require('../services/keyVaultService');
 const { config } = require('../config');
 
 /**
@@ -63,19 +62,27 @@ async function agentAuthMiddleware(req, res, next) {
         });
       }
 
-      // Load agent config from Key Vault
-      const agentConfig = await keyVaultService.getAgentConfig(agentId);
+      // Load agent config from environment variables
+      const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
+      const squareLocationId = process.env.SQUARE_LOCATION_ID;
+
+      if (!squareAccessToken || !squareLocationId) {
+        console.error('[AgentAuth] Missing Square credentials in environment variables');
+        return res.status(500).json({
+          error: 'Square credentials not configured'
+        });
+      }
 
       // Attach tenant context to request
       const tenantContext = {
         id: agentId,
         agentId: agentId,
-        accessToken: agentConfig.squareAccessToken,
-        locationId: agentConfig.squareLocationId,
-        squareAccessToken: agentConfig.squareAccessToken,
-        squareLocationId: agentConfig.squareLocationId,
-        squareEnvironment: agentConfig.squareEnvironment || 'production',
-        timezone: agentConfig.timezone || 'America/New_York',
+        accessToken: squareAccessToken,
+        locationId: squareLocationId,
+        squareAccessToken: squareAccessToken,
+        squareLocationId: squareLocationId,
+        squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'production',
+        timezone: process.env.TZ || 'America/New_York',
         authenticated: true,
         isRetellAgent: true
       };
@@ -87,12 +94,6 @@ async function agentAuthMiddleware(req, res, next) {
       return next();
     } catch (error) {
       console.error('[AgentAuth] Error:', error);
-
-      if (error.message.includes('not found')) {
-        return res.status(404).json({
-          error: `Agent ${agentId} not found`
-        });
-      }
 
       return res.status(500).json({
         error: 'Authorization service error'
@@ -123,19 +124,27 @@ async function agentAuthMiddleware(req, res, next) {
       });
     }
 
-    // Signature verified - load agent config from Key Vault
-    const agentConfig = await keyVaultService.getAgentConfig(agentId);
+    // Signature verified - load agent config from environment variables
+    const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
+    const squareLocationId = process.env.SQUARE_LOCATION_ID;
+
+    if (!squareAccessToken || !squareLocationId) {
+      console.error('[AgentAuth] Missing Square credentials in environment variables');
+      return res.status(500).json({
+        error: 'Square credentials not configured'
+      });
+    }
 
     // Attach tenant context to request
     const tenantContext = {
       id: agentId,
       agentId: agentId,
-      accessToken: agentConfig.squareAccessToken,
-      locationId: agentConfig.squareLocationId,
-      squareAccessToken: agentConfig.squareAccessToken,
-      squareLocationId: agentConfig.squareLocationId,
-      squareEnvironment: agentConfig.squareEnvironment || 'production',
-      timezone: agentConfig.timezone || 'America/New_York',
+      accessToken: squareAccessToken,
+      locationId: squareLocationId,
+      squareAccessToken: squareAccessToken,
+      squareLocationId: squareLocationId,
+      squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'production',
+      timezone: process.env.TZ || 'America/New_York',
       authenticated: true,
       isRetellAgent: true
     };
