@@ -175,7 +175,7 @@ function sendSuccess(res, data, message = 'Success', status = 200, correlationId
  * @param {Object} res - Express response object
  * @param {string} message - Error message
  * @param {number} status - HTTP status code (default: 500)
- * @param {string|Object} details - Error details
+ * @param {string|Object} details - Error details (will be stringified to avoid circular refs)
  * @param {string} correlationId - Correlation ID for tracking
  */
 function sendError(
@@ -192,8 +192,26 @@ function sendError(
     timestamp: new Date().toISOString()
   };
 
+  // CRITICAL: Always convert details to string to avoid circular reference errors
+  // When details is an object with circular refs, JSON.stringify will fail
   if (details) {
-    response.details = details;
+    // If it's a string, use as-is
+    // If it's an Error object, extract message
+    // Otherwise, convert to string safely
+    if (typeof details === 'string') {
+      response.details = details;
+    } else if (details instanceof Error) {
+      response.details = details.message || details.toString();
+    } else if (typeof details === 'object') {
+      // Try to stringify, but fall back to toString if it has circular refs
+      try {
+        response.details = JSON.stringify(details);
+      } catch (e) {
+        response.details = details.toString();
+      }
+    } else {
+      response.details = String(details);
+    }
   }
 
   if (correlationId) {
