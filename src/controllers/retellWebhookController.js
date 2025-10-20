@@ -609,7 +609,8 @@ async function handleCallInbound(call_inbound, correlationId) {
     const mockReq = {
       body: { phone: from_number },
       correlationId: correlationId,
-      tenant: tenant // ✅ PASS TENANT CONTEXT
+      tenant: tenant, // ✅ PASS TENANT CONTEXT
+      callId: callId // ✅ PASS CALL_ID so it can be added to dynamic_variables
     };
 
     let customerResponse = null;
@@ -626,6 +627,12 @@ async function handleCallInbound(call_inbound, correlationId) {
 
     console.log('🔍 [RETELL DEBUG] Customer lookup completed for inbound call');
     console.log('🔍 [RETELL DEBUG] Customer response received:', JSON.stringify(customerResponse, null, 2));
+
+    // Add callId to dynamic_variables so agent can use it in tool calls
+    if (customerResponse && customerResponse.dynamic_variables) {
+      customerResponse.dynamic_variables.call_id = callId;
+      console.log(`✅ [RETELL DEBUG] Added call_id to dynamic_variables: ${callId}`);
+    }
 
     // Return the exact same response format as ElevenLabs, including tenant info for business name
     const result = {
