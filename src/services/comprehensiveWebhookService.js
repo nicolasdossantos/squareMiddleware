@@ -448,13 +448,6 @@ async function processElevenLabsPostCall(webhookData, correlationId) {
         html: emailHtml
       };
 
-      console.log('📧 Email Configuration Debug:', {
-        from: config.email.from,
-        configuredFrom: process.env.EMAIL_FROM,
-        smtpUser: config.email.user,
-        smtpHost: config.email.host
-      });
-
       await transporter.sendMail(mailOptions);
 
       // Track successful processing (use toolsUsed from earlier calculation)

@@ -16,8 +16,6 @@ class BookingService {
    * @returns {Object} Created booking
    */
   async createBooking(tenant, bookingData) {
-    console.log('BookingService.createBooking called with:', JSON.stringify(bookingData, null, 2));
-
     try {
       // Create mock Azure Functions context
       const context = {
@@ -29,8 +27,6 @@ class BookingService {
 
       // Call the helper with tenant context
       const result = await createBooking(context, tenant, bookingData);
-
-      console.log('Booking helper returned:', result);
 
       return {
         success: true,
@@ -53,12 +49,6 @@ class BookingService {
    * @returns {Object} Updated booking
    */
   async updateBooking(tenant, bookingId, updateData, correlationId) {
-    console.log('BookingService.updateBooking called with:', {
-      bookingId,
-      updateData: JSON.stringify(updateData, null, 2),
-      correlationId
-    });
-
     try {
       // Create mock Azure Functions context
       const context = {
@@ -79,14 +69,10 @@ class BookingService {
             ? BigInt(segment.serviceVariationVersion)
             : segment.serviceVariationVersion
         }));
-
-        console.log('Processed appointment segments:', processedUpdateData.appointmentSegments);
       }
 
       // Call the helper with tenant context
       const result = await updateBooking(context, tenant, bookingId, processedUpdateData);
-
-      console.log('Booking update helper returned:', result);
 
       return {
         success: true,

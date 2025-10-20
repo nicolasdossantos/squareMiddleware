@@ -19,6 +19,7 @@ const { config } = require('../config');
 async function handleRetellWebhook(req, res) {
   const startTime = Date.now();
   const { correlationId } = req;
+  let webhookData; // Declare outside try block so it's accessible in catch block
 
   try {
     // Log webhook request details at debug level
@@ -29,7 +30,7 @@ async function handleRetellWebhook(req, res) {
       hasHeaders: !!req.headers['x-retell-signature']
     });
 
-    const webhookData = req.body;
+    webhookData = req.body;
 
     // Handle case where body is completely empty or malformed
     if (!webhookData) {
@@ -629,7 +630,6 @@ async function handleCallInbound(call_inbound, correlationId) {
     // 🔐 MULTI-TENANT: Fetch agent configuration from App Settings
     let tenant;
     try {
-      console.log(`🔍 [RETELL DEBUG] Fetching agent config for agent_id: ${agent_id}`);
       const agentConfig = agentConfigService.getAgentConfig(agent_id);
 
       // Create tenant context from agent configuration
@@ -644,7 +644,6 @@ async function handleCallInbound(call_inbound, correlationId) {
         businessName: agentConfig.businessName
       };
 
-      console.log(`✅ [RETELL DEBUG] Agent config loaded successfully for tenant: ${tenant.id}`);
     } catch (configError) {
       // Fallback to environment variables if config lookup fails
       console.warn(

@@ -36,14 +36,11 @@ async function agentAuthMiddleware(req, res, next) {
   const callId = req.headers['x-retell-call-id'];
   const agentId = req.headers['x-agent-id'];
 
-  console.log('[AgentAuth] DEBUG - Headers:', { signatureHeader: !!signatureHeader, callId, agentId });
 
   // FLOW 1: RETELL TOOL CALLS (from Retell agent during active call)
   // Tool calls have BOTH x-retell-signature AND x-retell-call-id
   // We use session-based auth (via call_id), not signature verification
   if (callId) {
-    console.log(`[AgentAuth] 🔍 Looking up session for call: ${callId}`);
-
     const session = sessionStore.getSession(callId);
 
     if (!session) {
