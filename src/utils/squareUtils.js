@@ -229,18 +229,18 @@ async function loadStaffMembers(context, tenant) {
 
   logCacheHit(context, 'staff_members', false);
 
-  try {
-    // Create tenant-specific Square client
-    const square = createSquareClient(
-      tenant.accessToken || tenant.squareAccessToken,
-      tenant.squareEnvironment || tenant.environment || 'production'
-    );
+  // Create tenant-specific Square client
+  const square = createSquareClient(
+    tenant.accessToken || tenant.squareAccessToken,
+    tenant.squareEnvironment || tenant.environment || 'production'
+  );
 
+  const locationId = tenant.locationId || tenant.squareLocationId;
+  const staffMembers = [];
+
+  try {
     const apiStartTime = Date.now();
-    const resp = await square.employeesApi.listEmployees(
-      tenant.locationId || tenant.squareLocationId,
-      'ACTIVE'
-    );
+    const resp = await square.employeesApi.listEmployees(locationId, 'ACTIVE');
     const apiDuration = Date.now() - apiStartTime;
 
     const employees = resp.result?.employees || [];
@@ -252,32 +252,77 @@ async function loadStaffMembers(context, tenant) {
 
     context.log(`Staff members response received, employee count: ${employees.length}`);
 
-    // Transform employee data
-    const staffMembers =
-      employees.map(employee => ({
+    employees.forEach(employee => {
+      staffMembers.push({
         id: employee.id,
         firstName: employee.firstName,
         lastName: employee.lastName,
-        fullName: `${employee.firstName} ${employee.lastName}`,
+        fullName: `${employee.firstName} ${employee.lastName}`.trim(),
         email: employee.email,
         phoneNumber: employee.phoneNumber,
         isOwner: employee.isOwner || false,
         status: employee.status,
         locationIds: employee.locationIds || []
-      })) || [];
-
-    context.log(`Loaded ${staffMembers.length} active staff members`);
-
-    const processedData = { staffMembers };
-    setTenantCache(staffCaches, tenant.id, processedData);
-    return processedData;
-  } catch (error) {
+      });
+    });
+  } catch (employeesError) {
     const apiDuration = Date.now() - startTime;
     logApiCall(context, 'employees_list', false, apiDuration);
-    trackException(error, { function: 'loadStaffMembers', tenant_id: tenant.id });
-    context.log('❌ Error loading staff members:', error);
-    throw error;
+    trackException(employeesError, {
+      function: 'loadStaffMembers_employeesApi',
+      tenant_id: tenant.id
+    });
+    context.log('⚠️  employeesApi failed, attempting teamMembersApi fallback', employeesError);
+
+    try {
+      const fallbackStart = Date.now();
+      const resp = await square.teamMembersApi.searchTeamMembers({
+        query: {
+          filter: {
+            locationIds: locationId ? [locationId] : undefined,
+            status: 'ACTIVE'
+          }
+        }
+      });
+      const fallbackDuration = Date.now() - fallbackStart;
+
+      const teamMembers = resp.result?.teamMembers || [];
+
+      logApiCall(context, 'team_members_search', true, fallbackDuration, {
+        team_member_count: teamMembers.length,
+        tenant_id: tenant.id
+      });
+
+      context.log(`Team members fallback response received, count: ${teamMembers.length}`);
+
+      teamMembers.forEach(member => {
+        staffMembers.push({
+          id: member.id,
+          firstName: member.givenName,
+          lastName: member.familyName,
+          fullName: `${member.givenName || ''} ${member.familyName || ''}`.trim(),
+          email: member.emailAddress,
+          phoneNumber: member.phoneNumber,
+          isOwner: member.isOwner || false,
+          status: member.status,
+          locationIds: member.assignedLocations?.locationIds || []
+        });
+      });
+    } catch (teamMembersError) {
+      trackException(teamMembersError, {
+        function: 'loadStaffMembers_teamMembersFallback',
+        tenant_id: tenant.id
+      });
+      context.log('❌ Both employeesApi and teamMembersApi failed to load staff members', teamMembersError);
+      throw teamMembersError;
+    }
   }
+
+  context.log(`Loaded ${staffMembers.length} active staff members`);
+
+  const processedData = { staffMembers };
+  setTenantCache(staffCaches, tenant.id, processedData);
+  return processedData;
 }
 
 /**

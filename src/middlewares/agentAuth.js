@@ -39,12 +39,9 @@ async function agentAuthMiddleware(req, res, next) {
   console.log('[AgentAuth] DEBUG - Headers:', { signatureHeader: !!signatureHeader, callId, agentId });
 
   // FLOW 1: RETELL TOOL CALLS (from Retell agent during active call)
-  // These have x-retell-call-id header - look up session
+  // Tool calls have BOTH x-retell-signature AND x-retell-call-id
+  // We use session-based auth (via call_id), not signature verification
   if (callId) {
-    if (signatureHeader) {
-      console.log('[AgentAuth] ℹ️  Signature header present but prioritizing session-based auth');
-    }
-
     console.log(`[AgentAuth] 🔍 Looking up session for call: ${callId}`);
 
     const session = sessionStore.getSession(callId);
@@ -80,8 +77,8 @@ async function agentAuthMiddleware(req, res, next) {
     return next();
   }
 
-  // FLOW 2: WEBHOOK CALLS (with Retell signature)
-  // Verify signature - session creation happens in webhook handler
+  // FLOW 2: WEBHOOK CALLS (with Retell signature, NO call_id)
+  // Webhooks only have signature header - verify it
   if (signatureHeader) {
     console.log('[AgentAuth] 🔐 Verifying Retell webhook signature');
 

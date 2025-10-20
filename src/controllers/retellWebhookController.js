@@ -21,25 +21,22 @@ async function handleRetellWebhook(req, res) {
   const { correlationId } = req;
 
   try {
-    // Debug: Log the raw request information
-    console.log('🔍 [RETELL DEBUG] === WEBHOOK REQUEST START ===');
-    console.log('🔍 [RETELL DEBUG] Method:', req.method);
-    console.log('🔍 [RETELL DEBUG] URL:', req.url);
-    console.log('🔍 [RETELL DEBUG] Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('🔍 [RETELL DEBUG] Raw Body Type:', typeof req.body);
-    console.log('🔍 [RETELL DEBUG] Raw Body Content:', JSON.stringify(req.body, null, 2));
-    console.log('🔍 [RETELL DEBUG] === WEBHOOK REQUEST END ===');
+    // Log webhook request details at debug level
+    logEvent(req, 'retell_webhook_received', {
+      method: req.method,
+      url: req.url,
+      bodyType: typeof req.body,
+      hasHeaders: !!req.headers['x-retell-signature']
+    });
 
     const webhookData = req.body;
 
     // Handle case where body is completely empty or malformed
     if (!webhookData) {
-      console.log('🔍 [RETELL DEBUG] Body is null or undefined');
       return sendError(res, 'Request body is required', 400, 'No request body received', correlationId);
     }
 
     if (typeof webhookData !== 'object') {
-      console.log('🔍 [RETELL DEBUG] Body is not an object, type:', typeof webhookData);
       return sendError(
         res,
         'Invalid request body format',
@@ -50,7 +47,6 @@ async function handleRetellWebhook(req, res) {
     }
 
     if (Array.isArray(webhookData)) {
-      console.log('🔍 [RETELL DEBUG] Body is an array, length:', webhookData.length);
       return sendError(
         res,
         'Invalid request body format',
@@ -73,7 +69,6 @@ async function handleRetellWebhook(req, res) {
 
     // Validate webhook structure - handle both regular call webhooks and inbound call webhooks
     if (!webhookData.event) {
-      console.log('🔍 [RETELL DEBUG] Missing event field');
       return sendError(
         res,
         'Missing required field: event',
@@ -89,8 +84,6 @@ async function handleRetellWebhook(req, res) {
     // For inbound call webhooks, we need call_inbound instead of call
     if (webhookData.event === 'call_inbound') {
       if (!webhookData.call_inbound) {
-        console.log('🔍 [RETELL DEBUG] Inbound call validation failed - missing call_inbound');
-        console.log('🔍 [RETELL DEBUG] webhookData:', webhookData);
         return sendError(
           res,
           'Missing required field: call_inbound',
@@ -105,7 +98,6 @@ async function handleRetellWebhook(req, res) {
     } else {
       // For regular call webhooks (call_started, call_analyzed, call_ended)
       if (!webhookData.call) {
-        console.log('🔍 [RETELL DEBUG] Missing call field');
         return sendError(
           res,
           'Missing required field: call',
@@ -143,19 +135,15 @@ async function handleRetellWebhook(req, res) {
 
       case 'call_inbound':
         // Handle inbound call webhook - different format than regular calls
-        console.log('🔍 [RETELL DEBUG] Processing call_inbound event');
-        console.log('🔍 [RETELL DEBUG] call_inbound data:', call_inbound);
         result = await handleCallInbound(call_inbound, correlationId);
         break;
 
       case 'inbound':
         // Handle legacy inbound call event - treat it similar to call_started
-        console.log('🔍 [RETELL DEBUG] Processing legacy inbound call event');
         result = await handleCallStarted(call, correlationId, tenant);
         break;
 
       default:
-        console.log('🔍 [RETELL DEBUG] Unhandled event type:', event);
         logEvent('retell_webhook_unhandled', {
           correlationId,
           event,
@@ -179,8 +167,6 @@ async function handleRetellWebhook(req, res) {
 
     // For inbound call webhooks, return JSON configuration with call_inbound field
     if (event === 'call_inbound') {
-      console.log('🔍 [RETELL DEBUG] Sending JSON response for call_inbound');
-      console.log('🔍 [RETELL DEBUG] Raw result object:', JSON.stringify(result, null, 2));
       console.log(
         '🔍 [RETELL DEBUG] Customer response data:',
         JSON.stringify(result.customerResponse, null, 2)
@@ -294,18 +280,13 @@ async function handleRetellWebhook(req, res) {
           }
         }
       };
-      console.log('🔍 [RETELL DEBUG] Final response being sent:', JSON.stringify(response, null, 2));
       return res.status(200).json(response);
     }
 
     // For all other webhooks, acknowledge with 204 status (no content)
     // This is what Retell AI expects for regular webhooks
-    console.log('🔍 [RETELL DEBUG] Sending 204 response');
     res.status(204).send();
   } catch (error) {
-    console.log('🔍 [RETELL DEBUG] Error in webhook processing:', error.message);
-    console.log('🔍 [RETELL DEBUG] Error stack:', error.stack);
-
     logPerformance(correlationId, 'retell_webhook_error', startTime, {
       event: webhookData?.event,
       error: error.message
@@ -333,8 +314,8 @@ async function handleCallStarted(call, correlationId, tenant = null) {
 
   try {
     // Attempt to load credentials from active session first (created during call_inbound)
-  let sessionTenant = null;
-  let agentConfigTenant = null;
+    let sessionTenant = null;
+    let agentConfigTenant = null;
 
     if (call_id) {
       const session = sessionStore.getSession(call_id);
@@ -345,9 +326,17 @@ async function handleCallStarted(call, correlationId, tenant = null) {
           squareAccessToken: session.credentials.squareAccessToken,
           squareLocationId: session.credentials.squareLocationId,
           squareEnvironment:
-            session.credentials.squareEnvironment || tenant?.squareEnvironment || config.square.environment || 'sandbox',
-          timezone: session.credentials.timezone || tenant?.timezone || config.server.timezone || 'America/New_York',
-          businessName: session.credentials.businessName || tenant?.businessName || config.businessName || 'Elite Barbershop'
+            session.credentials.squareEnvironment ||
+            tenant?.squareEnvironment ||
+            config.square.environment ||
+            'sandbox',
+          timezone:
+            session.credentials.timezone || tenant?.timezone || config.server.timezone || 'America/New_York',
+          businessName:
+            session.credentials.businessName ||
+            tenant?.businessName ||
+            config.businessName ||
+            'Elite Barbershop'
         };
 
         logEvent('retell_call_started_session_match', {
@@ -396,14 +385,16 @@ async function handleCallStarted(call, correlationId, tenant = null) {
     }
 
     // Use tenant from request or fall back to environment variables if session not found
-    useTenant = sessionTenant || agentConfigTenant || tenant || {
-      id: 'default',
-      squareAccessToken: config.square.accessToken,
-      squareLocationId: config.square.locationId,
-      squareEnvironment: config.square.environment || 'sandbox',
-      timezone: config.server.timezone || 'America/New_York',
-      businessName: config.businessName || 'Elite Barbershop'
-    };
+    useTenant = sessionTenant ||
+      agentConfigTenant ||
+      tenant || {
+        id: 'default',
+        squareAccessToken: config.square.accessToken,
+        squareLocationId: config.square.locationId,
+        squareEnvironment: config.square.environment || 'sandbox',
+        timezone: config.server.timezone || 'America/New_York',
+        businessName: config.businessName || 'Elite Barbershop'
+      };
 
     // Normalize token/environment fields so downstream logic always has expected shape
     if (!useTenant.squareAccessToken && useTenant.accessToken) {
@@ -736,9 +727,6 @@ async function handleCallInbound(call_inbound, correlationId) {
 
     // Call the existing getCustomerInfoByPhone function to get exact ElevenLabs format
     await customerController.getCustomerInfoByPhone(mockReq, mockRes);
-
-    console.log('🔍 [RETELL DEBUG] Customer lookup completed for inbound call');
-    console.log('🔍 [RETELL DEBUG] Customer response received:', JSON.stringify(customerResponse, null, 2));
 
     // Return the exact same response format as ElevenLabs, including tenant info for business name
     const result = {
