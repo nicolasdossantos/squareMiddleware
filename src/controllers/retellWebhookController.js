@@ -189,8 +189,8 @@ async function handleRetellWebhook(req, res) {
       // Extract dynamic variables from customer response - handle both success and error cases
       let dynamicVariables = {};
 
-      // Get business name from tenant context (from result)
-      const businessName = result.tenant?.businessName || 'us';
+      // Get business name from tenant context - use actual name, not 'us'
+      const businessName = result.tenant?.businessName || 'Elite Barbershop';
 
       if (result.customerResponse?.dynamic_variables) {
         // Customer lookup succeeded - use the full ElevenLabs response but ensure all values are strings
@@ -564,7 +564,8 @@ async function handleCallInbound(call_inbound, correlationId) {
         accessToken: config.square.accessToken, // ✅ FIX: Use 'accessToken' not 'squareAccessToken'
         locationId: config.square.locationId,
         environment: config.square.environment || 'sandbox',
-        timezone: config.server.timezone || 'America/New_York'
+        timezone: config.server.timezone || 'America/New_York',
+        businessName: config.businessName || 'Elite Barbershop'
       };
 
       logEvent('retell_config_fallback', {
