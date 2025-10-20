@@ -168,29 +168,11 @@ async function handleRetellWebhook(req, res) {
 
     // For inbound call webhooks, return JSON configuration with call_inbound field
     if (event === 'call_inbound') {
-      console.log(
-        '🔍 [RETELL DEBUG] Customer response data:',
-        JSON.stringify(result.customerResponse, null, 2)
-      );
-
       // Extract dynamic variables from customer response - handle both success and error cases
       let dynamicVariables = {};
 
       // Get business name from tenant context - use actual name, not 'us'
       const businessName = result.tenant?.businessName || 'Elite Barbershop';
-      console.log(
-        '🔍 [RETELL DEBUG] Business name extraction:',
-        JSON.stringify(
-          {
-            result_tenant: result.tenant,
-            businessName: businessName,
-            tenant_businessName: result.tenant?.businessName,
-            fallback_used: !result.tenant?.businessName
-          },
-          null,
-          2
-        )
-      );
 
       if (result.customerResponse?.dynamic_variables) {
         // Customer lookup succeeded - use the full ElevenLabs response but ensure all values are strings
@@ -260,10 +242,6 @@ async function handleRetellWebhook(req, res) {
       }
       // Add callId to dynamic variables so agent can use it in tool calls
       dynamicVariables.call_id = result.callId;
-      console.log(
-        '🔍 [RETELL DEBUG] Dynamic variables extracted:',
-        JSON.stringify(dynamicVariables, null, 2)
-      );
 
       const response = {
         call_inbound: {
@@ -659,11 +637,12 @@ async function handleCallInbound(call_inbound, correlationId) {
       };
     } catch (configError) {
       // Fallback to environment variables if config lookup fails
-      console.warn(
-        `⚠️ [RETELL DEBUG] Agent config lookup failed for agent ${agent_id}, ` +
-          'falling back to environment variables:',
-        configError.message
-      );
+      logEvent('retell_config_fallback', {
+        correlationId,
+        agentId: agent_id,
+        error: configError.message,
+        fallbackTenantId: 'default'
+      });
 
       tenant = {
         id: 'default',
@@ -701,14 +680,12 @@ async function handleCallInbound(call_inbound, correlationId) {
         600
       ); // 10 minute TTL
 
-      console.log(`[SessionStore] 📝 Session created for agent ${agent_id}: ${callId}`);
       logEvent('retell_session_created', {
         correlationId,
         agentId: agent_id,
         callId: callId
       });
     } catch (sessionError) {
-      console.error('[SessionStore] ❌ Failed to create session:', sessionError);
       logEvent('retell_session_creation_error', {
         correlationId,
         agentId: agent_id,
@@ -766,10 +743,6 @@ async function handleCallInbound(call_inbound, correlationId) {
       summary: `Inbound call processed for agent ${agent_id}`
     };
 
-    console.log(
-      '🔍 [RETELL DEBUG] Returning result from handleCallInbound:',
-      JSON.stringify(result, null, 2)
-    );
     return result;
   } catch (error) {
     logEvent('retell_call_inbound_error', {
