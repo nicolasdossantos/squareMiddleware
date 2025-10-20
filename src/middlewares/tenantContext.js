@@ -30,7 +30,8 @@ function tenantContext(req, res, next) {
         squareAccessToken: req.retellContext.squareAccessToken,
         squareLocationId: req.retellContext.squareLocationId,
         squareEnvironment: req.retellContext.squareEnvironment || 'production',
-        timezone: req.retellContext.timezone || 'America/New_York'
+        timezone: req.retellContext.timezone || 'America/New_York',
+        businessName: req.retellContext.businessName || 'Elite Barbershop'
       };
 
       logger.info('Tenant context created from agentAuth', {
@@ -44,7 +45,8 @@ function tenantContext(req, res, next) {
         squareAccessToken: config.square.accessToken,
         squareLocationId: config.square.locationId,
         squareEnvironment: config.square.environment || 'sandbox',
-        timezone: config.server.timezone || 'America/New_York'
+        timezone: config.server.timezone || 'America/New_York',
+        businessName: config.businessName || 'Elite Barbershop'
       };
 
       if (!req.path.includes('/health') && !req.path.includes('/warmup')) {
@@ -68,7 +70,8 @@ function tenantContext(req, res, next) {
       squareAccessToken: config.square.accessToken,
       squareLocationId: config.square.locationId,
       squareEnvironment: config.square.environment || 'sandbox',
-      timezone: config.server.timezone || 'America/New_York'
+      timezone: config.server.timezone || 'America/New_York',
+      businessName: config.businessName || 'Elite Barbershop'
     };
 
     next();
