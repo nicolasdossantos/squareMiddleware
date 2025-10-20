@@ -218,9 +218,9 @@ async function handleRetellWebhook(req, res) {
           is_returning_customer: String(rawVariables.is_returning_customer || 'false'),
           current_datetime_store_timezone: String(rawVariables.current_datetime_store_timezone || ''),
           service_variations_json: String(rawVariables.service_variations_json || '{}'),
-          barbers_with_ids_json: String(rawVariables.barbers_with_ids_json || '[]'),
+          staff_with_ids_json: String(rawVariables.staff_with_ids_json || '[]'),
           available_services: String(rawVariables.available_services || ''),
-          available_barbers: String(rawVariables.available_barbers || ''),
+          available_staff: String(rawVariables.available_staff || ''),
           caller_id: String(rawVariables.caller_id || ''),
           initial_message: initialMessage
         };
