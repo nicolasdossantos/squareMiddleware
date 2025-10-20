@@ -78,8 +78,6 @@ jobs:
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: ./deploy
-          clean: true
-          restart: true
 
       - name: Start App Service
         if: always()
