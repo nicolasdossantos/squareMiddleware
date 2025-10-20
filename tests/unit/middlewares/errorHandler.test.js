@@ -50,7 +50,7 @@ describe('Error Handler Middleware', () => {
         ip: '127.0.0.1'
       });
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, { field: 'required' });
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, { field: 'required' }, 'test-correlation-id');
     });
 
     it('should handle UnauthorizedError with 401 status', () => {
@@ -59,7 +59,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Unauthorized', 401, null);
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Unauthorized', 401, null, 'test-correlation-id');
     });
 
     it('should handle ForbiddenError with 403 status', () => {
@@ -68,7 +68,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Forbidden', 403, null);
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Forbidden', 403, null, 'test-correlation-id');
     });
 
     it('should handle NotFoundError with 404 status', () => {
@@ -77,7 +77,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Not Found', 404, null);
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Not Found', 404, null, 'test-correlation-id');
     });
 
     it('should handle errors with statusCode property', () => {
@@ -86,7 +86,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Custom error', 422, null);
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Custom error', 422, null, 'test-correlation-id');
     });
 
     it('should handle errors with status property', () => {
@@ -95,7 +95,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Status error', 409, null);
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Status error', 409, null, 'test-correlation-id');
     });
 
     it('should prioritize statusCode over status', () => {
@@ -105,7 +105,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Priority test', 422, null);
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Priority test', 422, null, 'test-correlation-id');
     });
 
     it('should handle generic errors with 500 status', () => {
@@ -113,7 +113,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Generic error', 500, null);
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Generic error', 500, null, 'test-correlation-id');
     });
 
     it('should use default message for errors without message', () => {
@@ -121,7 +121,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Internal Server Error', 500, null);
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Internal Server Error', 500, null, 'test-correlation-id');
     });
 
     it('should hide details in production environment', () => {
@@ -134,7 +134,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, null);
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, null, 'test-correlation-id');
 
       process.env.NODE_ENV = originalEnv;
     });
@@ -149,7 +149,7 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, { field: 'visible' });
+      expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, { field: 'visible' }, 'test-correlation-id');
 
       process.env.NODE_ENV = originalEnv;
     });

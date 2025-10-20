@@ -51,8 +51,8 @@ function errorHandler(err, req, res, _next) {
     details = null;
   }
 
-  // Send error response
-  sendError(res, message, statusCode, details);
+  // Send error response with correlation ID for tracking
+  sendError(res, message, statusCode, details, req.correlationId);
 }
 
 /**

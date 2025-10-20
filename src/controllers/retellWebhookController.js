@@ -286,14 +286,20 @@ async function handleRetellWebhook(req, res) {
 
     // For all other webhooks, acknowledge with 204 status (no content)
     // This is what Retell AI expects for regular webhooks
-    res.status(204).send();
+    return res.status(204).send();
   } catch (error) {
+    // Log error with safe serialization (avoid circular references)
     logPerformance(correlationId, 'retell_webhook_error', startTime, {
       event: webhookData?.event,
-      error: error.message
+      errorMessage: error.message || 'Unknown error',
+      errorType: error.name || 'Error'
     });
 
-    sendError(res, 'Failed to process Retell webhook', 500, error.message, correlationId);
+    // Safe error details extraction (avoid circular references from Socket objects)
+    const errorDetails = error.message || error.toString();
+
+    // Return error response (prevent double-send)
+    return sendError(res, 'Failed to process Retell webhook', 500, errorDetails, correlationId);
   }
 }
 
