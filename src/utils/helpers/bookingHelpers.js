@@ -513,7 +513,10 @@ async function getActiveBookingsByCustomer(context, tenant, customerId, phoneNum
     }
 
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(
+      tenant.accessToken || tenant.squareAccessToken,
+      tenant.squareEnvironment || tenant.environment || 'production'
+    );
 
     // Fetch all bookings using pagination to ensure we get everything
     let allBookings = [];
