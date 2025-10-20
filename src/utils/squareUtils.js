@@ -135,7 +135,7 @@ async function loadServiceVariations(context, tenant) {
 
   try {
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(tenant.accessToken || tenant.squareAccessToken);
 
     do {
       const apiStartTime = Date.now();
@@ -228,10 +228,10 @@ async function loadStaffMembers(context, tenant) {
 
   try {
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(tenant.accessToken || tenant.squareAccessToken);
 
     const apiStartTime = Date.now();
-    const resp = await square.employeesApi.listEmployees(tenant.locationId, 'ACTIVE');
+    const resp = await square.employeesApi.listEmployees(tenant.locationId || tenant.squareLocationId, 'ACTIVE');
     const apiDuration = Date.now() - apiStartTime;
 
     const employees = resp.result?.employees || [];
@@ -644,7 +644,7 @@ async function createCustomer(context, tenant, customerData) {
     const createRequest = JSON.parse(JSON.stringify(requestBody)); // Deep clone to avoid any reference issues
 
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(tenant.accessToken || tenant.squareAccessToken);
 
     const apiStartTime = Date.now();
     const response = await square.customersApi.createCustomer(createRequest);
@@ -805,7 +805,7 @@ async function updateCustomer(context, tenant, customerId, updateData) {
     });
 
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(tenant.accessToken || tenant.squareAccessToken);
 
     const apiStartTime = Date.now();
     // ⚠️ Square SDK v42+: Pass customerId and body as separate parameters
@@ -889,11 +889,11 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
     // Create tenant-specific Square client
     console.log('[squareUtils] Creating Square client for tenant:', {
       tenantId: tenant.id,
-      hasAccessToken: !!tenant.accessToken,
-      accessTokenLength: tenant.accessToken?.length,
+      hasAccessToken: !!(tenant.accessToken || tenant.squareAccessToken),
+      accessTokenLength: (tenant.accessToken || tenant.squareAccessToken)?.length,
       tenantKeys: Object.keys(tenant)
     });
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(tenant.accessToken || tenant.squareAccessToken);
 
     // First try exact search with E164 formatted phone number
     const apiStartTime = Date.now();
