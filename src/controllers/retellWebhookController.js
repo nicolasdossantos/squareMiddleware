@@ -258,6 +258,8 @@ async function handleRetellWebhook(req, res) {
           initial_message: `Thank you for calling ${businessName}, who am I speaking with today?`
         };
       }
+      // Add callId to dynamic variables so agent can use it in tool calls
+      dynamicVariables.call_id = callId;
       console.log(
         '🔍 [RETELL DEBUG] Dynamic variables extracted:',
         JSON.stringify(dynamicVariables, null, 2)
@@ -627,12 +629,6 @@ async function handleCallInbound(call_inbound, correlationId) {
 
     console.log('🔍 [RETELL DEBUG] Customer lookup completed for inbound call');
     console.log('🔍 [RETELL DEBUG] Customer response received:', JSON.stringify(customerResponse, null, 2));
-
-    // Add callId to dynamic_variables so agent can use it in tool calls
-    if (customerResponse && customerResponse.dynamic_variables) {
-      customerResponse.dynamic_variables.call_id = callId;
-      console.log(`✅ [RETELL DEBUG] Added call_id to dynamic_variables: ${callId}`);
-    }
 
     // Return the exact same response format as ElevenLabs, including tenant info for business name
     const result = {
