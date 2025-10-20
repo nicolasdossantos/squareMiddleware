@@ -191,6 +191,15 @@ async function handleRetellWebhook(req, res) {
 
       // Get business name from tenant context - use actual name, not 'us'
       const businessName = result.tenant?.businessName || 'Elite Barbershop';
+      console.log(
+        '🔍 [RETELL DEBUG] Business name extraction:',
+        JSON.stringify({
+          result_tenant: result.tenant,
+          businessName: businessName,
+          tenant_businessName: result.tenant?.businessName,
+          fallback_used: !result.tenant?.businessName
+        }, null, 2)
+      );
 
       if (result.customerResponse?.dynamic_variables) {
         // Customer lookup succeeded - use the full ElevenLabs response but ensure all values are strings
