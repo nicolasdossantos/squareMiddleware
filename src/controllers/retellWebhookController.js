@@ -596,9 +596,9 @@ async function handleCallInbound(call_inbound, correlationId) {
 
     try {
       sessionStore.createSession(callId, agent_id, {
-        accessToken: tenant.accessToken,
-        locationId: tenant.locationId,
-        environment: tenant.environment,
+        squareAccessToken: tenant.accessToken,
+        squareLocationId: tenant.locationId,
+        squareEnvironment: tenant.environment,
         timezone: tenant.timezone
       }, 600); // 10 minute TTL
 
