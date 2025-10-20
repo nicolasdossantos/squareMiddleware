@@ -192,18 +192,17 @@ function sendError(
     timestamp: new Date().toISOString()
   };
 
-  // CRITICAL: Always convert details to string to avoid circular reference errors
-  // When details is an object with circular refs, JSON.stringify will fail
+  // CRITICAL: Safely handle details to avoid circular reference errors
+  // When details is an object with circular refs (like axios errors), JSON.stringify will fail
   if (details) {
-    // If it's a string, use as-is
-    // If it's an Error object, extract message
-    // Otherwise, convert to string safely
-    if (typeof details === 'string') {
+    // If it's a string or array, use as-is (arrays are serializable)
+    if (typeof details === 'string' || Array.isArray(details)) {
       response.details = details;
     } else if (details instanceof Error) {
+      // Extract error message safely
       response.details = details.message || details.toString();
     } else if (typeof details === 'object') {
-      // Try to stringify, but fall back to toString if it has circular refs
+      // For objects, try to stringify - if it has circular refs, fall back to toString
       try {
         response.details = JSON.stringify(details);
       } catch (e) {
