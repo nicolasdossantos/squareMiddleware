@@ -259,7 +259,7 @@ async function handleRetellWebhook(req, res) {
         };
       }
       // Add callId to dynamic variables so agent can use it in tool calls
-      dynamicVariables.call_id = callId;
+      dynamicVariables.call_id = result.callId;
       console.log(
         '🔍 [RETELL DEBUG] Dynamic variables extracted:',
         JSON.stringify(dynamicVariables, null, 2)
