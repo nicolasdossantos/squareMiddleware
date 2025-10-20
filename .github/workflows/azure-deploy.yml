@@ -94,6 +94,25 @@ jobs:
             --name "${{ env.AZURE_WEBAPP_NAME }}/config/web" \
             --set properties.healthCheckPath="/api/health"
 
+      - name: Verify Deployment
+        run: |
+          echo "Verifying deployment health (npm install can take 2-3 minutes)..."
+          max_attempts=10
+          attempt=1
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt of $max_attempts..."
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" https://square-middleware-prod-api.azurewebsites.net/api/health)
+            if [ "$status_code" -eq 200 ]; then
+              echo "✅ Deployment successful! Health check returned 200"
+              exit 0
+            fi
+            echo "⏳ Health check returned $status_code, waiting 10 seconds..."
+            sleep 10
+            attempt=$((attempt + 1))
+          done
+          echo "❌ Deployment verification failed after $max_attempts attempts"
+          exit 1
+
       - name: Azure Logout
         if: always()
         run: az logout
