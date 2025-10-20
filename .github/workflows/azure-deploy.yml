@@ -82,6 +82,8 @@ jobs:
           az webapp start \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --resource-group square-middleware-prod-rg
+          echo "Waiting for app to start..."
+          sleep 15
 
       - name: Configure Health Check
         run: |
