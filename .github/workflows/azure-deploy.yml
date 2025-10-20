@@ -49,6 +49,11 @@ jobs:
           mkdir -p deploy
           cp -R src deploy/
           cp package.json package-lock.json deploy/
+          # Add .deployment file to explicitly trigger Oryx build
+          cat > deploy/.deployment <<EOF
+          [config]
+          command = npm ci --production
+          EOF
 
       - name: Stop App Service (prevent 409 conflicts)
         run: |
@@ -58,6 +63,8 @@ jobs:
             --resource-group square-middleware-prod-rg
           echo "Waiting for app to stop completely..."
           sleep 10
+          echo "Cleaning old node_modules from server to force rebuild..."
+          az webapp ssh --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group square-middleware-prod-rg -c "rm -rf /home/site/wwwroot/node_modules" || echo "Could not clean node_modules (may not exist yet)"
 
       - name: Clear deployment locks
         continue-on-error: true
