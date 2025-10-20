@@ -1,13 +1,16 @@
 # 🔍 Complete Function Call Flow Analysis: booking-cancel
 
 ## Overview
-This document traces a complete function call from Retell agent through your Express middleware, routes, controllers, services, and finally to the Square API.
+
+This document traces a complete function call from Retell agent through your Express middleware, routes,
+controllers, services, and finally to the Square API.
 
 ---
 
 ## ⚡ STEP-BY-STEP FLOW
 
 ### **Step 1: Retell Agent Makes Tool Call**
+
 ```
 Retell Agent Tool: booking-cancel
 ├─ Sends HTTP request
@@ -24,6 +27,7 @@ Retell Agent Tool: booking-cancel
 ---
 
 ### **Step 2: Express Server Receives Request**
+
 ```
 File: src/express-app.js
 ├─ Server listening on :3000
@@ -34,6 +38,7 @@ File: src/express-app.js
 ---
 
 ### **Step 3: Route Handler (FIRST CHECK - MIDDLEWARE CHAIN)**
+
 ```
 File: src/routes/bookings.js (Lines 1-82)
 ├─ Routes defined: GET, POST, DELETE for /api/bookings/:bookingId
@@ -46,6 +51,7 @@ File: src/routes/bookings.js (Lines 1-82)
 ```
 
 **Route Definition (Line 52-54):**
+
 ```javascript
 router.delete('/:bookingId', asyncHandler(bookingController.cancelBooking));
 ```
@@ -53,6 +59,7 @@ router.delete('/:bookingId', asyncHandler(bookingController.cancelBooking));
 ---
 
 ### **Step 4: AUTHENTICATION MIDDLEWARE - agentAuth**
+
 ```
 File: src/middlewares/agentAuth.js (Lines 1-108)
 
@@ -78,7 +85,7 @@ EXECUTION PATH FOR RETELL AGENT:
            authenticated: true,
            isRetellAgent: true
        }
-       
+
        req.retellContext = tenantContext  ← For retell-specific code
        req.tenant = tenantContext         ← ✅ FOR CONTROLLER COMPATIBILITY
        return next() → Proceed to controller
@@ -91,12 +98,14 @@ EXECUTION PATH FOR RETELL AGENT:
 ```
 
 **What Gets Set on Request Object:**
+
 - ✅ `req.correlationId` - Correlation ID from previous middleware
 - ✅ `req.tenant` - Tenant context with Square credentials
 - ✅ `req.tenant.accessToken` - Square access token (CRITICAL)
 - ✅ `req.tenant.locationId` - Square location ID (CRITICAL)
 
 **Potential Gaps Here:**
+
 1. ⚠️ Missing environment variables will cause failure
 2. ⚠️ X-Retell-API-Key header must match RETELL_API_KEY exactly
 3. ⚠️ SQUARE_ACCESS_TOKEN must be valid
@@ -105,6 +114,7 @@ EXECUTION PATH FOR RETELL AGENT:
 ---
 
 ### **Step 5: Controller Handler**
+
 ```
 File: src/controllers/bookingController.js (Lines 564-649)
 
@@ -113,33 +123,33 @@ FUNCTION: cancelBooking(req, res)
 1. Extract context from req:
    const { correlationId, tenant } = req
    └─ ✅ tenant has: accessToken, locationId
-   
+
 2. Extract bookingId:
    const query = req.query || {}
    const bookingId = req.params.bookingId || req.params.id || query.bookingId
    └─ ✅ Should be in URL: /api/bookings/:bookingId
-   
+
 3. Validation (Line 575-580):
    if (!bookingId) {
        return res.status(400).json({ error: 'bookingId is required' })
    }
-   
+
 4. Create Azure Functions Context Mock:
    const context = {
        log: (...args) => logger.info(...args),
        error: (...args) => logger.error(...args)
    }
-   
+
 5. Call Helper (Line 624-633):
-   const { cancelBooking: cancelBookingHelper } = 
+   const { cancelBooking: cancelBookingHelper } =
        require('../utils/helpers/bookingHelpers')
-   
+
    const result = await cancelBookingHelper(context, tenant, bookingId)
    └─ ✅ Passes tenant with Square credentials
-   
+
 6. Clean BigInt Response (Line 638-641):
    const cleanedBooking = cleanBigIntFromObject(result.booking)
-   
+
 7. Return Success (Line 643-649):
    return res.status(200).json({
        success: true,
@@ -149,6 +159,7 @@ FUNCTION: cancelBooking(req, res)
 ```
 
 **Potential Gaps Here:**
+
 1. ⚠️ Booking ID extraction from multiple sources - could be confusing
 2. ⚠️ No validation that bookingId format is correct
 3. ⚠️ Error handling might mask actual errors
@@ -156,6 +167,7 @@ FUNCTION: cancelBooking(req, res)
 ---
 
 ### **Step 6: Booking Helper Layer**
+
 ```
 File: src/utils/helpers/bookingHelpers.js (892 lines)
 
@@ -163,20 +175,20 @@ FUNCTION: cancelBooking(context, tenant, bookingId)
 
 1. Create Square Client:
    const { square } = require('../squareUtils')
-   
+
    OR more explicitly:
    const client = createSquareClient(
        tenant.accessToken,      ← Uses tenant.accessToken ✅
        tenant.locationId        ← Uses tenant.locationId ✅
    )
-   
+
 2. Call Square API:
    await square.bookingsApi.cancelBooking({
        bookingId: bookingId,
        version: bookingVersion,
        idempotencyKey: generateIdempotencyKey()
    })
-   
+
 3. Return formatted response:
    return {
        booking: result.result.booking  ← Square SDK v42+ structure
@@ -184,6 +196,7 @@ FUNCTION: cancelBooking(context, tenant, bookingId)
 ```
 
 **This is where the actual API call happens:**
+
 ```javascript
 // Pseudo code flow:
 const client = createSquareClient(tenant.accessToken, tenant.locationId)
@@ -193,6 +206,7 @@ const response = await client.bookingsApi.cancelBooking({...})
 ---
 
 ### **Step 7: Square API Call**
+
 ```
 Square SDK makes HTTP request:
 POST https://connect.squareupsandbox.com/v2/bookings/{booking_id}/cancel
@@ -216,6 +230,7 @@ Response:
 ---
 
 ### **Step 8: Response Flow (Reverse)**
+
 ```
 Square API Response
     ↓
@@ -242,31 +257,36 @@ Retell Agent
 ## 🚨 IDENTIFIED GAPS & ISSUES
 
 ### **Gap 1: Missing X-Retell-API-Key Header**
-**Location:** Step 4 (Auth Middleware)
-**Issue:** Retell agent tool calls don't include X-Retell-API-Key header
-**Current Code Check:**
+
+**Location:** Step 4 (Auth Middleware) **Issue:** Retell agent tool calls don't include X-Retell-API-Key
+header **Current Code Check:**
+
 ```javascript
 if (retellApiKey && retellApiKey === process.env.RETELL_API_KEY) {
-    // Only works if header is present
+  // Only works if header is present
 }
 ```
-**Status:** ✅ FIXED (middleware ready)
-**Action Needed:** Configure Retell tools in dashboard to include header
+
+**Status:** ✅ FIXED (middleware ready) **Action Needed:** Configure Retell tools in dashboard to include
+header
 
 ---
 
 ### **Gap 2: Missing Environment Variables**
-**Location:** Step 4 (Auth Middleware, Lines 35-36)
-**Issue:** If SQUARE_ACCESS_TOKEN or SQUARE_LOCATION_ID are undefined:
+
+**Location:** Step 4 (Auth Middleware, Lines 35-36) **Issue:** If SQUARE_ACCESS_TOKEN or SQUARE_LOCATION_ID
+are undefined:
+
 ```javascript
 const tenantContext = {
-    accessToken: process.env.SQUARE_ACCESS_TOKEN,    // ← Could be undefined
-    locationId: process.env.SQUARE_LOCATION_ID,      // ← Could be undefined
-}
+  accessToken: process.env.SQUARE_ACCESS_TOKEN, // ← Could be undefined
+  locationId: process.env.SQUARE_LOCATION_ID // ← Could be undefined
+};
 ```
-**Current Status:** ⚠️ POTENTIAL ISSUE
-**Impact:** Square API calls will fail with 401/invalid credentials
+
+**Current Status:** ⚠️ POTENTIAL ISSUE **Impact:** Square API calls will fail with 401/invalid credentials
 **Check With:**
+
 ```bash
 az webapp config appsettings list \
   --resource-group square-middleware-prod-rg \
@@ -276,65 +296,70 @@ az webapp config appsettings list \
 ---
 
 ### **Gap 3: Tenant Object Not Set on Controller Level**
-**Location:** Step 5 (Controller)
-**Issue (RESOLVED):** Previously, controllers expected `req.tenant` but auth middleware only set `req.retellContext`
-**Previous Code:**
+
+**Location:** Step 5 (Controller) **Issue (RESOLVED):** Previously, controllers expected `req.tenant` but auth
+middleware only set `req.retellContext` **Previous Code:**
+
 ```javascript
 // BEFORE FIX:
-req.retellContext = tenantContext  // ← Only this was set
+req.retellContext = tenantContext; // ← Only this was set
 // Controllers expected:
-const { tenant } = req  // ← Would be undefined
+const { tenant } = req; // ← Would be undefined
 ```
-**Current Status:** ✅ FIXED
-**Current Code:**
+
+**Current Status:** ✅ FIXED **Current Code:**
+
 ```javascript
 // AFTER FIX:
-req.retellContext = tenantContext
-req.tenant = tenantContext  // ← Both set now ✅
+req.retellContext = tenantContext;
+req.tenant = tenantContext; // ← Both set now ✅
 ```
 
 ---
 
 ### **Gap 4: No Validation of Booking ID Format**
-**Location:** Step 5 (Controller, Lines 575-580)
-**Issue:** Accepts any string as bookingId, no format validation
+
+**Location:** Step 5 (Controller, Lines 575-580) **Issue:** Accepts any string as bookingId, no format
+validation
+
 ```javascript
-const bookingId = req.params.bookingId || req.params.id || query.bookingId
+const bookingId = req.params.bookingId || req.params.id || query.bookingId;
 if (!bookingId) {
-    // Only checks if empty, not if format is valid
+  // Only checks if empty, not if format is valid
 }
 ```
-**Impact:** Invalid booking IDs might be sent to Square API
-**Suggestion:** Add format validation:
+
+**Impact:** Invalid booking IDs might be sent to Square API **Suggestion:** Add format validation:
+
 ```javascript
 if (!bookingId || !/^[A-Za-z0-9_-]{10,}$/.test(bookingId)) {
-    return res.status(400).json({ error: 'Invalid bookingId format' })
+  return res.status(400).json({ error: 'Invalid bookingId format' });
 }
 ```
 
 ---
 
 ### **Gap 5: Duplicate cancelBooking Function Paths**
-**Location:** Steps 5 & 6
-**Issue:** Three separate implementations:
+
+**Location:** Steps 5 & 6 **Issue:** Three separate implementations:
+
 1. **Express Handler** (`cancelBooking` - Line 564)
    - Calls `cancelBookingHelper`
    - Creates Azure context
-   
 2. **Handler Function** (`handleCancelBooking` - Line 1144)
    - Also calls `cancelBookingHelper`
    - Used by `manageBooking` route
-   
 3. **Helper Function** (`cancelBookingHelper` - bookingHelpers.js)
    - Actually calls Square API
 
 **Potential Issue:** Path 1 vs Path 2 inconsistency
+
 ```javascript
 // PATH 1 (Direct route):
 DELETE /api/bookings/:bookingId
     → cancelBooking()
     → cancelBookingHelper(context, tenant, bookingId)
-    
+
 // PATH 2 (Manager route):
 DELETE /api/booking/cancel?bookingId=...
     → manageBooking()
@@ -342,14 +367,16 @@ DELETE /api/booking/cancel?bookingId=...
     → cancelBookingHelper(context, bookingId)  ← ⚠️ Different args!
 ```
 
-**Current Status:** ⚠️ INCONSISTENCY
-**Issue:** Path 2 passes `context, bookingId` but Path 1 passes `context, tenant, bookingId`
+**Current Status:** ⚠️ INCONSISTENCY **Issue:** Path 2 passes `context, bookingId` but Path 1 passes
+`context, tenant, bookingId`
 
 ---
 
 ### **Gap 6: Error Handling Not Comprehensive**
-**Location:** Step 5 & 8 (Controller error handling, Lines 596-612)
-**Issue:** Generic error messages don't surface real Square API errors
+
+**Location:** Step 5 & 8 (Controller error handling, Lines 596-612) **Issue:** Generic error messages don't
+surface real Square API errors
+
 ```javascript
 catch (error) {
     // Only catches specific strings:
@@ -358,57 +385,63 @@ catch (error) {
     // Everything else returns 500 with generic message
 }
 ```
-**Potential Issue:** 401 errors from Square won't be clearly identified
-**Suggestion:** Add more specific error handling:
+
+**Potential Issue:** 401 errors from Square won't be clearly identified **Suggestion:** Add more specific
+error handling:
+
 ```javascript
 if (error.statusCode === 401) {
-    return res.status(401).json({
-        success: false,
-        message: 'Authentication failed with Square API',
-        error: error.message,
-        debug: { accessTokenLength: tenant.accessToken?.length }
-    })
+  return res.status(401).json({
+    success: false,
+    message: 'Authentication failed with Square API',
+    error: error.message,
+    debug: { accessTokenLength: tenant.accessToken?.length }
+  });
 }
 ```
 
 ---
 
 ### **Gap 7: No Request/Response Logging at Square API Level**
-**Location:** Step 7 (Square API call)
-**Issue:** When Square API calls fail, there's no detailed logging of:
+
+**Location:** Step 7 (Square API call) **Issue:** When Square API calls fail, there's no detailed logging of:
+
 - What was sent to Square
 - What Square returned
 - Headers sent
 - Rate limiting info
 
 **Suggestion:** Add logging in bookingHelpers.js:
+
 ```javascript
 const logApiCall = (method, endpoint, statusCode, body) => {
-    console.log(`📡 [SQUARE API] ${method} ${endpoint} → ${statusCode}`)
-    console.log(`📦 Response:`, body)
-}
+  console.log(`📡 [SQUARE API] ${method} ${endpoint} → ${statusCode}`);
+  console.log(`📦 Response:`, body);
+};
 ```
 
 ---
 
 ### **Gap 8: Correlation ID Not Threaded Through Service Layers**
-**Location:** Steps 5-7
-**Issue:** correlationId is created but not passed to Square API calls
+
+**Location:** Steps 5-7 **Issue:** correlationId is created but not passed to Square API calls
+
 ```javascript
 // Step 5: Has correlationId
-const { correlationId, tenant } = req
+const { correlationId, tenant } = req;
 
 // Step 6: Calls helper but helpers don't receive correlationId
-const result = await cancelBookingHelper(context, tenant, bookingId)
-                                         // ↑ No correlationId passed
+const result = await cancelBookingHelper(context, tenant, bookingId);
+// ↑ No correlationId passed
 
 // Step 7: Square API call has no correlation ID
 ```
 
-**Impact:** Can't trace Square API calls back to original Retell requests
-**Suggestion:** Pass correlationId through entire chain:
+**Impact:** Can't trace Square API calls back to original Retell requests **Suggestion:** Pass correlationId
+through entire chain:
+
 ```javascript
-const result = await cancelBookingHelper(context, tenant, bookingId, correlationId)
+const result = await cancelBookingHelper(context, tenant, bookingId, correlationId);
 ```
 
 ---
@@ -527,6 +560,7 @@ const result = await cancelBookingHelper(context, tenant, bookingId, correlation
 ## ✅ VERIFICATION CHECKLIST
 
 ### **Pre-Call Verification**
+
 - [ ] `RETELL_API_KEY` is set in Azure App Service
 - [ ] `SQUARE_ACCESS_TOKEN` is valid
 - [ ] `SQUARE_LOCATION_ID` is valid
@@ -534,12 +568,14 @@ const result = await cancelBookingHelper(context, tenant, bookingId, correlation
 - [ ] Booking ID is valid and exists in Square
 
 ### **During Call Monitoring**
+
 - [ ] Check logs for "Agent config lookup failed" (expected, non-blocking)
 - [ ] Check for "Missing or invalid Authorization header" (would indicate auth failure)
 - [ ] Check for Square API 401 (would indicate credential issue)
 - [ ] Check for "Booking cancelled successfully" (success message)
 
 ### **Post-Call Verification**
+
 - [ ] Booking status changed to CANCELLED in Square
 - [ ] Response timestamp included
 - [ ] Correlation ID tracked in logs
@@ -549,50 +585,54 @@ const result = await cancelBookingHelper(context, tenant, bookingId, correlation
 ## 🔧 RECOMMENDED IMPROVEMENTS
 
 ### **Priority 1: Add Booking ID Validation**
+
 ```javascript
 // In cancelBooking controller (line ~575)
-const bookingIdRegex = /^[A-Za-z0-9_-]{10,}$/
+const bookingIdRegex = /^[A-Za-z0-9_-]{10,}$/;
 if (!bookingId || !bookingIdRegex.test(bookingId)) {
-    return res.status(400).json({ 
-        error: 'Invalid booking ID format' 
-    })
+  return res.status(400).json({
+    error: 'Invalid booking ID format'
+  });
 }
 ```
 
 ### **Priority 2: Improve Error Handling for Square API**
+
 ```javascript
 // In error catch block (line ~596)
 if (error.response?.status === 401) {
-    return res.status(401).json({
-        error: 'Square API authentication failed',
-        debug: {
-            hasAccessToken: !!tenant.accessToken,
-            tokenLength: tenant.accessToken?.length
-        }
-    })
+  return res.status(401).json({
+    error: 'Square API authentication failed',
+    debug: {
+      hasAccessToken: !!tenant.accessToken,
+      tokenLength: tenant.accessToken?.length
+    }
+  });
 }
 ```
 
 ### **Priority 3: Thread Correlation ID Through All Layers**
+
 ```javascript
 // In bookingHelpers.js
 const result = await cancelBookingHelper(
-    context, 
-    tenant, 
-    bookingId, 
-    correlationId  // Add this
-)
+  context,
+  tenant,
+  bookingId,
+  correlationId // Add this
+);
 ```
 
 ### **Priority 4: Add Detailed API Request/Response Logging**
+
 ```javascript
 // In bookingHelpers.js before Square API call
 console.log(`📡 [SQUARE API] Cancelling booking:`, {
-    bookingId,
-    accessTokenLength: tenant.accessToken.length,
-    locationId: tenant.locationId,
-    correlationId
-})
+  bookingId,
+  accessTokenLength: tenant.accessToken.length,
+  locationId: tenant.locationId,
+  correlationId
+});
 ```
 
 ---
@@ -602,12 +642,14 @@ console.log(`📡 [SQUARE API] Cancelling booking:`, {
 The function call flow is **mostly sound** with a few identified gaps:
 
 ✅ **Working Well:**
+
 - Multi-layer middleware authentication
 - Tenant context properly propagated
 - Both X-Retell-API-Key and Bearer token auth supported
 - BigInt response cleaning
 
 ⚠️ **Needs Attention:**
+
 1. Environment variables must be set correctly
 2. X-Retell-API-Key header must be configured in Retell console
 3. Booking ID format validation missing
@@ -615,6 +657,7 @@ The function call flow is **mostly sound** with a few identified gaps:
 5. Correlation ID not threaded through all layers
 
 🚀 **Next Steps:**
+
 1. Verify environment variables are set: `az webapp config appsettings list`
 2. Configure X-Retell-API-Key in Retell tool definitions
 3. Test with a booking-cancel call and monitor logs

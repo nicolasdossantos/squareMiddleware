@@ -237,7 +237,10 @@ async function loadStaffMembers(context, tenant) {
     );
 
     const apiStartTime = Date.now();
-    const resp = await square.employeesApi.listEmployees(tenant.locationId || tenant.squareLocationId, 'ACTIVE');
+    const resp = await square.employeesApi.listEmployees(
+      tenant.locationId || tenant.squareLocationId,
+      'ACTIVE'
+    );
     const apiDuration = Date.now() - apiStartTime;
 
     const employees = resp.result?.employees || [];

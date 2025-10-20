@@ -71,7 +71,7 @@ T1      Correlation ID              correlationId         Generate unique ID
 
 T2      Auth Check                  agentAuth             Extract X-Retell-API-Key
                                     middleware            └─ Line 28-43
-                                                          
+
 T3      Validate Header             agentAuth             Check: header === env var
         vs Env Var                  middleware            └─ If NO → 401 error
                                                           └─ If YES → Continue
@@ -120,7 +120,7 @@ T11     Fetch Current Booking       bookingHelpers.js     const booking =
 T12     Call Square Cancel API      bookingHelpers.js     const response =
                                     (Helper function)     client.bookingsApi
                                                             .cancelBooking({...})
-                                                          
+
                                                           ⚠️ This is where
                                                           401 errors occur
                                                           if credentials
@@ -130,12 +130,12 @@ T13     Square Processes Request    Square API            Authorization check
         (Remote)                    (External)            └─ Bearer token valid?
                                                           │  └─ If NO: 401
                                                           │  └─ If YES: Continue
-                                                          
+
                                                           Business logic check
                                                           └─ Can cancel booking?
                                                              └─ If NO: 400/409
                                                              └─ If YES: Continue
-                                                          
+
                                                           Update in database
                                                           └─ Set status=CANCELLED
 
@@ -171,34 +171,34 @@ FOR SUCCESS: All of these must be true in sequence
 
     1. X-Retell-API-Key header exists in request
        ↓ (Must pass: header === env var)
-    
+
     2. process.env.RETELL_API_KEY is set
        ↓ (Must match Retell tool configuration)
-    
+
     3. process.env.SQUARE_ACCESS_TOKEN is set
        ↓ (Must be valid Square API token)
-    
+
     4. process.env.SQUARE_LOCATION_ID is set
        ↓ (Must be valid Square location)
-    
+
     5. Auth middleware creates req.tenant ✓
        ↓ (Must be passed to controller)
-    
+
     6. Controller receives req.tenant ✓
        ↓ (Must pass to helper function)
-    
+
     7. Helper receives tenant ✓
        ↓ (Must create Square client)
-    
+
     8. Square client created ✓
        ↓ (Must call Square API)
-    
+
     9. Square API called with valid token
        ↓ (Must authorize request)
-    
+
     10. Booking cancelled ✓
         ↓
-    
+
     ✅ SUCCESS: 200 response to Retell
 ```
 
@@ -265,13 +265,13 @@ REQUEST: DELETE /api/bookings/GKBX6V09Q2T7FA4ZKZMMMC5C3A
 
     │
     ▼ Enter middleware chain
-    
+
     MIDDLEWARE 1: correlationId
     ├─ Check: Has X-Correlation-ID header?
     ├─ If NO: Generate new UUID
     ├─ Set: req.correlationId = "550e8400-e29b-41d4-a716-446655440000"
     └─ Call: next()
-    
+
     │
     ▼ MIDDLEWARE 2: agentAuth (CRITICAL)
     ├─ Extract Headers:
@@ -307,7 +307,7 @@ REQUEST: DELETE /api/bookings/GKBX6V09Q2T7FA4ZKZMMMC5C3A
     │    └─ If Bearer invalid: Return 403
     │
     ▼ MIDDLEWARE 3+: Other middleware (validation, etc.)
-    
+
     │
     ▼ ROUTE HANDLER
     DELETE /api/bookings/:bookingId
@@ -400,23 +400,23 @@ Variable                  Location        Purpose
 ─────────────────────────────────────────────────────────────────────
 RETELL_API_KEY           Azure            Must match X-Retell-API-Key
                          Environment      header from Retell tools
-                         Variables        
-                         
+                         Variables
+
 SQUARE_ACCESS_TOKEN      Azure            Bearer token for Square API
                          Environment      authentication
                          Variables        ← If invalid: 401 from Square
 
 SQUARE_LOCATION_ID       Azure            Square location to operate in
                          Environment      ← If missing: API errors
-                         Variables        
+                         Variables
 
 TZ                       Azure            Timezone for date calculations
                          Environment      (default: America/New_York)
-                         Variables        
+                         Variables
 
 SQUARE_ENVIRONMENT       Azure            sandbox or production
-                         Environment      
-                         Variables        
+                         Environment
+                         Variables
 ```
 
 ---
@@ -424,6 +424,7 @@ SQUARE_ENVIRONMENT       Azure            sandbox or production
 ## Test Checklist
 
 **Before Test:**
+
 - [ ] X-Retell-API-Key header configured in all 5 Retell tools
 - [ ] RETELL_API_KEY env var set in Azure and matches Retell tools
 - [ ] SQUARE_ACCESS_TOKEN env var set in Azure
@@ -431,12 +432,14 @@ SQUARE_ENVIRONMENT       Azure            sandbox or production
 - [ ] Valid test booking exists in Square
 
 **During Test:**
+
 - [ ] Check Azure app logs for auth errors
 - [ ] Monitor for any 401 errors
 - [ ] Check for "booking cancelled successfully" message
 - [ ] Verify booking status changed in Square
 
 **After Test:**
+
 - [ ] Booking status = CANCELLED in Square ✓
 - [ ] Response received by Retell ✓
 - [ ] No errors in logs ✓

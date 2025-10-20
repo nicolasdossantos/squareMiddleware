@@ -7,12 +7,12 @@
    ════════════════════════════════════════════════════════════════════════════
    Tool: booking-cancel
    Request: DELETE /api/bookings/GKBX6V09Q2T7FA4ZKZMMMC5C3A
-   
+
    Headers:
    ├─ X-Retell-API-Key: sk-test-abc123def456
    ├─ Content-Type: application/json
    └─ Host: your-api.azurewebsites.net
-   
+
    ⚠️  CRITICAL POINT: Does Retell console have this header configured?
                       If NO → Auth middleware will reject with 401
 
@@ -21,18 +21,18 @@
    ════════════════════════════════════════════════════════════════════════════
    File: src/express-app.js
    Status: ✅ Request received by server
-   
+
    Flows through Express middleware stack...
 
 
 3. MIDDLEWARE CHAIN BEGINS
    ════════════════════════════════════════════════════════════════════════════
-   
+
    STEP A: correlationId Middleware
    ├─ File: src/middlewares/correlationId.js
    ├─ Action: Generates unique request ID
    └─ Result: req.correlationId = "550e8400-e29b-41d4-a716-446655440000"
-   
+
    STEP B: agentAuth Middleware ⚠️ CRITICAL AUTHENTICATION POINT
    ├─ File: src/middlewares/agentAuth.js
    ├─ Execution:
@@ -74,7 +74,7 @@
 4. ROUTING LAYER
    ════════════════════════════════════════════════════════════════════════════
    File: src/routes/bookings.js
-   
+
    DELETE /api/bookings/:bookingId
    ├─ Route matched ✅
    ├─ Extracts: req.params.bookingId = "GKBX6V09Q2T7FA4ZKZMMMC5C3A"
@@ -85,7 +85,7 @@
    ════════════════════════════════════════════════════════════════════════════
    File: src/controllers/bookingController.js (Line 564)
    Function: cancelBooking(req, res)
-   
+
    Flow:
    ├─ Step 1: Extract context
    │  ├─ const { correlationId, tenant } = req
@@ -113,7 +113,7 @@
    │  └─ const cleanedBooking = cleanBigIntFromObject(result.booking)
    │
    └─ Step 6: Send response
-      └─ return res.status(200).json({ 
+      └─ return res.status(200).json({
          success: true,
          data: { booking: cleanedBooking },
          message: 'Booking cancelled successfully'
@@ -124,7 +124,7 @@
    ════════════════════════════════════════════════════════════════════════════
    File: src/utils/helpers/bookingHelpers.js
    Function: cancelBooking(context, tenant, bookingId)
-   
+
    Flow:
    ├─ Step 1: Create Square Client
    │  └─ const client = createSquareClient(
@@ -159,18 +159,18 @@
 7. SQUARE API - External Service Call
    ════════════════════════════════════════════════════════════════════════════
    Service: Square (Remote API)
-   
+
    HTTP Request Sent:
    POST https://connect.squareupsandbox.com/v2/bookings/{booking_id}/cancel
-   
+
    Headers:
    ├─ Authorization: Bearer sq_prod_xxxxxxxxxxxx
    ├─ Content-Type: application/json
    ├─ User-Agent: squareupsdk/js-v42.0.0
    └─ X-Square-User-Agent: squareupsdk/js-v42.0.0
-   
+
    ⚠️ MISSING: No correlation ID header to trace back to Retell request
-   
+
    Possible Responses:
    ├─ 200 OK: { booking: { id: "GKBX...", status: "CANCELLED", ... } }
    │
@@ -192,26 +192,26 @@
 
 8. RESPONSE FLOW (Reverse)
    ════════════════════════════════════════════════════════════════════════════
-   
+
    Square Response
    ├─ Status: 200 OK
    └─ Body: { booking: { id: "GKBX...", status: "CANCELLED", ... } }
-   
+
    ↓ Helper Returns
-   
+
    Helper Response
    ├─ Return: { booking: { id: "GKBX...", status: "CANCELLED", ... } }
    └─ ⚠️ No logging of response details
-   
+
    ↓ Controller Receives
-   
+
    Controller Processing
    ├─ Clean BigInt values: cleanBigIntFromObject(...)
    ├─ Create JSON: { success: true, data: {...}, message: '...' }
    └─ Send: res.status(200).json(...)
-   
+
    ↓ Express Sends to Network
-   
+
    HTTP Response to Retell
    ├─ Status: 200 OK
    ├─ Headers: Content-Type: application/json
@@ -230,9 +230,9 @@
       "timestamp": "2025-10-18T14:23:45.123Z",
       "correlationId": "550e8400-e29b-41d4-a716-446655440000"
       }
-   
+
    ↓ Retell Agent Receives
-   
+
    Retell Tool Result
    └─ Tool call completed successfully ✅
 ```
@@ -242,6 +242,7 @@
 ## 🔴 FAILURE SCENARIOS
 
 ### **Scenario 1: X-Retell-API-Key Not Configured**
+
 ```
 Request Headers: { }  ← Missing X-Retell-API-Key
           ↓
@@ -255,6 +256,7 @@ Retell receives: { error: 'Missing or invalid Authorization header' }
 ```
 
 ### **Scenario 2: Environment Variables Not Set**
+
 ```
 agentAuth receives X-Retell-API-Key ✅
           ↓
@@ -277,6 +279,7 @@ Error thrown: "Cannot create client with undefined credentials"
 ```
 
 ### **Scenario 3: Invalid Square Access Token**
+
 ```
 Auth middleware ✅
 Controller ✅
@@ -298,6 +301,7 @@ Retell receives error response
 ```
 
 ### **Scenario 4: Booking ID Wrong**
+
 ```
 Auth ✅ Controller ✅ Helper ✅
           ↓
@@ -316,34 +320,40 @@ Controller returns 404
 ## ⚠️ IDENTIFIED GAPS DURING THIS FLOW
 
 ### **Gap A: No Environment Variable Validation**
+
 Location: agentAuth middleware initialization
+
 ```javascript
 // CURRENT: Creates context with potentially undefined values
 const tenantContext = {
-    accessToken: process.env.SQUARE_ACCESS_TOKEN,  // Could be undefined!
-    locationId: process.env.SQUARE_LOCATION_ID,    // Could be undefined!
-}
+  accessToken: process.env.SQUARE_ACCESS_TOKEN, // Could be undefined!
+  locationId: process.env.SQUARE_LOCATION_ID // Could be undefined!
+};
 
 // SHOULD BE:
 if (!process.env.SQUARE_ACCESS_TOKEN || !process.env.SQUARE_LOCATION_ID) {
-    return res.status(500).json({ error: 'Missing environment variables' })
+  return res.status(500).json({ error: 'Missing environment variables' });
 }
 ```
 
 ### **Gap B: No Booking ID Format Validation**
+
 Location: cancelBooking controller (line 575)
+
 ```javascript
 // CURRENT: Accepts any string
-const bookingId = req.params.bookingId
+const bookingId = req.params.bookingId;
 
 // SHOULD BE:
 if (!/^[A-Z0-9]+$/.test(bookingId)) {
-    return res.status(400).json({ error: 'Invalid booking ID format' })
+  return res.status(400).json({ error: 'Invalid booking ID format' });
 }
 ```
 
 ### **Gap C: Correlation ID Not Threaded to Square**
+
 Location: cancelBooking helper
+
 ```javascript
 // CURRENT: No correlation ID passed to Square API
 const response = await client.bookingsApi.cancelBooking({...})
@@ -357,13 +367,17 @@ const response = await client.bookingsApi.cancelBooking({
 ```
 
 ### **Gap D: Duplicate Code Paths**
+
 Location: Two different routes, three implementations
+
 - Path 1: `DELETE /api/bookings/:bookingId` → Direct ✅
 - Path 2: `DELETE /api/booking/cancel?bookingId=...` → Via manageBooking
   - Uses `handleCancelBooking` which calls helper WITHOUT tenant parameter ❌
 
 ### **Gap E: Error Responses Not Specific**
+
 Location: Controller error handling (lines 596-612)
+
 ```javascript
 // CURRENT: Generic error messages
 catch (error) {
@@ -396,19 +410,23 @@ catch (error) {
 ## ✅ VERIFICATION CHECKLIST
 
 **Before Testing:**
+
 - [ ] Verify X-Retell-API-Key configured in Retell console for booking-cancel tool
-- [ ] Verify SQUARE_ACCESS_TOKEN set in Azure: `az webapp config appsettings list --name square-middleware-prod-api | grep SQUARE_ACCESS_TOKEN`
+- [ ] Verify SQUARE_ACCESS_TOKEN set in Azure:
+      `az webapp config appsettings list --name square-middleware-prod-api | grep SQUARE_ACCESS_TOKEN`
 - [ ] Verify SQUARE_LOCATION_ID set in Azure
 - [ ] Verify RETELL_API_KEY set in Azure
 - [ ] Valid booking exists in your Square test account
 
 **During Test Call:**
+
 - [ ] Check Azure logs for "Missing or invalid Authorization header" (would indicate auth failure)
 - [ ] Check Azure logs for "Agent config lookup failed" (expected, non-blocking)
 - [ ] Monitor for any 500 errors
 - [ ] Monitor for any 401 errors from Square
 
 **After Test Call:**
+
 - [ ] Booking status in Square changed to CANCELLED
 - [ ] Response included correlationId
 - [ ] No errors in application logs

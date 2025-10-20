@@ -1,13 +1,15 @@
 flow-breakdown
+
 # 🔴 CRITICAL GAPS - Executive Summary
 
 ## The 8 Gaps Identified in Your Function Call Flow
 
 ### **Gap 1: Missing X-Retell-API-Key Configuration** ⚠️ BLOCKING
+
 - **Where**: Retell tool definition (Retell console)
 - **What**: Tool definitions don't include X-Retell-API-Key header
 - **Why It Fails**: Auth middleware checks for this header but won't find it
-- **Code**: 
+- **Code**:
   ```
   agentAuth.js line 28-43: if (retellApiKey && retellApiKey === process.env.RETELL_API_KEY)
   ```
@@ -17,6 +19,7 @@ flow-breakdown
 ---
 
 ### **Gap 2: Missing Environment Variables** ⚠️ CRITICAL
+
 - **Where**: Azure App Service environment
 - **What**: SQUARE_ACCESS_TOKEN, SQUARE_LOCATION_ID, RETELL_API_KEY not set
 - **Why It Fails**: Auth middleware tries to create tenant context with undefined values
@@ -35,6 +38,7 @@ flow-breakdown
 ---
 
 ### **Gap 3: Duplicate Code Paths for cancelBooking** ⚠️ MAINTAINABILITY
+
 - **Where**: Two routes, three implementations
 - **Problem**: Inconsistent argument passing
 - **Path 1** (Direct):
@@ -54,13 +58,15 @@ flow-breakdown
 ---
 
 ### **Gap 4: No Booking ID Validation** ⚠️ RELIABILITY
+
 - **Where**: `cancelBooking` controller (line 575)
 - **Issue**: Accepts any string, no format checking
 - **Code**:
   ```javascript
-  const bookingId = req.params.bookingId || req.params.id || query.bookingId
-  if (!bookingId) {  // Only checks empty, not format!
-      return res.status(400).json({ error: 'bookingId is required' })
+  const bookingId = req.params.bookingId || req.params.id || query.bookingId;
+  if (!bookingId) {
+    // Only checks empty, not format!
+    return res.status(400).json({ error: 'bookingId is required' });
   }
   ```
 - **Fix Needed**: Add regex validation
@@ -69,6 +75,7 @@ flow-breakdown
 ---
 
 ### **Gap 5: Weak Error Handling** ⚠️ DEBUGGABILITY
+
 - **Where**: `cancelBooking` error handler (lines 596-612)
 - **Issue**: Generic error messages, doesn't surface real Square API errors
 - **Code**:
@@ -86,23 +93,27 @@ flow-breakdown
 ---
 
 ### **Gap 6: Correlation ID Lost in Service Layer** ⚠️ TRACING
+
 - **Where**: Controller → Helper layer
 - **Issue**: correlationId created but not passed through to Square API
 - **Code**:
+
   ```javascript
   // Line 565: Has correlationId
-  const { correlationId, tenant } = req
-  
+  const { correlationId, tenant } = req;
+
   // Line 633: Doesn't pass it
-  const result = await cancelBookingHelper(context, tenant, bookingId)
-                                           // ↑ correlationId lost here
+  const result = await cancelBookingHelper(context, tenant, bookingId);
+  // ↑ correlationId lost here
   ```
+
 - **Impact**: Can't trace Square API calls back to Retell requests
 - **Status**: 🟡 MISSING OBSERVABILITY
 
 ---
 
 ### **Gap 7: No Detailed Square API Logging** ⚠️ TROUBLESHOOTING
+
 - **Where**: `bookingHelpers.js` (Square API call)
 - **Issue**: Silent API calls, hard to debug when things fail
 - **Missing Logs**:
@@ -115,18 +126,21 @@ flow-breakdown
 ---
 
 ### **Gap 8: Inconsistent Tenant Context Setup** ⚠️ RESOLVED
+
 - **Where**: Auth middleware (FIXED in recent commits)
 - **Previous Issue**: Only set `req.retellContext`, not `req.tenant`
-- **Code**: 
+- **Code**:
+
   ```javascript
   // BEFORE: ❌
-  req.retellContext = tenantContext
+  req.retellContext = tenantContext;
   // Controllers expected req.tenant
-  
+
   // AFTER: ✅
-  req.retellContext = tenantContext
-  req.tenant = tenantContext  // Both set now
+  req.retellContext = tenantContext;
+  req.tenant = tenantContext; // Both set now
   ```
+
 - **Status**: ✅ ALREADY FIXED
 
 ---
@@ -148,6 +162,7 @@ flow-breakdown
 ```
 
 **ORDER TO FIX:**
+
 1. 🔴 Gap 1 - Configure Retell tools (BLOCKING)
 2. 🔴 Gap 2 - Verify Azure env vars (BLOCKING)
 3. 🟡 Gap 3 - Fix handleCancelBooking function (BROKEN)
@@ -161,6 +176,7 @@ flow-breakdown
 ## 📋 QUICK VERIFICATION
 
 **Run this to check Gap 2 (env vars):**
+
 ```bash
 az webapp config appsettings list \
   --resource-group square-middleware-prod-rg \
@@ -168,6 +184,7 @@ az webapp config appsettings list \
 ```
 
 **Expected output:**
+
 ```
 {
   "name": "SQUARE_ACCESS_TOKEN",
@@ -190,16 +207,19 @@ az webapp config appsettings list \
 ## 🎯 IMMEDIATE ACTION ITEMS
 
 ### **TODAY:**
+
 - [ ] Verify Gap 1: X-Retell-API-Key configured in Retell console
 - [ ] Verify Gap 2: Run env var check above
 - [ ] Test with booking-cancel call
 
 ### **THIS WEEK:**
+
 - [ ] Fix Gap 3: Update `handleCancelBooking` to pass tenant
 - [ ] Fix Gap 4: Add booking ID format validation
 - [ ] Fix Gap 5: Improve error handling
 
 ### **NEXT:**
+
 - [ ] Fix Gap 6: Thread correlation ID through all layers
 - [ ] Fix Gap 7: Add detailed Square API logging
 

@@ -2,7 +2,9 @@
 
 **Base URL:** `https://square-middleware-prod-api.azurewebsites.net/api`
 
-**Authentication:** All endpoints (except webhooks) require Retell agent authentication via one of three methods:
+**Authentication:** All endpoints (except webhooks) require Retell agent authentication via one of three
+methods:
+
 1. `x-retell-call-id` header (for tool calls during active Retell calls)
 2. `x-retell-signature` header (for webhook verification)
 3. Environment variable credentials (fallback for direct API calls)
@@ -22,22 +24,23 @@
 ## Customer Endpoints
 
 ### GET /customers/info
+
 **Description:** Get customer information by phone or customer ID
 
 **Request:**
+
 ```javascript
 GET /api/customer/info?phone=+12125551234
 // or
 GET /api/customer/info?customerId=CUST123
 ```
 
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `phone` | string | Optional | Customer phone number in E.164 format (+1XXXXXXXXXX) |
-| `customerId` | string | Optional | Square customer ID |
+**Query Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `phone` | string | Optional | Customer phone number in E.164
+format (+1XXXXXXXXXX) | | `customerId` | string | Optional | Square customer ID |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -61,9 +64,11 @@ GET /api/customer/info?customerId=CUST123
 ---
 
 ### POST /customers/info
+
 **Description:** Get customer information by phone (compatible with legacy Azure Functions)
 
 **Request:**
+
 ```json
 POST /api/customers/info
 Content-Type: application/json
@@ -73,19 +78,20 @@ Content-Type: application/json
 }
 ```
 
-**Body Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `phone` | string | Yes | Customer phone number in E.164 format (+1XXXXXXXXXX) |
+**Body Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `phone` | string | Yes | Customer phone number in E.164 format
+(+1XXXXXXXXXX) |
 
 **Response:** Same as GET endpoint above
 
 ---
 
 ### PUT /customers/info
+
 **Description:** Update customer information
 
 **Request:**
+
 ```json
 PUT /api/customers/info
 Content-Type: application/json
@@ -99,16 +105,14 @@ Content-Type: application/json
 }
 ```
 
-**Body Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `customerId` | string | Yes | Square customer ID |
-| `firstName` | string | Optional | Customer first name |
-| `lastName` | string | Optional | Customer last name |
-| `email` | string | Optional | Customer email address |
-| `phone` | string | Optional | Customer phone number in E.164 format |
+**Body Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `customerId` | string | Yes | Square customer ID | |
+`firstName` | string | Optional | Customer first name | | `lastName` | string | Optional | Customer last name
+| | `email` | string | Optional | Customer email address | | `phone` | string | Optional | Customer phone
+number in E.164 format |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -126,9 +130,11 @@ Content-Type: application/json
 ---
 
 ### PUT /customers/:customerId
+
 **Description:** Update specific customer by ID
 
 **Request:**
+
 ```json
 PUT /api/customers/CUST123
 Content-Type: application/json
@@ -140,10 +146,8 @@ Content-Type: application/json
 }
 ```
 
-**URL Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `customerId` | string | Square customer ID |
+**URL Parameters:** | Parameter | Type | Description | |-----------|------|-------------| | `customerId` |
+string | Square customer ID |
 
 **Body Parameters:** Same as PUT /customers/info (without customerId field)
 
@@ -152,9 +156,11 @@ Content-Type: application/json
 ---
 
 ### POST /customers/bookings
+
 **Description:** Get all bookings for a customer
 
 **Request:**
+
 ```json
 POST /api/customers/bookings
 Content-Type: application/json
@@ -164,15 +170,14 @@ Content-Type: application/json
 }
 ```
 
-**Body Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `phone` | string | Optional* | Customer phone number in E.164 format |
-| `customerId` | string | Optional* | Square customer ID |
+**Body Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `phone` | string | Optional* | Customer phone number in E.164
+format | | `customerId` | string | Optional* | Square customer ID |
 
-*At least one is required
+\*At least one is required
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -197,22 +202,23 @@ Content-Type: application/json
 ## Booking Endpoints
 
 ### GET /bookings/availability
+
 **Description:** Get available time slots for booking
 
 **Request:**
+
 ```javascript
 GET /api/bookings/availability?daysAhead=7&serviceVariationId=SVC123&staffId=STAFF123
 ```
 
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `daysAhead` | number | Optional | Number of days ahead to fetch availability (default: 7) |
-| `serviceVariationId` | string | Optional | Filter by specific service variation |
-| `staffId` | string | Optional | Filter by specific staff member |
-| `locationId` | string | Optional | Override default location ID |
+**Query Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `daysAhead` | number | Optional | Number of days ahead to
+fetch availability (default: 7) | | `serviceVariationId` | string | Optional | Filter by specific service
+variation | | `staffId` | string | Optional | Filter by specific staff member | | `locationId` | string |
+Optional | Override default location ID |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -240,9 +246,11 @@ GET /api/bookings/availability?daysAhead=7&serviceVariationId=SVC123&staffId=STA
 ---
 
 ### POST /bookings
+
 **Description:** Create a new booking
 
 **Request:**
+
 ```json
 POST /api/bookings
 Content-Type: application/json
@@ -259,21 +267,18 @@ Content-Type: application/json
 }
 ```
 
-**Body Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `customerId` | string | Optional* | Square customer ID (will create if not provided) |
-| `customerPhone` | string | Yes | Customer phone in E.164 format |
-| `customerFirstName` | string | Yes | Customer first name |
-| `customerLastName` | string | Yes | Customer last name |
-| `serviceVariationId` | string | Yes | Square service variation ID |
-| `staffId` | string | Yes | Square staff member ID |
-| `startTime` | string | Yes | ISO 8601 datetime for booking start |
-| `locationId` | string | Optional | Override default location ID |
+**Body Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `customerId` | string | Optional\* | Square customer ID (will
+create if not provided) | | `customerPhone` | string | Yes | Customer phone in E.164 format | |
+`customerFirstName` | string | Yes | Customer first name | | `customerLastName` | string | Yes | Customer last
+name | | `serviceVariationId` | string | Yes | Square service variation ID | | `staffId` | string | Yes |
+Square staff member ID | | `startTime` | string | Yes | ISO 8601 datetime for booking start | | `locationId` |
+string | Optional | Override default location ID |
 
-*If not provided, customer will be created or matched by phone
+\*If not provided, customer will be created or matched by phone
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -295,19 +300,20 @@ Content-Type: application/json
 ---
 
 ### GET /bookings/:bookingId
+
 **Description:** Get specific booking details
 
 **Request:**
+
 ```javascript
-GET /api/bookings/BOOKING123
+GET / api / bookings / BOOKING123;
 ```
 
-**URL Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `bookingId` | string | Square booking ID |
+**URL Parameters:** | Parameter | Type | Description | |-----------|------|-------------| | `bookingId` |
+string | Square booking ID |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -328,9 +334,11 @@ GET /api/bookings/BOOKING123
 ---
 
 ### PUT /bookings/:bookingId
+
 **Description:** Update an existing booking
 
 **Request:**
+
 ```json
 PUT /api/bookings/BOOKING123
 Content-Type: application/json
@@ -342,16 +350,11 @@ Content-Type: application/json
 }
 ```
 
-**URL Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `bookingId` | string | Square booking ID |
+**URL Parameters:** | Parameter | Type | Description | |-----------|------|-------------| | `bookingId` |
+string | Square booking ID |
 
-**Body Parameters:** (all optional)
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `startTime` | string | New ISO 8601 datetime for booking start |
-| `staffId` | string | New staff member ID |
+**Body Parameters:** (all optional) | Parameter | Type | Description | |-----------|------|-------------| |
+`startTime` | string | New ISO 8601 datetime for booking start | | `staffId` | string | New staff member ID |
 | `serviceVariationId` | string | New service variation ID |
 
 **Response:** Updated booking object (same format as GET endpoint)
@@ -359,19 +362,20 @@ Content-Type: application/json
 ---
 
 ### DELETE /bookings/:bookingId
+
 **Description:** Cancel/delete a booking
 
 **Request:**
+
 ```javascript
-DELETE /api/bookings/BOOKING123
+DELETE / api / bookings / BOOKING123;
 ```
 
-**URL Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `bookingId` | string | Square booking ID |
+**URL Parameters:** | Parameter | Type | Description | |-----------|------|-------------| | `bookingId` |
+string | Square booking ID |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -386,23 +390,23 @@ DELETE /api/bookings/BOOKING123
 ---
 
 ### GET /bookings
+
 **Description:** List all bookings with optional filters
 
 **Request:**
+
 ```javascript
 GET /api/bookings?customerId=CUST123&status=ACCEPTED&limit=10&offset=0
 ```
 
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `customerId` | string | Optional | Filter by customer ID |
-| `staffId` | string | Optional | Filter by staff member ID |
-| `status` | string | Optional | Filter by booking status (ACCEPTED, PENDING, CANCELLED) |
-| `limit` | number | Optional | Max results to return (default: 50) |
+**Query Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `customerId` | string | Optional | Filter by customer ID | |
+`staffId` | string | Optional | Filter by staff member ID | | `status` | string | Optional | Filter by booking
+status (ACCEPTED, PENDING, CANCELLED) | | `limit` | number | Optional | Max results to return (default: 50) |
 | `offset` | number | Optional | Results offset for pagination (default: 0) |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -416,19 +420,20 @@ GET /api/bookings?customerId=CUST123&status=ACCEPTED&limit=10&offset=0
 ---
 
 ### POST /bookings/:bookingId/confirm
+
 **Description:** Confirm a pending booking (change status to ACCEPTED)
 
 **Request:**
+
 ```javascript
-POST /api/bookings/BOOKING123/confirm
+POST / api / bookings / BOOKING123 / confirm;
 ```
 
-**URL Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `bookingId` | string | Square booking ID |
+**URL Parameters:** | Parameter | Type | Description | |-----------|------|-------------| | `bookingId` |
+string | Square booking ID |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -445,16 +450,16 @@ POST /api/bookings/BOOKING123/confirm
 ## Webhook Endpoints
 
 ### POST /webhooks/square/booking
+
 **Description:** Receive Square booking webhook events
 
-**Headers:**
-| Header | Required | Description |
-|--------|----------|-------------|
-| `Content-Type` | Yes | Must be `application/json` |
+**Headers:** | Header | Required | Description | |--------|----------|-------------| | `Content-Type` | Yes |
+Must be `application/json` |
 
 **Request Body:** Square webhook payload (signature verified internally)
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -467,17 +472,16 @@ POST /api/bookings/BOOKING123/confirm
 ---
 
 ### POST /webhooks/retell
+
 **Description:** Receive Retell AI webhook events (call_inbound, call_started, call_ended, call_analyzed)
 
-**Headers:**
-| Header | Required | Description |
-|--------|----------|-------------|
-| `Content-Type` | Yes | Must be `application/json` |
-| `x-retell-signature` | Yes | HMAC-SHA256 signature for verification |
+**Headers:** | Header | Required | Description | |--------|----------|-------------| | `Content-Type` | Yes |
+Must be `application/json` | | `x-retell-signature` | Yes | HMAC-SHA256 signature for verification |
 
 **Request Body:**
 
 #### call_inbound Event
+
 ```json
 {
   "event": "call_inbound",
@@ -490,6 +494,7 @@ POST /api/bookings/BOOKING123/confirm
 ```
 
 #### call_started Event
+
 ```json
 {
   "event": "call_started",
@@ -503,6 +508,7 @@ POST /api/bookings/BOOKING123/confirm
 ```
 
 #### call_ended Event
+
 ```json
 {
   "event": "call_ended",
@@ -515,6 +521,7 @@ POST /api/bookings/BOOKING123/confirm
 ```
 
 #### call_analyzed Event
+
 ```json
 {
   "event": "call_analyzed",
@@ -528,6 +535,7 @@ POST /api/bookings/BOOKING123/confirm
 ```
 
 **Response:**
+
 ```json
 {
   "processed": true,
@@ -547,7 +555,8 @@ POST /api/bookings/BOOKING123/confirm
 }
 ```
 
-**Note:** 
+**Note:**
+
 - Only POST requests accepted
 - Signature verification required
 - `call_inbound` response includes `call_id` in dynamic_variables for tool calls
@@ -556,14 +565,17 @@ POST /api/bookings/BOOKING123/confirm
 ---
 
 ### GET /webhooks/health
+
 **Description:** Webhook health check
 
 **Request:**
+
 ```javascript
-GET /api/webhooks/health
+GET / api / webhooks / health;
 ```
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -579,9 +591,11 @@ GET /api/webhooks/health
 ## SMS Endpoints
 
 ### POST /sms/send
+
 **Description:** Send a simple SMS text message
 
 **Request:**
+
 ```json
 POST /api/sms/send
 Content-Type: application/json
@@ -592,13 +606,12 @@ Content-Type: application/json
 }
 ```
 
-**Body Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `to` | string | Yes | Recipient phone in E.164 format (+1XXXXXXXXXX) |
-| `message` | string | Yes | SMS message body (max 1600 characters) |
+**Body Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `to` | string | Yes | Recipient phone in E.164 format
+(+1XXXXXXXXXX) | | `message` | string | Yes | SMS message body (max 1600 characters) |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -611,9 +624,11 @@ Content-Type: application/json
 ---
 
 ### POST /sms/booking-confirmation
+
 **Description:** Send booking confirmation SMS
 
 **Request:**
+
 ```json
 POST /api/sms/booking-confirmation
 Content-Type: application/json
@@ -624,13 +639,12 @@ Content-Type: application/json
 }
 ```
 
-**Body Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `bookingId` | string | Yes | Square booking ID |
-| `customerPhone` | string | Yes | Customer phone in E.164 format |
+**Body Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `bookingId` | string | Yes | Square booking ID | |
+`customerPhone` | string | Yes | Customer phone in E.164 format |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -642,9 +656,11 @@ Content-Type: application/json
 ---
 
 ### POST /sms/customer-message
+
 **Description:** Send customer message to barbershop (used by AI agent for escalation)
 
 **Request:**
+
 ```json
 POST /api/sms/customer-message
 Content-Type: application/json
@@ -658,16 +674,14 @@ Content-Type: application/json
 }
 ```
 
-**Body Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `customerFirstName` | string | Yes | Customer first name |
-| `customerLastName` | string | Yes | Customer last name |
-| `customerPhoneNumber` | string | Yes | Customer phone in E.164 format |
-| `message` | string | Yes | Message body (max 1600 characters) |
-| `messageTo` | string | Optional | Override default staff phone number |
+**Body Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `customerFirstName` | string | Yes | Customer first name | |
+`customerLastName` | string | Yes | Customer last name | | `customerPhoneNumber` | string | Yes | Customer
+phone in E.164 format | | `message` | string | Yes | Message body (max 1600 characters) | | `messageTo` |
+string | Optional | Override default staff phone number |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -682,14 +696,17 @@ Content-Type: application/json
 ## Health Check Endpoints
 
 ### GET /health
+
 **Description:** Basic health check (no auth required)
 
 **Request:**
+
 ```javascript
-GET /api/health
+GET / api / health;
 ```
 
 **Response:**
+
 ```json
 {
   "status": "ok",
@@ -702,14 +719,17 @@ GET /api/health
 ---
 
 ### GET /health/detailed
+
 **Description:** Detailed health check with dependencies
 
 **Request:**
+
 ```javascript
-GET /api/health/detailed
+GET / api / health / detailed;
 ```
 
 **Response:**
+
 ```json
 {
   "status": "healthy",
@@ -731,14 +751,17 @@ GET /api/health/detailed
 ---
 
 ### GET /health/ready
+
 **Description:** Readiness probe for Kubernetes/containers
 
 **Request:**
+
 ```javascript
-GET /api/health/ready
+GET / api / health / ready;
 ```
 
 **Response:**
+
 ```json
 {
   "ready": true
@@ -750,14 +773,17 @@ GET /api/health/ready
 ---
 
 ### GET /health/live
+
 **Description:** Liveness probe for Kubernetes/containers
 
 **Request:**
+
 ```javascript
-GET /api/health/live
+GET / api / health / live;
 ```
 
 **Response:**
+
 ```json
 {
   "alive": true
@@ -773,36 +799,44 @@ GET /api/health/live
 ### Three Authentication Flows
 
 #### 1. Retell Tool Calls (x-retell-call-id)
+
 Used when Retell agent makes tool calls during an active call.
 
 **Header:**
+
 ```
 x-retell-call-id: <UUID from call_inbound response>
 ```
 
 **How it works:**
+
 1. Retell sends `call_inbound` webhook → Server creates session with UUID callId
 2. Server returns callId in webhook response → dynamic_variables
 3. Agent sends tool calls with `x-retell-call-id: {{dynamic_variables.call_id}}`
 4. Server looks up session, retrieves credentials, executes request
 
 #### 2. Webhook Verification (x-retell-signature)
+
 Used for Retell webhook events.
 
 **Header:**
+
 ```
 x-retell-signature: <HMAC-SHA256 signature>
 ```
 
 **How it works:**
+
 1. Retell signs webhook with HMAC-SHA256 using shared API key
 2. Server verifies signature matches
 3. Request passed to webhook handler (session created for future tool calls)
 
 #### 3. Environment Variable Fallback
+
 For direct API calls or backward compatibility.
 
 **Environment Variables:**
+
 ```
 SQUARE_ACCESS_TOKEN=<token>
 SQUARE_LOCATION_ID=<location>
@@ -816,6 +850,7 @@ SQUARE_ENVIRONMENT=production
 All endpoints return consistent error format:
 
 **400 - Bad Request:**
+
 ```json
 {
   "success": false,
@@ -826,6 +861,7 @@ All endpoints return consistent error format:
 ```
 
 **401 - Unauthorized:**
+
 ```json
 {
   "success": false,
@@ -836,6 +872,7 @@ All endpoints return consistent error format:
 ```
 
 **405 - Method Not Allowed:**
+
 ```json
 {
   "error": "Method GET not allowed for this endpoint"
@@ -843,6 +880,7 @@ All endpoints return consistent error format:
 ```
 
 **500 - Internal Server Error:**
+
 ```json
 {
   "success": false,
@@ -856,10 +894,12 @@ All endpoints return consistent error format:
 ## Rate Limiting
 
 All endpoints are protected by rate limiting:
+
 - **Per IP:** 100 requests per minute
 - **Per Agent:** 50 requests per minute during active calls
 
 Rate limit headers included in responses:
+
 ```
 X-RateLimit-Limit: 100
 X-RateLimit-Remaining: 95
@@ -871,6 +911,7 @@ X-RateLimit-Reset: 1697808300
 ## Correlation IDs
 
 Every request generates a unique correlation ID for debugging:
+
 - **Header:** `x-correlation-id` (optional in request, included in response)
 - **Included in:** All response bodies, logs, error messages
 - **Format:** UUID v4
@@ -882,13 +923,17 @@ Every request generates a unique correlation ID for debugging:
 To use these endpoints with Retell agents:
 
 1. **Configure agent to receive webhooks:**
+
    - Add Retell webhook URL: `https://square-middleware-prod-api.azurewebsites.net/api/webhooks/retell`
 
 2. **Extract callId from webhook response:**
+
    - Response includes `callId` in root and in `dynamic_variables.call_id`
 
 3. **Use callId in tool calls:**
+
    - In Retell dashboard, add to tool request headers:
+
    ```
    x-retell-call-id: {{dynamic_variables.call_id}}
    ```

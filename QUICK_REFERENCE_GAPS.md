@@ -3,19 +3,21 @@
 ## 🔴 The 8 Gaps - Quick Summary
 
 ### BLOCKING (Do First)
+
 1. **X-Retell-API-Key header** not configured in Retell tools
    - Fix: Add header to 5 tools in Retell console
-   
 2. **Environment variables** not set in Azure
    - Fix: Verify SQUARE_ACCESS_TOKEN, SQUARE_LOCATION_ID, RETELL_API_KEY exist
    - Check: `az webapp config appsettings list --name square-middleware-prod-api`
 
 ### BROKEN CODE (Do Second)
+
 3. **Duplicate path** - handleCancelBooking missing tenant parameter
    - File: bookingController.js line 1169
    - Issue: One route works, other route broken
 
 ### IMPROVEMENTS (Do Third)
+
 4. Booking ID validation missing
 5. Error messages are generic
 6. No Square API request/response logging
@@ -58,12 +60,14 @@ az webapp config appsettings list \
 ## 🎯 Immediate Actions
 
 ### TODAY
+
 - [ ] Run env var verification command above
 - [ ] Go to Retell console
 - [ ] Add X-Retell-API-Key header to 5 tools
 - [ ] Test booking-cancel call
 
 ### IF ERROR
+
 - 401? → Check Gap 1 & Gap 2
 - 500? → Check Azure logs
 - Timeout? → Check network/Azure status
@@ -84,12 +88,12 @@ Debugging: **FUNCTION_CALL_WALKTHROUGH.md** (failure scenarios)
 
 ## 🚨 Most Common Issues
 
-| Error | Cause | Fix |
-|-------|-------|-----|
+| Error            | Cause                             | Fix                             |
+| ---------------- | --------------------------------- | ------------------------------- |
 | 401 Unauthorized | Bad credentials or missing header | Check env vars or Retell config |
-| 404 Not Found | Booking doesn't exist | Verify booking ID |
-| 500 Server Error | Missing tenant context | Check Gap 3 |
-| Timeout | Azure or network issue | Check Azure status |
+| 404 Not Found    | Booking doesn't exist             | Verify booking ID               |
+| 500 Server Error | Missing tenant context            | Check Gap 3                     |
+| Timeout          | Azure or network issue            | Check Azure status              |
 
 ---
 

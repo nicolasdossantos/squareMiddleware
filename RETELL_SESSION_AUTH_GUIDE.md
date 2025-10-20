@@ -112,7 +112,8 @@ Body:
 
 ### Step 1: Extract callId from Webhook Response
 
-When your agent starts a call, it receives the `callId` in the webhook response. **Store this in your agent's memory/context**.
+When your agent starts a call, it receives the `callId` in the webhook response. **Store this in your agent's
+memory/context**.
 
 **Example (pseudocode):**
 
@@ -170,7 +171,7 @@ Use these endpoints:
 ✅ **Auto-Cleanup**: Expired sessions cleaned up every 30 seconds  
 ✅ **Signature Verification**: Webhooks verified with x-retell-signature  
 ✅ **No Exposed Credentials**: Credentials stored server-side, not in headers  
-✅ **Lifecycle Managed**: Sessions created at call start, destroyed at call end  
+✅ **Lifecycle Managed**: Sessions created at call start, destroyed at call end
 
 ## Error Handling
 
@@ -309,4 +310,3 @@ If you have questions about the session flow or need to debug, check:
 - Azure App Insights logs with filter: `[SessionStore]` or `[AgentAuth]`
 - Look for `Session created:`, `Session found:`, `Session destroyed:` entries
 - Verify webhook responses include `callId` field
-

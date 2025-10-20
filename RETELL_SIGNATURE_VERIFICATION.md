@@ -2,13 +2,15 @@
 
 ## The Real Architecture
 
-Retell agent tool calls use **HMAC-SHA256 signature verification**, not Bearer tokens. This is the industry-standard webhook pattern (like GitHub, Stripe, etc.).
+Retell agent tool calls use **HMAC-SHA256 signature verification**, not Bearer tokens. This is the
+industry-standard webhook pattern (like GitHub, Stripe, etc.).
 
 ---
 
 ## 🔐 How It Works
 
 ### 1. Retell Sends Tool Call
+
 ```
 POST /api/bookings/cancel
 Headers:
@@ -24,6 +26,7 @@ Body:
 ```
 
 ### 2. Your API Verifies Signature
+
 ```javascript
 // In agentAuth middleware
 const signatureHeader = req.headers['x-retell-signature'];
@@ -31,9 +34,9 @@ const agentId = req.body.agent_id;
 
 // Verify signature using Retell SDK
 const isValid = Retell.verify(
-  req.rawBody,                    // Original request body (exact bytes)
-  process.env.RETELL_API_KEY,     // Shared secret (same for all agents)
-  signatureHeader                 // Signature from header
+  req.rawBody, // Original request body (exact bytes)
+  process.env.RETELL_API_KEY, // Shared secret (same for all agents)
+  signatureHeader // Signature from header
 );
 
 if (!isValid) {
@@ -42,6 +45,7 @@ if (!isValid) {
 ```
 
 ### 3. Extract Tenant Context
+
 ```javascript
 // Load agent config from Key Vault using agent_id
 const agentConfig = await keyVaultService.getAgentConfig(agentId);
@@ -175,6 +179,7 @@ req.tenant = {
 ## 🎯 Key Differences: Before vs After
 
 ### ❌ BEFORE (Incorrect - Bearer Token)
+
 ```javascript
 // agentAuth.js (WRONG approach I just reverted)
 const bearerToken = authHeader.substring(7);
@@ -183,11 +188,14 @@ if (bearerToken === process.env.RETELL_API_KEY) {
   // Problem: Single global key, no way to identify tenant
   // Problem: Ignores signature verification
   // Problem: RETELL_API_KEY used as token, not signature secret
-  req.tenant = { /* hardcoded to single tenant */ };
+  req.tenant = {
+    /* hardcoded to single tenant */
+  };
 }
 ```
 
 **Problems:**
+
 - ❌ Can't differentiate between tenants
 - ❌ All agents authenticated as same tenant
 - ❌ Ignores x-retell-signature header
@@ -195,6 +203,7 @@ if (bearerToken === process.env.RETELL_API_KEY) {
 - ❌ No timestamp protection (replay attacks possible)
 
 ### ✅ AFTER (Correct - Signature Verification)
+
 ```javascript
 // agentAuth.js (NOW CORRECT)
 const signatureHeader = req.headers['x-retell-signature'];
@@ -211,12 +220,13 @@ const agentConfig = await keyVaultService.getAgentConfig(agentId);
 // Each agent has its own tenant context
 req.tenant = {
   agentId: agentId,
-  squareAccessToken: agentConfig.squareAccessToken,
+  squareAccessToken: agentConfig.squareAccessToken
   // ... agent-specific config
 };
 ```
 
 **Benefits:**
+
 - ✅ Extract agent_id from request
 - ✅ Different tenants = different agent_ids = different configs
 - ✅ Uses proper HMAC-SHA256 verification
@@ -235,6 +245,7 @@ In Retell console, tool calls should NOT include Bearer token header anymore. In
 3. **Send to your tool endpoint** (e.g., `/api/bookings/cancel`)
 
 Your API will:
+
 1. ✅ Verify the signature using `x-retell-signature` header
 2. ✅ Extract `agent_id` from body
 3. ✅ Load that agent's config from Key Vault
@@ -257,6 +268,7 @@ POST /api/bookings/cancel
 ```
 
 **Important:** The `agent_id` is how your system knows:
+
 - Which tenant this is
 - Which Square credentials to use
 - What timezone to use
@@ -269,14 +281,16 @@ POST /api/bookings/cancel
 If you see "Invalid signature" errors:
 
 ### 1. Check req.rawBody is captured
+
 ```javascript
 // In express-app.js, json middleware should have:
 verify: (req, res, buf) => {
-  req.rawBody = buf;  // ✅ This must be present
-}
+  req.rawBody = buf; // ✅ This must be present
+};
 ```
 
 ### 2. Check RETELL_API_KEY environment variable
+
 ```bash
 # Verify it's set
 az webapp config appsettings list \
@@ -285,6 +299,7 @@ az webapp config appsettings list \
 ```
 
 ### 3. Check that Retell is actually sending x-retell-signature
+
 ```javascript
 // Add logging
 console.log('Headers received:', req.headers);
@@ -293,6 +308,7 @@ console.log('Body:', req.body);
 ```
 
 ### 4. Verify request body hasn't been modified
+
 ```javascript
 // The signature verification needs EXACT bytes
 // If body is modified before verification, signature fails

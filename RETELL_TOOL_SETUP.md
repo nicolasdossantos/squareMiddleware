@@ -1,9 +1,12 @@
 # Retell Agent Tool Configuration
 
 ## Problem
-Retell's tool definitions don't support custom headers (like `X-Agent-ID`), so API calls were failing with 401 Unauthorized.
+
+Retell's tool definitions don't support custom headers (like `X-Agent-ID`), so API calls were failing with 401
+Unauthorized.
 
 ## Solution
+
 Updated API to accept Retell agent calls using the `X-Retell-API-Key` header instead.
 
 ## Required Setup in Retell Dashboard
@@ -11,6 +14,7 @@ Updated API to accept Retell agent calls using the `X-Retell-API-Key` header ins
 For **each tool** in your Elite Barbershop agent, add this header to all HTTP requests:
 
 ### Header Configuration
+
 ```
 Header Name: X-Retell-API-Key
 Header Value: <your-retell-api-key>
@@ -19,21 +23,25 @@ Header Value: <your-retell-api-key>
 ### Tools That Need This Header
 
 1. **availability-get**
+
    - Endpoint: `https://square-middleware-prod-api.azurewebsites.net/api/availability`
    - Method: `GET`
    - Headers: `X-Retell-API-Key: <RETELL_API_KEY>`
 
 2. **booking-create**
+
    - Endpoint: `https://square-middleware-prod-api.azurewebsites.net/api/bookings`
    - Method: `POST`
    - Headers: `X-Retell-API-Key: <RETELL_API_KEY>`
 
 3. **booking-update**
+
    - Endpoint: `https://square-middleware-prod-api.azurewebsites.net/api/bookings/{bookingId}`
    - Method: `PUT`
    - Headers: `X-Retell-API-Key: <RETELL_API_KEY>`
 
 4. **booking-cancel**
+
    - Endpoint: `https://square-middleware-prod-api.azurewebsites.net/api/bookings/{bookingId}`
    - Method: `DELETE`
    - Headers: `X-Retell-API-Key: <RETELL_API_KEY>`
@@ -55,16 +63,19 @@ Header Value: <your-retell-api-key>
 ## Verification
 
 After updating tools in Retell, make a test call. You should see:
+
 - ✅ Tool calls succeed with 200/201 responses
 - ❌ No more 401 errors
 
 The logs will show:
+
 ```
 info: Calling tool: booking-cancel
 Arguments: {"bookingId":"30vh7lgrxazmg3"}
 ```
 
 And in your server:
+
 ```
 ✅ Agent authenticated via X-Retell-API-Key header
 ```
@@ -81,6 +92,7 @@ az webapp config appsettings set \
 ```
 
 Verify it's set:
+
 ```bash
 az webapp config appsettings list \
   --resource-group square-middleware-prod-rg \
@@ -99,6 +111,7 @@ curl -X DELETE \
 ```
 
 Should return:
+
 ```json
 {
   "success": true,

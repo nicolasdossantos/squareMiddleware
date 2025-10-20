@@ -2,13 +2,15 @@
 
 ## What Was Done
 
-I've implemented a **secure, industry-standard Bearer token approach** for Retell authentication. This replaces the custom header approach with the proper security best practices.
+I've implemented a **secure, industry-standard Bearer token approach** for Retell authentication. This
+replaces the custom header approach with the proper security best practices.
 
 ---
 
 ## 🔒 Security Improvements
 
 ### Before (Custom Header)
+
 ```
 X-Retell-API-Key: sk-test-abc123
 ❌ Custom header visible in logs
@@ -17,6 +19,7 @@ X-Retell-API-Key: sk-test-abc123
 ```
 
 ### After (Bearer Token) ✅
+
 ```
 Authorization: Bearer sk-test-abc123
 ✅ Standard Authorization header
@@ -30,6 +33,7 @@ Authorization: Bearer sk-test-abc123
 ## 📝 Code Changes
 
 ### 1. agentAuth.js Middleware (Updated)
+
 ```javascript
 // Now checks Authorization Bearer token
 if (bearerToken === process.env.RETELL_API_KEY) {
@@ -40,11 +44,13 @@ if (bearerToken === process.env.RETELL_API_KEY) {
 ```
 
 **Benefits:**
+
 - Single code path for all authentication methods
 - Standard Authorization header (OWASP compliant)
 - Cleaner, more maintainable code
 
 ### 2. logger.js Security (New)
+
 ```javascript
 // Automatically redacts sensitive headers
 const sensitiveHeaders = ['authorization', 'x-api-key', 'cookie'];
@@ -56,6 +62,7 @@ sensitiveHeaders.forEach(header => {
 ```
 
 **Benefits:**
+
 - API keys never appear in logs
 - Automatic protection
 - No manual redaction needed
@@ -66,7 +73,9 @@ sensitiveHeaders.forEach(header => {
 ## 📚 Documentation Created
 
 ### RETELL_TOOL_SETUP_SECURE.md
+
 **Complete guide** for configuring Retell tools with the new Bearer token approach:
+
 - Step-by-step Retell console configuration
 - How to get your RETELL_API_KEY value
 - Testing instructions
@@ -84,6 +93,7 @@ sensitiveHeaders.forEach(header => {
 3. Go to: Settings → Tools
 
 4. For **each of these 5 tools**:
+
    - availability-get
    - booking-create
    - booking-update
@@ -93,14 +103,16 @@ sensitiveHeaders.forEach(header => {
 5. **Click Edit** and find the HTTP Headers section
 
 6. **Add this header**:
+
    ```
    Header Name:  Authorization
    Header Value: Bearer <RETELL_API_KEY>
    ```
-   
+
    (Replace `<RETELL_API_KEY>` with your actual key from Azure env vars)
 
 7. **Delete old header** if it exists:
+
    - Remove any `X-Retell-API-Key` header
 
 8. **Save changes**
@@ -109,13 +121,16 @@ sensitiveHeaders.forEach(header => {
 
 ## 📋 What's Been Deployed
 
-✅ **Commit:** `23fcfcba` - "Security: Implement secure Bearer token auth for Retell + add log header redaction"
+✅ **Commit:** `23fcfcba` - "Security: Implement secure Bearer token auth for Retell + add log header
+redaction"
 
 **Files Modified:**
+
 - `src/middlewares/agentAuth.js` - Bearer token authentication
 - `src/utils/logger.js` - Header redaction
 
 **Files Created:**
+
 - `RETELL_TOOL_SETUP_SECURE.md` - Configuration guide
 - 9 other documentation files (function call analysis, gaps, etc.)
 
@@ -141,6 +156,7 @@ After you've configured the Retell tools:
 
 1. **Make a test booking call** through Retell agent
 2. **Check logs** for:
+
    - No 401 "Missing or invalid Authorization header" errors
    - No 403 "Invalid bearer token" errors
    - Logs show: `Authorization: [REDACTED]`
@@ -155,15 +171,15 @@ After you've configured the Retell tools:
 
 ## 📊 Status Summary
 
-| Item | Status |
-|------|--------|
-| Environment Variables | ✅ Verified |
-| Secure Auth Implementation | ✅ Deployed |
-| Log Redaction | ✅ Added |
-| Documentation | ✅ Complete |
-| Retell Tools Config | ⏳ Your turn |
-| Test Call | ⏳ After config |
-| Gap 3 Fix | ⏳ Next |
+| Item                       | Status          |
+| -------------------------- | --------------- |
+| Environment Variables      | ✅ Verified     |
+| Secure Auth Implementation | ✅ Deployed     |
+| Log Redaction              | ✅ Added        |
+| Documentation              | ✅ Complete     |
+| Retell Tools Config        | ⏳ Your turn    |
+| Test Call                  | ⏳ After config |
+| Gap 3 Fix                  | ⏳ Next         |
 
 ---
 

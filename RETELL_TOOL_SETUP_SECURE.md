@@ -2,7 +2,8 @@
 
 ## Overview
 
-Your API now uses the **industry-standard Bearer token** approach for Retell authentication. This is more secure than custom headers because:
+Your API now uses the **industry-standard Bearer token** approach for Retell authentication. This is more
+secure than custom headers because:
 
 1. ✅ Uses standard `Authorization` header (industry best practice)
 2. ✅ API keys are automatically redacted from logs
@@ -14,17 +15,21 @@ Your API now uses the **industry-standard Bearer token** approach for Retell aut
 ## What Changed
 
 ### Before (Custom Header - Removed)
+
 ```
 X-Retell-API-Key: sk-test-abc123
 ```
+
 - ❌ Custom header visible in logs
 - ❌ Non-standard approach
 - ❌ API keys exposed in log files
 
 ### After (Bearer Token - Secure) ✅
+
 ```
 Authorization: Bearer sk-test-abc123
 ```
+
 - ✅ Standard Authorization header
 - ✅ Automatically redacted from logs
 - ✅ Industry standard practice
@@ -35,6 +40,7 @@ Authorization: Bearer sk-test-abc123
 ## How to Configure Retell Tools
 
 ### For Each of These 5 Tools:
+
 1. availability-get
 2. booking-create
 3. booking-update
@@ -44,20 +50,24 @@ Authorization: Bearer sk-test-abc123
 ### Steps:
 
 1. **Go to Retell Console**
+
    - https://retell.cc/dashboard
 
 2. **Select Your Agent**
+
    - Elite Barbershop (or your agent name)
 
 3. **Navigate to Tools**
+
    - Click: Settings → Tools
 
 4. **For Each Tool, Click Edit**
 
 5. **Set HTTP Authentication**
+
    - Find the "HTTP Headers" section
    - **Add a NEW header** (or update existing):
-   
+
    ```
    Header Name:  Authorization
    Header Value: Bearer <RETELL_API_KEY>
@@ -66,6 +76,7 @@ Authorization: Bearer sk-test-abc123
    Where `<RETELL_API_KEY>` is the value from your Azure environment variables.
 
 6. **Delete Old Header (if exists)**
+
    - Remove any old `X-Retell-API-Key` header
    - This is no longer needed
 
@@ -84,6 +95,7 @@ az webapp config appsettings list \
 ```
 
 Output will look like:
+
 ```json
 {
   "name": "RETELL_API_KEY",
@@ -92,6 +104,7 @@ Output will look like:
 ```
 
 Copy the `value` field and paste it in the Retell tool definition as:
+
 ```
 Authorization: Bearer your-actual-key-value-here
 ```
@@ -123,6 +136,7 @@ When Retell calls your API:
 ## Security Benefits
 
 ### Logging Protection ✅
+
 ```javascript
 // BEFORE (Custom Header)
 LOG: "X-Retell-Api-Key: sk-test-abc123xyz"  ❌ Exposed!
@@ -132,12 +146,14 @@ LOG: "Authorization: [REDACTED]"  ✅ Protected!
 ```
 
 ### Standard Practice ✅
+
 - All major APIs use Authorization header
 - Framework-level protection available
 - Better tooling support
 - Easier for other developers to understand
 
 ### Compliance ✅
+
 - Follows OWASP guidelines
 - Better for SOC2/compliance audits
 - Professional security posture
@@ -159,8 +175,9 @@ Once you've configured all 5 tools in Retell:
 ```
 
 ### Expected Logs
+
 ```
-INFO: HTTP Request 
+INFO: HTTP Request
   method: DELETE
   url: /api/bookings/GKBX6V09Q2T7FA4ZKZMMMC5C3A
   statusCode: 200
@@ -172,22 +189,25 @@ INFO: HTTP Request
 ## Troubleshooting
 
 ### Error: 401 "Missing or invalid Authorization header"
-**Cause:** Bearer token not in Authorization header
-**Fix:** Check Retell tool configuration has `Authorization: Bearer <key>`
+
+**Cause:** Bearer token not in Authorization header **Fix:** Check Retell tool configuration has
+`Authorization: Bearer <key>`
 
 ### Error: 403 "Invalid bearer token"
-**Cause:** Token doesn't match RETELL_API_KEY
-**Fix:** Verify you copied the correct value from Azure env vars
+
+**Cause:** Token doesn't match RETELL_API_KEY **Fix:** Verify you copied the correct value from Azure env vars
 
 ### Error: Tool still using old header
-**Cause:** Old X-Retell-API-Key header still configured
-**Fix:** Remove the old header from Retell tool definition
+
+**Cause:** Old X-Retell-API-Key header still configured **Fix:** Remove the old header from Retell tool
+definition
 
 ---
 
 ## Code Changes Made
 
 ### agentAuth.js (Middleware)
+
 ```javascript
 // OLD: Checked custom X-Retell-Api-Key header
 if (retellApiKey && retellApiKey === process.env.RETELL_API_KEY) { ... }
@@ -197,11 +217,13 @@ if (bearerToken === process.env.RETELL_API_KEY) { ... }
 ```
 
 **Benefits:**
+
 - Standard Authorization header
 - Single code path for both Retell and standard auth
 - Cleaner, more maintainable
 
 ### logger.js (Security)
+
 ```javascript
 // NEW: Redacts sensitive headers from logs
 const sensitiveHeaders = ['authorization', 'x-api-key', 'cookie'];
@@ -213,6 +235,7 @@ redactedHeaders.forEach(header => {
 ```
 
 **Benefits:**
+
 - API keys never appear in logs
 - Automatic protection
 - No manual redaction needed
@@ -235,11 +258,13 @@ redactedHeaders.forEach(header => {
 
 ## Reference
 
-- **Modified Files**: 
+- **Modified Files**:
+
   - `src/middlewares/agentAuth.js` - Now checks Bearer token
   - `src/utils/logger.js` - Now redacts sensitive headers
 
-- **Documentation**: 
+- **Documentation**:
+
   - `RETELL_TOOL_SETUP_SECURE.md` - This file
 
 - **Next Steps**:

@@ -4,7 +4,8 @@
 
 **Retell does NOT automatically send `x-agent-id` header with tool calls.**
 
-You must **manually configure the headers** in each tool's settings in the Retell dashboard using template variables.
+You must **manually configure the headers** in each tool's settings in the Retell dashboard using template
+variables.
 
 ---
 
@@ -89,11 +90,11 @@ Headers:
 ❌ Retell calls your API:
    POST /api/bookings/availability
    Body: { serviceVariationIds: [...], daysAhead: 14 }
-   
+
 ❌ Missing headers:
    - x-retell-signature: (only Retell adds this)
    - x-agent-id: (NOT SENT - you must configure)
-   
+
 ❌ Your middleware rejects with:
    "Missing x-agent-id header"
 ```
@@ -107,7 +108,7 @@ Headers:
      - x-retell-signature: v=1760878707109,d=abc123...
      - x-agent-id: 895480dde586e4c3712bd4c770
    Body: { serviceVariationIds: [...], daysAhead: 14 }
-   
+
 ✅ Your middleware:
    1. Verifies x-retell-signature ✓
    2. Extracts x-agent-id from header ✓
@@ -125,19 +126,15 @@ Configure headers for ALL these tools:
 1. ✅ **availability-get** - Get available time slots
    - URL: `/api/bookings/availability`
    - Method: GET
-   
 2. ✅ **booking-create** - Create new booking
    - URL: `/api/bookings`
    - Method: POST
-   
 3. ✅ **booking-update** - Update existing booking
    - URL: `/api/bookings/{bookingId}`
    - Method: PUT
-   
 4. ✅ **booking-cancel** - Cancel booking
    - URL: `/api/bookings/cancel`
    - Method: POST
-   
 5. ✅ **customer-info-update** - Update customer info
    - URL: `/api/customers/update`
    - Method: POST
@@ -150,6 +147,7 @@ After you've configured the headers:
 
 1. **Make a test call** through Retell agent
 2. **Check Azure logs** for:
+
    ```
    [AgentAuth] DEBUG - x-agent-id: 895480dde586e4c3712bd4c770
    [AgentAuth] DEBUG - x-retell-signature: v=1760878707109,d=...
@@ -175,6 +173,7 @@ console.log('[AgentAuth] DEBUG - x-agent-id:', agentId);
 ```
 
 **Check Azure logs to see:**
+
 - What headers Retell is sending
 - If x-agent-id is present
 - If x-retell-signature is present

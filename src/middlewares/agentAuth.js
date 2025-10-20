@@ -40,7 +40,11 @@ async function agentAuthMiddleware(req, res, next) {
 
   // FLOW 1: RETELL TOOL CALLS (from Retell agent during active call)
   // These have x-retell-call-id header - look up session
-  if (callId && !signatureHeader) {
+  if (callId) {
+    if (signatureHeader) {
+      console.log('[AgentAuth] ℹ️  Signature header present but prioritizing session-based auth');
+    }
+
     console.log(`[AgentAuth] 🔍 Looking up session for call: ${callId}`);
 
     const session = sessionStore.getSession(callId);

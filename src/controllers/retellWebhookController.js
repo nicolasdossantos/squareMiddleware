@@ -193,12 +193,16 @@ async function handleRetellWebhook(req, res) {
       const businessName = result.tenant?.businessName || 'Elite Barbershop';
       console.log(
         '🔍 [RETELL DEBUG] Business name extraction:',
-        JSON.stringify({
-          result_tenant: result.tenant,
-          businessName: businessName,
-          tenant_businessName: result.tenant?.businessName,
-          fallback_used: !result.tenant?.businessName
-        }, null, 2)
+        JSON.stringify(
+          {
+            result_tenant: result.tenant,
+            businessName: businessName,
+            tenant_businessName: result.tenant?.businessName,
+            fallback_used: !result.tenant?.businessName
+          },
+          null,
+          2
+        )
       );
 
       if (result.customerResponse?.dynamic_variables) {
@@ -316,7 +320,7 @@ async function handleRetellWebhook(req, res) {
  * Uses from_number to get customer info (same format as ElevenLabs GetCustomerInfo)
  */
 async function handleCallStarted(call, correlationId, tenant = null) {
-  const { call_id, from_number, to_number, direction } = call;
+  const { call_id, from_number, to_number, direction, agent_id } = call;
 
   logEvent('retell_call_started', {
     correlationId,
@@ -325,15 +329,101 @@ async function handleCallStarted(call, correlationId, tenant = null) {
     direction
   });
 
+  let useTenant = null;
+
   try {
-    // Use tenant from request if available, otherwise fall back to environment
-    const useTenant = tenant || {
+    // Attempt to load credentials from active session first (created during call_inbound)
+  let sessionTenant = null;
+  let agentConfigTenant = null;
+
+    if (call_id) {
+      const session = sessionStore.getSession(call_id);
+
+      if (session?.credentials?.squareAccessToken) {
+        sessionTenant = {
+          id: session.agentId || tenant?.id || 'default',
+          squareAccessToken: session.credentials.squareAccessToken,
+          squareLocationId: session.credentials.squareLocationId,
+          squareEnvironment:
+            session.credentials.squareEnvironment || tenant?.squareEnvironment || config.square.environment || 'sandbox',
+          timezone: session.credentials.timezone || tenant?.timezone || config.server.timezone || 'America/New_York',
+          businessName: session.credentials.businessName || tenant?.businessName || config.businessName || 'Elite Barbershop'
+        };
+
+        logEvent('retell_call_started_session_match', {
+          correlationId,
+          callId: call_id,
+          tenantId: sessionTenant.id
+        });
+      } else {
+        logEvent('retell_call_started_session_missing', {
+          correlationId,
+          callId: call_id
+        });
+      }
+    }
+
+    // Fallback to agent configuration if session not found
+    if (!sessionTenant && agent_id) {
+      try {
+        const agentConfig = agentConfigService.getAgentConfig(agent_id);
+
+        agentConfigTenant = {
+          id: agentConfig.agentId || agent_id,
+          accessToken: agentConfig.squareAccessToken,
+          squareAccessToken: agentConfig.squareAccessToken,
+          squareLocationId: agentConfig.squareLocationId,
+          locationId: agentConfig.squareLocationId,
+          squareEnvironment: agentConfig.squareEnvironment,
+          environment: agentConfig.squareEnvironment,
+          timezone: agentConfig.timezone,
+          businessName: agentConfig.businessName
+        };
+
+        logEvent('retell_call_started_agent_config', {
+          correlationId,
+          callId: call_id,
+          agentId: agentConfigTenant.id
+        });
+      } catch (configError) {
+        logEvent('retell_call_started_agent_config_error', {
+          correlationId,
+          callId: call_id,
+          agentId: agent_id,
+          error: configError.message
+        });
+      }
+    }
+
+    // Use tenant from request or fall back to environment variables if session not found
+    useTenant = sessionTenant || agentConfigTenant || tenant || {
       id: 'default',
       squareAccessToken: config.square.accessToken,
       squareLocationId: config.square.locationId,
       squareEnvironment: config.square.environment || 'sandbox',
-      timezone: config.server.timezone || 'America/New_York'
+      timezone: config.server.timezone || 'America/New_York',
+      businessName: config.businessName || 'Elite Barbershop'
     };
+
+    // Normalize token/environment fields so downstream logic always has expected shape
+    if (!useTenant.squareAccessToken && useTenant.accessToken) {
+      useTenant.squareAccessToken = useTenant.accessToken;
+    }
+    if (!useTenant.squareLocationId && useTenant.locationId) {
+      useTenant.squareLocationId = useTenant.locationId;
+    }
+    if (!useTenant.squareEnvironment && useTenant.environment) {
+      useTenant.squareEnvironment = useTenant.environment;
+    }
+
+    if (!useTenant.squareAccessToken) {
+      logEvent('retell_call_started_missing_credentials', {
+        correlationId,
+        callId: call_id,
+        tenantId: useTenant.id,
+        tenantKeys: Object.keys(useTenant || {})
+      });
+    }
 
     // Use the same customer lookup logic as ElevenLabs GetCustomerInfo
     const customerController = require('./customerController');
@@ -433,7 +523,7 @@ async function handleCallAnalyzed(call, correlationId) {
         { call }, // Wrap call in object to match expected structure
         correlationId
       );
-      
+
       logEvent('retell_email_sent', {
         correlationId,
         callId: call_id,
@@ -595,12 +685,18 @@ async function handleCallInbound(call_inbound, correlationId) {
     const callId = crypto.randomUUID();
 
     try {
-      sessionStore.createSession(callId, agent_id, {
-        squareAccessToken: tenant.accessToken,
-        squareLocationId: tenant.locationId,
-        squareEnvironment: tenant.environment,
-        timezone: tenant.timezone
-      }, 600); // 10 minute TTL
+      sessionStore.createSession(
+        callId,
+        agent_id,
+        {
+          squareAccessToken: tenant.accessToken,
+          squareLocationId: tenant.locationId,
+          squareEnvironment: tenant.environment,
+          timezone: tenant.timezone,
+          businessName: tenant.businessName
+        },
+        600
+      ); // 10 minute TTL
 
       console.log(`[SessionStore] 📝 Session created for agent ${agent_id}: ${callId}`);
       logEvent('retell_session_created', {

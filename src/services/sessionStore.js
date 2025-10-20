@@ -14,7 +14,7 @@ class SessionStore {
   constructor() {
     this.sessions = new Map();
     this.cleanupIntervals = new Map();
-    
+
     // Cleanup interval: Check for expired sessions every 30 seconds
     this.globalCleanupInterval = setInterval(() => {
       this.cleanupExpiredSessions();
@@ -35,7 +35,7 @@ class SessionStore {
     }
 
     const now = Date.now();
-    const expiresAt = now + (ttlSeconds * 1000);
+    const expiresAt = now + ttlSeconds * 1000;
 
     const session = {
       callId,
@@ -44,7 +44,8 @@ class SessionStore {
         squareAccessToken: credentials.accessToken || credentials.squareAccessToken,
         squareLocationId: credentials.locationId || credentials.squareLocationId,
         squareEnvironment: credentials.environment || 'production',
-        timezone: credentials.timezone || 'America/New_York'
+        timezone: credentials.timezone || 'America/New_York',
+        businessName: credentials.businessName
       },
       createdAt: now,
       expiresAt,
@@ -54,7 +55,9 @@ class SessionStore {
 
     this.sessions.set(callId, session);
 
-    console.log(`[SessionStore] 📝 Session created: ${callId} (agent: ${agentId}, expires in ${ttlSeconds}s)`);
+    console.log(
+      `[SessionStore] 📝 Session created: ${callId} (agent: ${agentId}, expires in ${ttlSeconds}s)`
+    );
 
     return session;
   }

@@ -318,11 +318,11 @@ function logError(error, context = {}) {
 function logRequest(req, res, startTime) {
   const duration = Date.now() - startTime;
   const correlationId = req.headers['x-correlation-id'] || req.correlationId;
-  
+
   // Redact sensitive headers from logs
   const sensitiveHeaders = ['authorization', 'x-api-key', 'x-retell-api-key', 'cookie'];
   const redactedHeaders = {};
-  
+
   sensitiveHeaders.forEach(headerName => {
     if (req.headers[headerName]) {
       redactedHeaders[headerName] = '[REDACTED]';

@@ -1,6 +1,7 @@
 ## 📋 Function Call Flow - Executive Summary
 
-I've walked through your complete function call process from Retell agent through to Square API. Here's what I found:
+I've walked through your complete function call process from Retell agent through to Square API. Here's what I
+found:
 
 ---
 
@@ -30,6 +31,7 @@ I've walked through your complete function call process from Retell agent throug
 ### **🔴 BLOCKING GAPS (Must Fix Before It Works)**
 
 **Gap 1: X-Retell-API-Key Not Configured in Retell Console**
+
 - **What**: The 5 Retell tools don't include the header in their definition
 - **Where**: Retell dashboard → Agent Settings → Tools
 - **Impact**: Auth middleware never receives the header → 401 error immediately
@@ -37,12 +39,13 @@ I've walked through your complete function call process from Retell agent throug
 - **Status**: 🔴 BLOCKING - User action required
 
 **Gap 2: Missing Environment Variables in Azure**
+
 - **What**: SQUARE_ACCESS_TOKEN, SQUARE_LOCATION_ID, RETELL_API_KEY might not be set
 - **Where**: Azure App Service → Configuration → App settings
 - **Impact**: Auth middleware creates tenant with undefined values → Square API fails with 401
 - **Fix**: Verify all 3 vars exist and have correct values
 - **Status**: 🔴 BLOCKING - Must verify immediately
-- **Check With**: 
+- **Check With**:
   ```bash
   az webapp config appsettings list \
     --resource-group square-middleware-prod-rg \
@@ -54,9 +57,10 @@ I've walked through your complete function call process from Retell agent throug
 ### **🟡 FUNCTIONAL GAPS (Will Cause Issues)**
 
 **Gap 3: Duplicate Code Path - handleCancelBooking Missing Tenant**
+
 - **What**: Two routes to cancel booking - one works, one broken
 - **Where**: bookingController.js line 1169
-- **Working Path**: `DELETE /api/bookings/:bookingId` 
+- **Working Path**: `DELETE /api/bookings/:bookingId`
   - Passes: `cancelBookingHelper(context, tenant, bookingId)` ✅
 - **Broken Path**: `DELETE /api/booking/cancel?bookingId=...`
   - Passes: `cancelBookingHelper(context, bookingId)` ❌ Missing tenant!
@@ -65,6 +69,7 @@ I've walked through your complete function call process from Retell agent throug
 - **Status**: 🟡 BROKEN PATH (lower priority if using direct route)
 
 **Gap 4: No Booking ID Format Validation**
+
 - **What**: Accepts any string as bookingId, no format checking
 - **Where**: cancelBooking controller line 575
 - **Impact**: Invalid IDs sent to Square API, wasted API calls
@@ -76,6 +81,7 @@ I've walked through your complete function call process from Retell agent throug
 ### **🟠 OBSERVABILITY GAPS (Hard to Debug)**
 
 **Gap 5: Weak Error Handling**
+
 - **What**: Generic error messages, doesn't distinguish 401 vs 404 vs 429
 - **Where**: cancelBooking error handler lines 596-612
 - **Impact**: When Square API fails, you don't know why
@@ -83,6 +89,7 @@ I've walked through your complete function call process from Retell agent throug
 - **Status**: 🟠 Makes debugging hard
 
 **Gap 6: No Detailed API Request/Response Logging**
+
 - **What**: Silent Square API calls - hard to troubleshoot failures
 - **Where**: bookingHelpers.js (helper function)
 - **Impact**: When Square API fails, no visibility into what was sent
@@ -90,6 +97,7 @@ I've walked through your complete function call process from Retell agent throug
 - **Status**: 🟠 Limited visibility
 
 **Gap 7: Correlation ID Lost in Service Layer**
+
 - **What**: correlationId created but not passed to Square API calls
 - **Where**: Controller doesn't pass correlationId to helper
 - **Impact**: Can't trace Square API calls back to original Retell requests
@@ -97,6 +105,7 @@ I've walked through your complete function call process from Retell agent throug
 - **Status**: 🟠 Breaks distributed tracing
 
 **Gap 8: No Environment Variable Validation (FIXED)**
+
 - **What**: Previously, req.tenant wasn't set (only req.retellContext)
 - **Status**: ✅ ALREADY FIXED - both contexts now set
 
@@ -124,6 +133,7 @@ GOOD PRACTICES (Do Third):
 ## ✅ Verification Steps (In Order)
 
 ### Step 1: Verify Environment Variables (5 min)
+
 ```bash
 az webapp config appsettings list \
   --resource-group square-middleware-prod-rg \
@@ -131,13 +141,14 @@ az webapp config appsettings list \
 ```
 
 **Should see:**
+
 ```
 {
   "name": "SQUARE_ACCESS_TOKEN",
   "value": "sq_prod_..." (redacted)
 },
 {
-  "name": "SQUARE_LOCATION_ID", 
+  "name": "SQUARE_LOCATION_ID",
   "value": "LXXX..." (redacted)
 },
 {
@@ -149,6 +160,7 @@ az webapp config appsettings list \
 If any are missing → Add them immediately
 
 ### Step 2: Verify Retell Tools Configuration (5 min)
+
 1. Go to Retell console → Your agent
 2. Click "Tools" section
 3. For each of these 5 tools, verify the header is set:
@@ -166,6 +178,7 @@ If any are missing → Add them immediately
 If not set → Add to all 5 tools
 
 ### Step 3: Test with Booking-Cancel (10 min)
+
 1. Make a test booking in Square (to have something to cancel)
 2. Call your API: `DELETE /api/bookings/{bookingId}`
 3. Check logs for:
@@ -201,9 +214,11 @@ All in `/Users/nickdossantos/Workspace/Business/squareMiddleware/`
 
 ## 💡 Key Insights
 
-1. **Your architecture is solid** - multi-layer middleware, proper context passing, good separation of concerns
+1. **Your architecture is solid** - multi-layer middleware, proper context passing, good separation of
+   concerns
 
-2. **Most issues are configuration** - The code is ready, just needs environment variables and Retell header setup
+2. **Most issues are configuration** - The code is ready, just needs environment variables and Retell header
+   setup
 
 3. **Two success paths exist** - Direct route works better than manager route (Gap 3)
 
@@ -214,6 +229,7 @@ All in `/Users/nickdossantos/Workspace/Business/squareMiddleware/`
 ---
 
 Would you like me to:
+
 1. Fix Gap 3 (the broken duplicate path)?
 2. Add validation for the gaps?
 3. Help set up the environment variables?

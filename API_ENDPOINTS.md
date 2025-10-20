@@ -29,6 +29,7 @@ Returns basic service information and API version.
 **Parameters:** None
 
 **Response:**
+
 ```json
 {
   "service": "Square Middleware API",
@@ -39,6 +40,7 @@ Returns basic service information and API version.
 ```
 
 **Status Codes:**
+
 - `200` - Success
 
 ---
@@ -54,6 +56,7 @@ Basic health check - **NO external API calls**. Fast response for Azure health p
 **Parameters:** None
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -69,6 +72,7 @@ Basic health check - **NO external API calls**. Fast response for Azure health p
 ```
 
 **Status Codes:**
+
 - `200` - Service is healthy
 - `500` - Service error
 
@@ -83,6 +87,7 @@ Detailed health check with all dependencies including Square API connectivity.
 **Parameters:** None
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -129,6 +134,7 @@ Detailed health check with all dependencies including Square API connectivity.
 ```
 
 **Status Codes:**
+
 - `200` - All dependencies healthy
 - `503` - Service degraded (some dependencies unhealthy)
 
@@ -143,6 +149,7 @@ Readiness probe for Kubernetes/orchestrators. Only checks environment configurat
 **Parameters:** None
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -155,6 +162,7 @@ Readiness probe for Kubernetes/orchestrators. Only checks environment configurat
 ```
 
 **Status Codes:**
+
 - `200` - Service is ready
 - `503` - Service not ready
 
@@ -169,6 +177,7 @@ Liveness probe for Kubernetes/orchestrators. Checks if process is running.
 **Parameters:** None
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -182,6 +191,7 @@ Liveness probe for Kubernetes/orchestrators. Checks if process is running.
 ```
 
 **Status Codes:**
+
 - `200` - Service is alive
 - `500` - Service error
 
@@ -196,17 +206,17 @@ Get customer information by ID or phone.
 **Method:** `GET`
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 ```
 
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `customerId` | string | No | Customer ID from Square |
-| `phoneNumber` | string | No | Customer phone number (e.g., +12675730180) |
+**Query Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `customerId` | string | No | Customer ID from Square | |
+`phoneNumber` | string | No | Customer phone number (e.g., +12675730180) |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -234,6 +244,7 @@ X-Agent-ID: agent_id (required)
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters
 - `404` - Customer not found
@@ -248,12 +259,14 @@ Get customer information by phone number (Azure Functions compatibility).
 **Method:** `POST`
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {
   "phoneNumber": "+12677210098"
@@ -263,6 +276,7 @@ Content-Type: application/json
 **Response:** Same as GET /api/customer/info
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid phone number
 - `404` - Customer not found
@@ -277,12 +291,14 @@ Update customer information.
 **Method:** `PUT`
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {
   "customerId": "08FAQHFKW4GPWKG6H22SCPFGXM",
@@ -294,6 +310,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -309,6 +326,7 @@ Content-Type: application/json
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters
 - `404` - Customer not found
@@ -324,12 +342,14 @@ Get customer bookings by customer ID or phone.
 **Method:** `POST`
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {
   "customerId": "08FAQHFKW4GPWKG6H22SCPFGXM"
@@ -345,6 +365,7 @@ OR
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -369,6 +390,7 @@ OR
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters
 - `404` - Customer not found
@@ -383,15 +405,18 @@ Update customer information (legacy endpoint).
 **Method:** `PUT`
 
 **Parameters:**
+
 - `:customerId` - Customer ID
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {
   "firstName": "Nick",
@@ -404,6 +429,7 @@ Content-Type: application/json
 **Response:** Same as PUT /api/customer/info
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters
 - `404` - Customer not found
@@ -420,18 +446,18 @@ Get service availability for booking.
 **Method:** `GET`
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 ```
 
-**Query Parameters:**
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `daysAhead` | number | No | 14 | Number of days to check ahead |
-| `serviceVariationId` | string | No | All | Filter by specific service |
-| `teamMemberId` | string | No | All | Filter by specific barber |
+**Query Parameters:** | Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------| | `daysAhead` | number | No | 14 | Number of days to
+check ahead | | `serviceVariationId` | string | No | All | Filter by specific service | | `teamMemberId` |
+string | No | All | Filter by specific barber |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -465,6 +491,7 @@ X-Agent-ID: agent_id (required)
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters
 - `429` - Rate limit exceeded
@@ -478,12 +505,14 @@ Create a new booking.
 **Method:** `POST`
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {
   "customerId": "08FAQHFKW4GPWKG6H22SCPFGXM",
@@ -496,6 +525,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -513,6 +543,7 @@ Content-Type: application/json
 ```
 
 **Status Codes:**
+
 - `201` - Created
 - `400` - Invalid parameters
 - `409` - Booking conflict (time already taken)
@@ -527,14 +558,17 @@ Get booking details.
 **Method:** `GET`
 
 **Parameters:**
+
 - `:bookingId` - Booking ID
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -555,6 +589,7 @@ X-Agent-ID: agent_id (required)
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `404` - Booking not found
 - `429` - Rate limit exceeded
@@ -568,15 +603,18 @@ Update an existing booking.
 **Method:** `PUT`
 
 **Parameters:**
+
 - `:bookingId` - Booking ID
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {
   "startAt": "2025-10-20T15:00:00Z",
@@ -587,6 +625,7 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -602,6 +641,7 @@ Content-Type: application/json
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters
 - `404` - Booking not found
@@ -617,14 +657,17 @@ Cancel/delete a booking.
 **Method:** `DELETE`
 
 **Parameters:**
+
 - `:bookingId` - Booking ID
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -637,6 +680,7 @@ X-Agent-ID: agent_id (required)
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `404` - Booking not found
 - `429` - Rate limit exceeded
@@ -650,19 +694,18 @@ List bookings with filters (admin/staff endpoint).
 **Method:** `GET`
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 ```
 
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `customerId` | string | No | Filter by customer |
-| `status` | string | No | Filter by status (ACCEPTED, PENDING, CANCELLED) |
-| `startDate` | string | No | Start date (ISO 8601) |
-| `endDate` | string | No | End date (ISO 8601) |
+**Query Parameters:** | Parameter | Type | Required | Description |
+|-----------|------|----------|-------------| | `customerId` | string | No | Filter by customer | | `status` |
+string | No | Filter by status (ACCEPTED, PENDING, CANCELLED) | | `startDate` | string | No | Start date
+(ISO 8601) | | `endDate` | string | No | End date (ISO 8601) |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -684,6 +727,7 @@ X-Agent-ID: agent_id (required)
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `429` - Rate limit exceeded
 
@@ -696,20 +740,24 @@ Confirm booking (changes status from PENDING to ACCEPTED).
 **Method:** `POST`
 
 **Parameters:**
+
 - `:bookingId` - Booking ID
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {}
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -722,6 +770,7 @@ Content-Type: application/json
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `404` - Booking not found
 - `409` - Booking already confirmed
@@ -736,20 +785,25 @@ Unified booking management endpoint (Azure Functions compatibility).
 **Method:** `POST`
 
 **Headers:**
+
 ```
 X-Agent-ID: agent_id (required)
 Content-Type: application/json
 ```
 
 **Body (action parameter determines operation):**
+
 ```json
 {
   "action": "create|update|cancel|list|getAvailability",
-  "data": { /* depends on action */ }
+  "data": {
+    /* depends on action */
+  }
 }
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters
 - `404` - Resource not found
@@ -766,15 +820,16 @@ Square booking webhook handler.
 **Method:** `POST`
 
 **Headers:**
+
 ```
 Content-Type: application/json
 X-Square-HMAC-SHA256: signature
 ```
 
-**Body:**
-Square webhook payload (see Square documentation)
+**Body:** Square webhook payload (see Square documentation)
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -783,6 +838,7 @@ Square webhook payload (see Square documentation)
 ```
 
 **Status Codes:**
+
 - `204` - No Content (processed successfully)
 - `400` - Invalid signature
 - `405` - Method not allowed
@@ -796,12 +852,14 @@ Retell AI webhook handler (call_started and call_analyzed events).
 **Method:** `POST`
 
 **Headers:**
+
 ```
 Content-Type: application/json
 X-Retell-Signature: signature
 ```
 
 **Body:**
+
 ```json
 {
   "event": "call_started|call_analyzed",
@@ -815,6 +873,7 @@ X-Retell-Signature: signature
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -823,6 +882,7 @@ X-Retell-Signature: signature
 ```
 
 **Status Codes:**
+
 - `204` - No Content (processed successfully)
 - `400` - Invalid signature
 - `405` - Method not allowed
@@ -836,6 +896,7 @@ Webhook health check.
 **Method:** `GET`
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -850,6 +911,7 @@ Webhook health check.
 ```
 
 **Status Codes:**
+
 - `200` - Success
 
 ---
@@ -863,11 +925,13 @@ Send a simple SMS text message.
 **Method:** `POST`
 
 **Headers:**
+
 ```
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {
   "to": "+12675730180",
@@ -875,13 +939,12 @@ Content-Type: application/json
 }
 ```
 
-**Parameters:**
-| Parameter | Type | Required | Max Length | Description |
-|-----------|------|----------|-----------|-------------|
-| `to` | string | Yes | - | Recipient phone (format: +1234567890) |
-| `message` | string | Yes | 1600 | SMS message text |
+**Parameters:** | Parameter | Type | Required | Max Length | Description |
+|-----------|------|----------|-----------|-------------| | `to` | string | Yes | - | Recipient phone (format:
++1234567890) | | `message` | string | Yes | 1600 | SMS message text |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -896,6 +959,7 @@ Content-Type: application/json
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters (bad phone or message)
 - `429` - Rate limit exceeded
@@ -909,11 +973,13 @@ Send booking confirmation SMS.
 **Method:** `POST`
 
 **Headers:**
+
 ```
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {
   "bookingId": "booking_123456",
@@ -921,13 +987,12 @@ Content-Type: application/json
 }
 ```
 
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `bookingId` | string | Yes | Booking ID from Square |
-| `customerPhone` | string | Yes | Customer phone (format: +1234567890) |
+**Parameters:** | Parameter | Type | Required | Description | |-----------|------|----------|-------------| |
+`bookingId` | string | Yes | Booking ID from Square | | `customerPhone` | string | Yes | Customer phone
+(format: +1234567890) |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -942,6 +1007,7 @@ Content-Type: application/json
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters
 - `404` - Booking not found
@@ -956,11 +1022,13 @@ Send customer message to barbershop (used by AI agent for escalation).
 **Method:** `POST`
 
 **Headers:**
+
 ```
 Content-Type: application/json
 ```
 
 **Body:**
+
 ```json
 {
   "customerFirstName": "Nick",
@@ -971,16 +1039,14 @@ Content-Type: application/json
 }
 ```
 
-**Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `customerFirstName` | string | Yes | Customer first name |
-| `customerLastName` | string | Yes | Customer last name |
-| `customerPhoneNumber` | string | Yes | Customer phone (format: +1234567890) |
-| `message` | string | Yes | Message content (max 1600 chars) |
-| `messageTo` | string | No | Override recipient phone (default: business owner) |
+**Parameters:** | Parameter | Type | Required | Description | |-----------|------|----------|-------------| |
+`customerFirstName` | string | Yes | Customer first name | | `customerLastName` | string | Yes | Customer last
+name | | `customerPhoneNumber` | string | Yes | Customer phone (format: +1234567890) | | `message` | string |
+Yes | Message content (max 1600 chars) | | `messageTo` | string | No | Override recipient phone (default:
+business owner) |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -996,6 +1062,7 @@ Content-Type: application/json
 ```
 
 **Status Codes:**
+
 - `200` - Success
 - `400` - Invalid parameters
 - `429` - Rate limit exceeded
@@ -1021,37 +1088,37 @@ All errors follow this format:
 
 ### HTTP Status Codes
 
-| Code | Meaning | Description |
-|------|---------|-------------|
-| `200` | OK | Request successful |
-| `201` | Created | Resource created successfully |
-| `204` | No Content | Webhook processed (no response body) |
-| `400` | Bad Request | Invalid parameters or validation failed |
-| `401` | Unauthorized | Missing or invalid authentication |
-| `404` | Not Found | Resource not found |
-| `405` | Method Not Allowed | HTTP method not allowed for endpoint |
-| `409` | Conflict | Booking conflict or duplicate operation |
-| `429` | Too Many Requests | Rate limit exceeded (100 req/15 min per agent) |
-| `500` | Internal Server Error | Server error |
-| `503` | Service Unavailable | Service degraded or not ready |
+| Code  | Meaning               | Description                                    |
+| ----- | --------------------- | ---------------------------------------------- |
+| `200` | OK                    | Request successful                             |
+| `201` | Created               | Resource created successfully                  |
+| `204` | No Content            | Webhook processed (no response body)           |
+| `400` | Bad Request           | Invalid parameters or validation failed        |
+| `401` | Unauthorized          | Missing or invalid authentication              |
+| `404` | Not Found             | Resource not found                             |
+| `405` | Method Not Allowed    | HTTP method not allowed for endpoint           |
+| `409` | Conflict              | Booking conflict or duplicate operation        |
+| `429` | Too Many Requests     | Rate limit exceeded (100 req/15 min per agent) |
+| `500` | Internal Server Error | Server error                                   |
+| `503` | Service Unavailable   | Service degraded or not ready                  |
 
 ### Common Error Messages
 
 #### Validation Error
+
 ```json
 {
   "success": false,
   "message": "Validation failed",
   "error": "ValidationError",
-  "details": [
-    "Field 'phoneNumber' must be a valid phone number in format +1234567890"
-  ],
+  "details": ["Field 'phoneNumber' must be a valid phone number in format +1234567890"],
   "timestamp": "2025-10-18T20:40:33.123Z",
   "correlationId": "abc-123-def-456"
 }
 ```
 
 #### Rate Limit Error
+
 ```json
 {
   "success": false,
@@ -1067,6 +1134,7 @@ All errors follow this format:
 ```
 
 #### Authentication Error
+
 ```json
 {
   "success": false,
@@ -1097,6 +1165,7 @@ This header identifies the tenant/agent for multi-tenant isolation.
 **Default Rate Limit:** 100 requests per 15 minutes per agent
 
 When rate limit is exceeded:
+
 - HTTP Status: `429`
 - Response includes `Retry-After` header with seconds to wait
 - `resetTime` in response indicates when limit resets
@@ -1118,10 +1187,12 @@ Use this ID for debugging and support requests.
 ## Webhook Security
 
 ### Square Webhooks
+
 - Verified using HMAC-SHA256 signature in `X-Square-HMAC-SHA256` header
 - Invalid signatures return `400 Bad Request`
 
 ### Retell Webhooks
+
 - Verified using signature in `X-Retell-Signature` header
 - 5-minute timestamp validation window
 - Invalid signatures return `400 Bad Request`
@@ -1139,6 +1210,7 @@ Example: `2025-10-18T20:40:33.123Z`
 ## Phone Number Format
 
 All phone numbers must use E.164 format:
+
 - Prefix: `+`
 - Country code: 1-3 digits
 - National number: 9-14 digits
@@ -1149,6 +1221,7 @@ All phone numbers must use E.164 format:
 ## Pagination
 
 Currently, list endpoints don't use cursor-based pagination. Limits are applied:
+
 - Bookings: max 1000
 - Pages fetched: max 25
 - Execution time: max 30 seconds
@@ -1158,6 +1231,7 @@ Currently, list endpoints don't use cursor-based pagination. Limits are applied:
 ## Environment Variables
 
 ### Required for Production
+
 - `NODE_ENV=production`
 - `PORT=8080`
 - `SQUARE_ACCESS_TOKEN` - Square API access token
@@ -1167,6 +1241,7 @@ Currently, list endpoints don't use cursor-based pagination. Limits are applied:
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_SMS_FROM`
 
 ### Optional
+
 - `APPLICATIONINSIGHTS_CONNECTION_STRING` - Azure Application Insights
 - `LOG_LEVEL` - debug, info, warn, error
 - `TZ` - Timezone (default: America/New_York)
@@ -1176,6 +1251,7 @@ Currently, list endpoints don't use cursor-based pagination. Limits are applied:
 ## Support
 
 For issues or questions:
+
 - Check Application Insights logs
 - Include correlation ID in support requests
 - Review error messages for specific details
