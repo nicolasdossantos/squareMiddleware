@@ -82,8 +82,8 @@ jobs:
           az webapp start \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
             --resource-group square-middleware-prod-rg
-          echo "Waiting for app to start..."
-          sleep 15
+          echo "Waiting for initial startup (npm install needs 2-3 minutes)..."
+          sleep 30
 
       - name: Configure Health Check
         run: |
@@ -96,21 +96,21 @@ jobs:
 
       - name: Verify Deployment
         run: |
-          echo "Verifying deployment health..."
-          max_attempts=10
+          echo "Verifying deployment health (npm install can take 2-3 minutes)..."
+          max_attempts=24
           attempt=1
           while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt of $max_attempts..."
-            status_code=$(curl -s -o /dev/null -w "%{http_code}" https://square-middleware-prod-api.azurewebsites.net/api/health)
+            echo "Attempt $attempt of $max_attempts (each attempt 15 sec)..."
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 10 --max-time 10 https://square-middleware-prod-api.azurewebsites.net/api/health)
             if [ "$status_code" -eq 200 ]; then
               echo "✅ Deployment successful! Health check returned 200"
               exit 0
             fi
-            echo "⏳ Health check returned $status_code, waiting 10 seconds..."
-            sleep 10
+            echo "⏳ Health check returned $status_code, waiting 15 seconds..."
+            sleep 15
             attempt=$((attempt + 1))
           done
-          echo "❌ Deployment verification failed after $max_attempts attempts"
+          echo "❌ Deployment verification failed after $((max_attempts * 15)) seconds (~$((max_attempts / 4)) minutes)"
           exit 1
 
       - name: Azure Logout
