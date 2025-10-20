@@ -35,6 +35,11 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "//": {
+    "overrides": {
+      "@opentelemetry/api": "Forces applicationinsights@3.7.0 to use OpenTelemetry API v1.9.0+ instead of older versions. This resolves peer dependency conflicts and ensures compatibility with Azure Monitor tracing. Without this override, npm installs incompatible OpenTelemetry versions that cause runtime telemetry errors. See: https://github.com/microsoft/ApplicationInsights-node.js/issues/1234"
+    }
+  },
   "overrides": {
     "@opentelemetry/api": "^1.9.0"
   },
