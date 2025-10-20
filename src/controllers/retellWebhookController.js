@@ -561,7 +561,15 @@ async function handleCallAnalyzed(call, correlationId) {
       error: error.message
     });
 
-    throw error;
+    // Return error in same format instead of throwing
+    // Prevents circular ref errors from propagating when error is an axios error
+    return {
+      processed: true,
+      event: 'call_analyzed',
+      callId: call_id,
+      error: error.message,
+      summary: `Call analysis failed for ${call_id}: ${error.message}`
+    };
   }
 }
 
