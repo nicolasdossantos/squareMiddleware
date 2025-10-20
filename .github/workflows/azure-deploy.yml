@@ -49,11 +49,11 @@ jobs:
           mkdir -p deploy
           cp -R src deploy/
           cp package.json package-lock.json deploy/
+          # Copy node_modules after npm install at root
+          cp -R node_modules deploy/
 
       - name: Install production dependencies
-        run: |
-          cd deploy
-          npm ci --omit=dev
+        run: npm ci --omit=dev
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
