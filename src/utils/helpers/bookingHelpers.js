@@ -208,7 +208,10 @@ async function createBooking(context, tenant, bookingData) {
       );
 
       // Create tenant-specific Square client for conflict check
-      const square = createSquareClient(tenant.accessToken);
+      const square = createSquareClient(
+        tenant.accessToken || tenant.squareAccessToken,
+        tenant.squareEnvironment || tenant.environment || 'production'
+      );
       const existingBookingsResponse = await square.bookingsApi.listBookings({
         customerId,
         startAtMin: searchStart.toISOString(),
@@ -302,7 +305,10 @@ async function createBooking(context, tenant, bookingData) {
     });
 
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(
+      tenant.accessToken || tenant.squareAccessToken,
+      tenant.squareEnvironment || tenant.environment || 'production'
+    );
     const response = await square.bookingsApi.createBooking(bookingPayload);
 
     context.log('✅ Booking created successfully:', response.result?.booking?.id || response.booking?.id);
@@ -356,7 +362,10 @@ async function updateBooking(context, tenant, bookingId, updateData) {
     };
 
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(
+      tenant.accessToken || tenant.squareAccessToken,
+      tenant.squareEnvironment || tenant.environment || 'production'
+    );
 
     // Square SDK v42+ expects individual parameters, not an object
     const response = await square.bookingsApi.updateBooking(bookingId, { idempotencyKey, booking });
@@ -394,7 +403,10 @@ async function cancelBooking(context, tenant, bookingId) {
     logApiCall(context, 'bookings.cancelBooking', startTime);
 
     // First get the booking to get its version
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(
+      tenant.accessToken || tenant.squareAccessToken,
+      tenant.squareEnvironment || tenant.environment || 'production'
+    );
     const getResponse = await square.bookingsApi.retrieveBooking(bookingId);
     const bookingVersion = getResponse.result.booking.version;
 
@@ -445,7 +457,10 @@ async function getBooking(context, tenant, bookingId) {
     });
 
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(
+      tenant.accessToken || tenant.squareAccessToken,
+      tenant.squareEnvironment || tenant.environment || 'production'
+    );
     const response = await square.bookingsApi.retrieveBooking(bookingId);
 
     // Clean BigInt values before logging
@@ -651,7 +666,10 @@ async function getAllBookingsByCustomer(context, tenant, customerId, phoneNumber
     let pageCount = 0;
 
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(
+      tenant.accessToken || tenant.squareAccessToken,
+      tenant.squareEnvironment || tenant.environment || 'production'
+    );
 
     // Start with the first page request
     const apiStartTime = Date.now();

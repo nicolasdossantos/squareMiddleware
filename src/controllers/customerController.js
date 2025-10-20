@@ -335,7 +335,10 @@ async function getCustomerInfoByPhone(req, res) {
 
     // Get current bookings for the customer using tenant-specific Square client
     const { createSquareClient } = require('../utils/squareUtils');
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(
+      tenant.accessToken || tenant.squareAccessToken,
+      tenant.squareEnvironment || tenant.environment || 'production'
+    );
 
     const context = {
       log: (...args) => logger.info(...args),

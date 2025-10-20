@@ -97,7 +97,10 @@ async function loadAvailability(tenant, serviceVariationIds, staffMemberId, star
     context.log('🔍 [SQUARE DEBUG] segmentFilters:', JSON.stringify(segmentFilters, null, 2));
 
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(
+      tenant.accessToken || tenant.squareAccessToken,
+      tenant.squareEnvironment || tenant.environment || 'production'
+    );
 
     const apiStartTime = Date.now();
     const resp = await square.bookingsApi.searchAvailability(searchParams);

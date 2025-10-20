@@ -52,7 +52,10 @@ async function createBookingCore(tenant, bookingData, correlationId) {
     const { createSquareClient } = require('../utils/squareUtils');
 
     // Create tenant-specific Square client
-    const square = createSquareClient(tenant.accessToken);
+    const square = createSquareClient(
+      tenant.accessToken || tenant.squareAccessToken,
+      tenant.squareEnvironment || tenant.environment || 'production'
+    );
 
     // Create segment filters for availability search
     const segmentFilters = bookingData.appointmentSegments.map(segment => ({

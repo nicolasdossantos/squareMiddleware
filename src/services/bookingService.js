@@ -149,7 +149,10 @@ class BookingService {
    */
   async listBookings(filters, tenant, correlationId) {
     try {
-      const square = createSquareClient(tenant.accessToken);
+      const square = createSquareClient(
+        tenant.accessToken || tenant.squareAccessToken,
+        tenant.squareEnvironment || tenant.environment || 'production'
+      );
 
       // Build Square API parameters
       const params = {
