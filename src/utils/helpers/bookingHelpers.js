@@ -540,7 +540,11 @@ async function getActiveBookingsByCustomer(context, tenant, customerId, phoneNum
           context.log('⚠️ Booking lookup timed out, returning empty bookings array');
           return { bookings: [] };
         }
-        throw error;
+        throw {
+          message: error.message || 'Failed to lookup bookings',
+          code: error.code || 'LOOKUP_ERROR',
+          status: error.statusCode || 500
+        };
       }
 
       context.log('Square API call successful for customer', customerId);

@@ -35,8 +35,12 @@ class BookingService {
         }
       };
     } catch (error) {
-      console.error('BookingService.createBooking error:', error);
-      throw error;
+      console.error('BookingService.createBooking error:', error.message || error);
+      throw {
+        message: error.message || 'Failed to create booking',
+        code: error.code || 'BOOKING_ERROR',
+        status: error.status || error.statusCode || 500
+      };
     }
   }
 

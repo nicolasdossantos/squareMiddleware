@@ -100,7 +100,11 @@ async function processCallAnalysis({
       correlationId
     });
 
-    throw error;
+    throw {
+      message: error.message || 'Failed to process call analysis',
+      code: error.code || 'ANALYSIS_ERROR',
+      status: error.status || error.statusCode || 500
+    };
   }
 }
 

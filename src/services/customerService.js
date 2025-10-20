@@ -151,7 +151,11 @@ async function getCustomerInfo(tenant, phoneNumber) {
       duration
     });
 
-    throw error;
+    throw {
+      message: error.message || 'Failed to get customer info',
+      code: error.code || 'GET_CUSTOMER_ERROR',
+      status: error.status || error.statusCode || 500
+    };
   }
 }
 
@@ -241,11 +245,19 @@ async function updateCustomerInfo(tenant, customerId, updateData) {
       duration: Date.now() - startTime
     });
 
-    if (error.message.includes('NOT_FOUND')) {
-      throw new Error('Customer not found');
+    if (error.message && error.message.includes('NOT_FOUND')) {
+      throw {
+        message: 'Customer not found',
+        code: 'NOT_FOUND',
+        status: 404
+      };
     }
 
-    throw new Error(`Failed to update customer information: ${error.message}`);
+    throw {
+      message: `Failed to update customer information: ${error.message || 'Unknown error'}`,
+      code: error.code || 'UPDATE_ERROR',
+      status: error.status || error.statusCode || 500
+    };
   }
 }
 
@@ -282,7 +294,11 @@ async function getCustomerBookings(tenant, customerId, options = {}) {
       duration: Date.now() - startTime,
       tenantId: tenant.id
     });
-    throw new Error(`Failed to retrieve customer bookings: ${error.message}`);
+    throw {
+      message: `Failed to retrieve customer bookings: ${error.message || 'Unknown error'}`,
+      code: error.code || 'GET_BOOKINGS_ERROR',
+      status: error.status || error.statusCode || 500
+    };
   }
 }
 

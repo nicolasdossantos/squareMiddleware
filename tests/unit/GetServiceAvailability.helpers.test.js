@@ -334,9 +334,13 @@ describe('GetServiceAvailability helpers', () => {
       const apiError = new Error('Square API rate limit exceeded');
       mockSquareClient.bookingsApi.searchAvailability.mockRejectedValue(apiError);
 
-      await expect(
-        loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext)
-      ).rejects.toThrow('Square API rate limit exceeded');
+      try {
+        await loadAvailability(mockTenant, ['SERVICE_1'], null, startIso, endIso, mockContext);
+        fail('Should have thrown an error');
+      } catch (thrownError) {
+        expect(thrownError.message).toContain('Square API rate limit exceeded');
+        expect(thrownError.code).toBe('AVAILABILITY_ERROR');
+      }
 
       expect(trackException).toHaveBeenCalledWith(apiError, expect.any(Object));
     });

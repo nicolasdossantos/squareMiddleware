@@ -220,8 +220,12 @@ async function loadAvailability(tenant, serviceVariationIds, staffMemberId, star
       service_count: idsArray.length,
       staff_member_id: staffMemberId
     });
-    context.log('❌ Error loading availability:', error);
-    throw error;
+    context.log('❌ Error loading availability:', error.message || error);
+    throw {
+      message: error.message || 'Failed to load availability',
+      code: error.code || 'AVAILABILITY_ERROR',
+      status: error.statusCode || 500
+    };
   }
 }
 

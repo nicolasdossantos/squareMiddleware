@@ -19,8 +19,12 @@ async function getCustomerById(tenant, customerId) {
   try {
     return await customerService.getCustomerInfo(tenant, customerId);
   } catch (error) {
-    logger.error('Error getting customer by ID:', error);
-    throw error;
+    logger.error('Error getting customer by ID:', error.message || error);
+    throw {
+      message: error.message || 'Failed to get customer',
+      code: error.code || 'GET_CUSTOMER_ERROR',
+      status: error.status || error.statusCode || 500
+    };
   }
 }
 
@@ -34,8 +38,12 @@ async function getCustomerByPhone(tenant, phone) {
   try {
     return await customerService.getCustomerInfo(tenant, phone);
   } catch (error) {
-    logger.error('Error getting customer by phone:', error);
-    throw error;
+    logger.error('Error getting customer by phone:', error.message || error);
+    throw {
+      message: error.message || 'Failed to get customer by phone',
+      code: error.code || 'GET_CUSTOMER_ERROR',
+      status: error.status || error.statusCode || 500
+    };
   }
 }
 
@@ -48,8 +56,12 @@ async function createCustomer(tenant, customerData) {
   try {
     return await customerService.createCustomer(tenant, customerData);
   } catch (error) {
-    logger.error('Error creating customer:', error);
-    throw error;
+    logger.error('Error creating customer:', error.message || error);
+    throw {
+      message: error.message || 'Failed to create customer',
+      code: error.code || 'CREATE_CUSTOMER_ERROR',
+      status: error.status || error.statusCode || 500
+    };
   }
 }
 
@@ -63,8 +75,12 @@ async function updateCustomer(tenant, customerId, updateData) {
   try {
     return await customerService.updateCustomerInfo(tenant, customerId, updateData);
   } catch (error) {
-    logger.error('Error updating customer:', error);
-    throw error;
+    logger.error('Error updating customer:', error.message || error);
+    throw {
+      message: error.message || 'Failed to update customer',
+      code: error.code || 'UPDATE_CUSTOMER_ERROR',
+      status: error.status || error.statusCode || 500
+    };
   }
 }
 
@@ -77,8 +93,12 @@ async function listCustomers(tenant, filters = {}) {
   try {
     return await customerService.listCustomers(tenant, filters);
   } catch (error) {
-    logger.error('Error listing customers:', error);
-    throw error;
+    logger.error('Error listing customers:', error.message || error);
+    throw {
+      message: error.message || 'Failed to list customers',
+      code: error.code || 'LIST_CUSTOMERS_ERROR',
+      status: error.status || error.statusCode || 500
+    };
   }
 }
 

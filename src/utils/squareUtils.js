@@ -197,14 +197,30 @@ async function loadServiceVariations(context, tenant) {
 
     // Provide more specific error messages for common issues
     if (error.statusCode === 401 || (error.message && error.message.includes('UNAUTHORIZED'))) {
-      throw new Error('Square API authentication failed. Please check your access token.');
+      throw {
+        message: 'Square API authentication failed. Please check your access token.',
+        code: 'AUTH_FAILED',
+        status: 401
+      };
     } else if (error.statusCode === 403) {
-      throw new Error('Square API access forbidden. Please check your permissions.');
+      throw {
+        message: 'Square API access forbidden. Please check your permissions.',
+        code: 'FORBIDDEN',
+        status: 403
+      };
     } else if (error.statusCode >= 500) {
-      throw new Error('Square API server error. Please try again later.');
+      throw {
+        message: 'Square API server error. Please try again later.',
+        code: 'SERVER_ERROR',
+        status: 503
+      };
     }
 
-    throw error;
+    throw {
+      message: error.message || 'Failed to load service variations',
+      code: error.code || 'SQUARE_ERROR',
+      status: error.statusCode || 500
+    };
   }
 }
 

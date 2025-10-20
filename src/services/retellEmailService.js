@@ -467,7 +467,11 @@ async function sendRetellPostCallEmail(callData, correlationId) {
         correlationId,
         callId: call.call_id
       });
-      throw error;
+      throw {
+        message: 'Email configuration error: EMAIL_TO not set',
+        code: 'EMAIL_CONFIG_ERROR',
+        status: 500
+      };
     }
 
     // Send email

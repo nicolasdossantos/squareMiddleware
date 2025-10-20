@@ -250,6 +250,50 @@ function sendValidationError(res, errors, message = 'Validation failed', correla
   return sendError(res, message, 400, Array.isArray(errors) ? errors : [errors], correlationId);
 }
 
+/**
+ * Safely extract error details from an error object or string
+ * Prevents circular reference errors by extracting only safe properties
+ * @param {Error|Object|string} error - Error object to extract details from
+ * @returns {Object} Safe error object with message, code, status
+ */
+function extractErrorDetails(error) {
+  // If it's a string, return as message
+  if (typeof error === 'string') {
+    return {
+      message: error,
+      code: 'ERROR',
+      status: 500
+    };
+  }
+
+  // If it's an Error object or has Error-like properties
+  if (error instanceof Error || error?.message !== undefined) {
+    return {
+      message: error.message || error.toString() || 'Unknown error',
+      code: error.code || error.errorCode || 'ERROR',
+      status: error.status || error.statusCode || 500,
+      details: error.details || error.info || undefined
+    };
+  }
+
+  // If it's already a plain object
+  if (typeof error === 'object') {
+    return {
+      message: error.message || JSON.stringify(error) || 'Unknown error',
+      code: error.code || 'ERROR',
+      status: error.status || 500,
+      details: error.details
+    };
+  }
+
+  // Fallback for any other type
+  return {
+    message: 'Unknown error',
+    code: 'ERROR',
+    status: 500
+  };
+}
+
 module.exports = {
   // Azure Functions response builders (legacy)
   createSuccessResponse,
@@ -264,5 +308,8 @@ module.exports = {
   sendSuccess,
   sendError,
   sendNotFound,
-  sendValidationError
+  sendValidationError,
+
+  // Error utilities
+  extractErrorDetails
 };

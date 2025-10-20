@@ -34,10 +34,12 @@ async function createBookingCore(tenant, bookingData, correlationId) {
       correlationId,
       errors: validationResult.errors
     });
-    const error = new Error('Invalid booking data');
-    error.statusCode = 400;
-    error.validationErrors = validationResult.errors;
-    throw error;
+    throw {
+      message: 'Invalid booking data',
+      code: 'VALIDATION_ERROR',
+      status: 400,
+      details: validationResult.errors
+    };
   }
 
   // ✅ SLOT AVAILABILITY CHECK
@@ -113,16 +115,17 @@ async function createBookingCore(tenant, bookingData, correlationId) {
         correlationId
       });
 
-      const error = new Error(
-        'The requested time slot is no longer available. Please select a different time.'
-      );
-      error.statusCode = 409;
-      error.code = 'SLOT_UNAVAILABLE';
-      error.availableSlots = availableSlots.slice(0, 10).map(s => ({
-        startAt: s.startAt,
-        appointmentSegments: s.appointmentSegments
-      }));
-      throw error;
+      throw {
+        message: 'The requested time slot is no longer available. Please select a different time.',
+        code: 'SLOT_UNAVAILABLE',
+        status: 409,
+        details: {
+          availableSlots: availableSlots.slice(0, 10).map(s => ({
+            startAt: s.startAt,
+            appointmentSegments: s.appointmentSegments
+          }))
+        }
+      };
     }
 
     logger.info('✅ [AVAILABILITY CHECK] Time slot is still available', {
@@ -207,19 +210,20 @@ async function createBookingCore(tenant, bookingData, correlationId) {
 
         const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
 
-        const error = new Error(
-          'Customer already has an appointment at this time. Please select a different time slot.'
-        );
-        error.statusCode = 409;
-        error.code = 'BOOKING_CONFLICT';
-        error.conflictingBookings = cleanBigIntFromObject(
-          conflictingBookings.map(b => ({
-            id: b.id,
-            startAt: b.startAt,
-            status: b.status
-          }))
-        );
-        throw error;
+        throw {
+          message: 'Customer already has an appointment at this time. Please select a different time slot.',
+          code: 'BOOKING_CONFLICT',
+          status: 409,
+          details: {
+            conflictingBookings: cleanBigIntFromObject(
+              conflictingBookings.map(b => ({
+                id: b.id,
+                startAt: b.startAt,
+                status: b.status
+              }))
+            )
+          }
+        };
       }
 
       logger.info('✅ [CONFLICT CHECK] No customer booking conflicts found', { correlationId });
@@ -242,11 +246,12 @@ async function createBookingCore(tenant, bookingData, correlationId) {
       result
     });
 
-    const error = new Error('Failed to create booking');
-    error.statusCode = 500;
-    error.code = 'BOOKING_CREATION_FAILED';
-    error.serviceError = result.error || 'Booking creation failed';
-    throw error;
+    throw {
+      message: 'Failed to create booking',
+      code: 'BOOKING_CREATION_FAILED',
+      status: 500,
+      details: result.error || 'Booking creation failed'
+    };
   }
 
   logEvent('booking_create_success', {
@@ -430,19 +435,33 @@ async function updateBookingCore(
   // Validate required parameters
   if (!bookingId) {
     console.log('❌ [UPDATE BOOKING CORE] Missing required parameter: bookingId');
-    throw new Error('bookingId is required');
+    throw {
+      message: 'bookingId is required',
+      code: 'MISSING_BOOKING_ID',
+      status: 400
+    };
   }
 
   // Validate startAt if provided
   if (startAt && safeDateToISO(startAt) === 'Invalid Date') {
     console.log('❌ [UPDATE BOOKING CORE] Invalid startAt date:', startAt);
-    throw new Error('Invalid time value for startAt');
+    throw {
+      message: 'Invalid time value for startAt',
+      code: 'INVALID_START_TIME',
+      status: 400,
+      details: { provided: startAt }
+    };
   }
 
   // Validate endAt if provided
   if (endAt && safeDateToISO(endAt) === 'Invalid Date') {
     console.log('❌ [UPDATE BOOKING CORE] Invalid endAt date:', endAt);
-    throw new Error('Invalid time value for endAt');
+    throw {
+      message: 'Invalid time value for endAt',
+      code: 'INVALID_END_TIME',
+      status: 400,
+      details: { provided: endAt }
+    };
   }
 
   console.log('📅 [UPDATE BOOKING CORE] Starting update process for booking:', bookingId);
@@ -473,8 +492,13 @@ async function updateBookingCore(
     console.log('✅ [UPDATE BOOKING CORE] Booking service response:', result);
     return result;
   } catch (error) {
-    console.error('❌ [UPDATE BOOKING CORE] Error calling booking service:', error);
-    throw error;
+    console.error('❌ [UPDATE BOOKING CORE] Error calling booking service:', error.message || error);
+    throw {
+      message: error.message || 'Failed to update booking',
+      code: error.code || 'UPDATE_FAILED',
+      status: error.status || error.statusCode || 500,
+      details: error.details
+    };
   }
 }
 
@@ -1332,7 +1356,11 @@ async function handleUpdateBooking(req, correlationId) {
     // Validate bookingId is present
     if (!bookingId) {
       console.log('❌ [HANDLE UPDATE BOOKING] Missing booking ID');
-      throw new Error('bookingId is required');
+      throw {
+        message: 'bookingId is required',
+        code: 'MISSING_BOOKING_ID',
+        status: 400
+      };
     }
 
     // Handle nested request structure from agents/tools
