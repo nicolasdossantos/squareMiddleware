@@ -8,8 +8,8 @@ on:
 
 env:
   AZURE_WEBAPP_NAME: square-middleware-prod-api
-  AZURE_WEBAPP_PACKAGE_PATH: '.'
-  NODE_VERSION: '20.x'
+  AZURE_WEBAPP_PACKAGE_PATH: "."
+  NODE_VERSION: "20.x"
 
 permissions:
   id-token: write
@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
@@ -54,42 +54,11 @@ jobs:
           cp package.json package-lock.json deploy/
           cp -R node_modules deploy/
 
-      - name: Stop App Service (prevent 409 conflicts)
-        run: |
-          echo "Stopping app service to prevent deployment conflicts..."
-          az webapp stop \
-            --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --resource-group square-middleware-prod-rg
-          echo "Waiting for app to stop completely..."
-          sleep 10
-
-      - name: Clear deployment locks
-        continue-on-error: true
-        run: |
-          echo "Clearing any existing deployment locks..."
-          az webapp deployment list-publishing-credentials \
-            --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --resource-group square-middleware-prod-rg \
-            --query "scmUri" -o tsv | \
-          xargs -I {} curl -X DELETE {}/api/deployments/latest
-
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: ./deploy
-          clean: true
-          restart: true
-
-      - name: Start App Service
-        if: always()
-        run: |
-          echo "Starting app service..."
-          az webapp start \
-            --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --resource-group square-middleware-prod-rg
-          echo "Waiting for app to start..."
-          sleep 15
 
       - name: Configure Health Check
         run: |
@@ -99,25 +68,6 @@ jobs:
             --resource-type Microsoft.Web/sites \
             --name "${{ env.AZURE_WEBAPP_NAME }}/config/web" \
             --set properties.healthCheckPath="/api/health"
-
-      - name: Verify Deployment
-        run: |
-          echo "Verifying deployment health..."
-          max_attempts=10
-          attempt=1
-          while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt of $max_attempts..."
-            status_code=$(curl -s -o /dev/null -w "%{http_code}" https://square-middleware-prod-api.azurewebsites.net/api/health)
-            if [ "$status_code" -eq 200 ]; then
-              echo "✅ Deployment successful! Health check returned 200"
-              exit 0
-            fi
-            echo "⏳ Health check returned $status_code, waiting 10 seconds..."
-            sleep 10
-            attempt=$((attempt + 1))
-          done
-          echo "❌ Deployment verification failed after $max_attempts attempts"
-          exit 1
 
       - name: Azure Logout
         if: always()
