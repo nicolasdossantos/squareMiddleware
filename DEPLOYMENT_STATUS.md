@@ -10,7 +10,9 @@
 ## 📦 What Was Just Deployed
 
 ### Critical Fixes (Priority P0)
+
 1. ✅ **Webhook Circular JSON Error** (commit 63b1e938)
+
    - Fixed circular reference in error responses
    - Added return statements to prevent double-send
    - Included correlation IDs in all errors
@@ -22,11 +24,14 @@
    - Add health check verification
 
 ### Code Quality Improvements (Low Risk)
+
 3. ✅ **Test File Renaming** (commit 8eb7272c)
+
    - Removed `.basic` suffix from test files
    - Consistent naming convention
 
 4. ✅ **Package.json Documentation** (commit 91e7d26a)
+
    - Explained OpenTelemetry override
 
 5. ✅ **Error Codes System** (commit 62ffff43)
@@ -37,13 +42,13 @@
 
 ## 🔄 Deployment Timeline
 
-| Time | Event | Status |
-|------|-------|--------|
-| 17:25 | Webhook errors discovered | ❌ |
-| 17:30 | Root cause identified | 🔍 |
-| 17:45 | Fixes committed & tested | ✅ |
-| 17:51 | First deployment attempt | ❌ 409 Conflict |
-| 17:55 | Deployment workflow fixed | ✅ |
+| Time  | Event                       | Status             |
+| ----- | --------------------------- | ------------------ |
+| 17:25 | Webhook errors discovered   | ❌                 |
+| 17:30 | Root cause identified       | 🔍                 |
+| 17:45 | Fixes committed & tested    | ✅                 |
+| 17:51 | First deployment attempt    | ❌ 409 Conflict    |
+| 17:55 | Deployment workflow fixed   | ✅                 |
 | 18:00 | Second deployment triggered | ⏳ **IN PROGRESS** |
 
 ---
@@ -51,6 +56,7 @@
 ## 📊 Current Deployment Status
 
 ### GitHub Actions Workflow
+
 ```
 Workflow: Deploy to Azure App Service
 Trigger: Push to main (commit e04ff295)
@@ -58,6 +64,7 @@ Status: Running...
 ```
 
 **Check status:**
+
 ```bash
 gh run watch
 ```
@@ -92,6 +99,7 @@ The workflow will execute these steps:
 ## 🎯 Expected Results
 
 ### If Successful
+
 ```
 ✅ All 509 tests passed
 ✅ App stopped successfully
@@ -128,12 +136,14 @@ az webapp log tail \
 ## 🔍 What to Monitor (Next 30 Minutes)
 
 ### 1. GitHub Actions Status
+
 - **Watch for:** Green checkmark on commit e04ff295
 - **If fails:** Check action logs for specific error
 
 ### 2. Azure Application Insights
 
 Query for webhook errors:
+
 ```kql
 traces
 | where timestamp > ago(30m)
@@ -146,6 +156,7 @@ Expected: **0 results**
 ### 3. Retell Webhook Logs
 
 Query for signature verifications:
+
 ```kql
 traces
 | where timestamp > ago(30m)
@@ -162,7 +173,7 @@ Expected: **Steady rate, no spikes** (1 verification per webhook, not 18+)
 requests
 | where timestamp > ago(30m)
 | where url contains "/api/webhooks/retell"
-| summarize 
+| summarize
     Total = count(),
     Success = countif(resultCode < 400),
     Errors = countif(resultCode >= 400)
@@ -220,14 +231,14 @@ git push origin main
 
 After deployment completes successfully, we should see:
 
-| Metric | Before | After | Target |
-|--------|--------|-------|--------|
-| Webhook Success Rate | ~0% | ~95%+ | >95% |
-| Circular JSON Errors | High | 0 | 0 |
-| Deployment 409 Errors | 100% | 0% | 0% |
-| Retell Retry Rate | 18+ per webhook | 1 per webhook | 1 |
-| Health Check Response | Unknown | 200 OK | 200 OK |
-| Deployment Duration | Failed | 3-4 min | <5 min |
+| Metric                | Before          | After         | Target |
+| --------------------- | --------------- | ------------- | ------ |
+| Webhook Success Rate  | ~0%             | ~95%+         | >95%   |
+| Circular JSON Errors  | High            | 0             | 0      |
+| Deployment 409 Errors | 100%            | 0%            | 0%     |
+| Retell Retry Rate     | 18+ per webhook | 1 per webhook | 1      |
+| Health Check Response | Unknown         | 200 OK        | 200 OK |
+| Deployment Duration   | Failed          | 3-4 min       | <5 min |
 
 ---
 
@@ -250,11 +261,13 @@ After GitHub Actions shows success:
 Once deployment is validated:
 
 1. **Switch back to feature branch:**
+
    ```bash
    git checkout code-quality-improvements
    ```
 
 2. **Continue with code quality improvements:**
+
    - Consolidate duplicate webhook services
    - Split bookingController.js
    - Split squareUtils.js
@@ -272,7 +285,7 @@ Once deployment is validated:
 
 **Deployment:** ⏳ **IN PROGRESS**  
 **Monitoring:** Required for next 30 minutes  
-**Next Action:** Wait for GitHub Actions to complete  
+**Next Action:** Wait for GitHub Actions to complete
 
 Check status at: https://github.com/nicolasdossantos/squareMiddleware/actions
 

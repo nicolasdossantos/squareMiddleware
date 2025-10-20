@@ -50,7 +50,13 @@ describe('Error Handler Middleware', () => {
         ip: '127.0.0.1'
       });
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, { field: 'required' }, 'test-correlation-id');
+      expect(sendError).toHaveBeenCalledWith(
+        mockRes,
+        'Validation Error',
+        400,
+        { field: 'required' },
+        'test-correlation-id'
+      );
     });
 
     it('should handle UnauthorizedError with 401 status', () => {
@@ -121,7 +127,13 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Internal Server Error', 500, null, 'test-correlation-id');
+      expect(sendError).toHaveBeenCalledWith(
+        mockRes,
+        'Internal Server Error',
+        500,
+        null,
+        'test-correlation-id'
+      );
     });
 
     it('should hide details in production environment', () => {
@@ -149,7 +161,13 @@ describe('Error Handler Middleware', () => {
 
       errorHandler(error, mockReq, mockRes, mockNext);
 
-      expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, { field: 'visible' }, 'test-correlation-id');
+      expect(sendError).toHaveBeenCalledWith(
+        mockRes,
+        'Validation Error',
+        400,
+        { field: 'visible' },
+        'test-correlation-id'
+      );
 
       process.env.NODE_ENV = originalEnv;
     });

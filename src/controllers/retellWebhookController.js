@@ -649,7 +649,6 @@ async function handleCallInbound(call_inbound, correlationId) {
         staffEmail: agentConfig.staffEmail,
         businessName: agentConfig.businessName
       };
-
     } catch (configError) {
       // Fallback to environment variables if config lookup fails
       console.warn(
@@ -730,8 +729,22 @@ async function handleCallInbound(call_inbound, correlationId) {
       }
     };
 
-    // Call the existing getCustomerInfoByPhone function to get exact ElevenLabs format
-    await customerController.getCustomerInfoByPhone(mockReq, mockRes);
+    // CRITICAL: Wrap getCustomerInfoByPhone in try-catch to prevent circular ref errors from
+    // propagating. If customerService throws an axios error, it has circular Socket references
+    // that crash JSON.stringify when serialized in the response.
+    try {
+      await customerController.getCustomerInfoByPhone(mockReq, mockRes);
+    } catch (customerLookupError) {
+      logEvent('retell_customer_lookup_error', {
+        correlationId,
+        agentId: agent_id,
+        error: customerLookupError.message || String(customerLookupError)
+      });
+
+      // If customer lookup fails, proceed with null customerResponse
+      // The dynamic variables will use defaults
+      customerResponse = null;
+    }
 
     // Return the exact same response format as ElevenLabs, including tenant info for business name
     const result = {

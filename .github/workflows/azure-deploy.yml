@@ -8,8 +8,8 @@ on:
 
 env:
   AZURE_WEBAPP_NAME: square-middleware-prod-api
-  AZURE_WEBAPP_PACKAGE_PATH: "."
-  NODE_VERSION: "20.x"
+  AZURE_WEBAPP_PACKAGE_PATH: '.'
+  NODE_VERSION: '20.x'
 
 permissions:
   id-token: write
@@ -27,7 +27,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci

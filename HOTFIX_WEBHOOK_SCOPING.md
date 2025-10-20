@@ -2,20 +2,23 @@
 
 **Date:** October 20, 2025  
 **Severity:** CRITICAL - Production Breaking  
-**Status:** FIXED  
+**Status:** FIXED
 
 ---
 
 ## 🔥 PROBLEM
 
 ### Production Error:
+
 ```
 ReferenceError: webhookData is not defined
 at handleRetellWebhook (/home/site/wwwroot/src/controllers/retellWebhookController.js:291:14)
 ```
 
 ### Root Cause:
-Variable scoping issue in `retellWebhookController.js`. The variable `webhookData` was declared inside the `try` block:
+
+Variable scoping issue in `retellWebhookController.js`. The variable `webhookData` was declared inside the
+`try` block:
 
 ```javascript
 async function handleRetellWebhook(req, res) {
@@ -23,11 +26,11 @@ async function handleRetellWebhook(req, res) {
   const { correlationId } = req;
 
   try {
-    const webhookData = req.body;  // ❌ Declared inside try block
+    const webhookData = req.body; // ❌ Declared inside try block
     // ... processing logic
   } catch (error) {
     logPerformance(correlationId, 'retell_webhook_error', startTime, {
-      event: webhookData?.event,  // ❌ OUT OF SCOPE - webhookData not accessible here
+      event: webhookData?.event, // ❌ OUT OF SCOPE - webhookData not accessible here
       error: error.message
     });
   }
@@ -35,9 +38,13 @@ async function handleRetellWebhook(req, res) {
 ```
 
 ### Why This Happened:
-In commit `60b4de03` ("Fix webhook short circuting"), debug console.log statements were removed. Previously, there may have been statements in the catch block that obscured this scoping bug, or the variable was being hoisted differently.
+
+In commit `60b4de03` ("Fix webhook short circuting"), debug console.log statements were removed. Previously,
+there may have been statements in the catch block that obscured this scoping bug, or the variable was being
+hoisted differently.
 
 **JavaScript Scope Rules:**
+
 - Variables declared with `const` or `let` inside a block (`{}`) are block-scoped
 - They are NOT accessible outside that block
 - The `catch` block is separate from the `try` block
@@ -47,6 +54,7 @@ In commit `60b4de03` ("Fix webhook short circuting"), debug console.log statemen
 ## ✅ SOLUTION
 
 ### Fix Applied:
+
 Move the `webhookData` declaration outside the try block using `let`:
 
 ```javascript
@@ -56,11 +64,11 @@ async function handleRetellWebhook(req, res) {
   let webhookData; // ✅ Declared outside try block - accessible in catch
 
   try {
-    webhookData = req.body;  // ✅ Assignment (not declaration)
+    webhookData = req.body; // ✅ Assignment (not declaration)
     // ... processing logic
   } catch (error) {
     logPerformance(correlationId, 'retell_webhook_error', startTime, {
-      event: webhookData?.event,  // ✅ Now in scope!
+      event: webhookData?.event, // ✅ Now in scope!
       error: error.message
     });
   }
@@ -68,6 +76,7 @@ async function handleRetellWebhook(req, res) {
 ```
 
 ### Why This Works:
+
 - `let webhookData` declares the variable in the function scope
 - The variable is accessible in both the `try` and `catch` blocks
 - The `?.` operator safely handles if `webhookData` is undefined
@@ -77,6 +86,7 @@ async function handleRetellWebhook(req, res) {
 ## 🧪 TESTING
 
 ### Test Results:
+
 ```bash
 Test Suites: 36 passed, 36 total
 Tests:       6 skipped, 509 passed, 515 total
@@ -85,6 +95,7 @@ Tests:       6 skipped, 509 passed, 515 total
 ✅ All tests passing
 
 ### Production Validation Plan:
+
 1. Deploy hotfix to production
 2. Monitor Application Insights for:
    - No more "webhookData is not defined" errors
@@ -96,12 +107,14 @@ Tests:       6 skipped, 509 passed, 515 total
 ## 📊 IMPACT ANALYSIS
 
 ### Before Fix:
+
 - ❌ ALL Retell webhooks failing with 500 errors
 - ❌ Call sessions not being created
 - ❌ Email notifications not being sent
 - ❌ Post-call analysis not working
 
 ### After Fix:
+
 - ✅ Webhooks process successfully
 - ✅ Error logging includes event type for debugging
 - ✅ No functional changes to webhook logic
@@ -111,12 +124,15 @@ Tests:       6 skipped, 509 passed, 515 total
 ## 🔍 LESSONS LEARNED
 
 ### Prevention Strategies:
+
 1. **Code Review Checklist:**
+
    - Check variable scope when removing debug statements
    - Verify variables used in catch blocks are accessible
    - Look for `const` declarations inside try blocks that are used in catch
 
 2. **Testing:**
+
    - Add integration tests that trigger catch blocks
    - Test error paths, not just happy paths
    - Smoke test production after deployments
@@ -135,6 +151,7 @@ src/controllers/retellWebhookController.js (1 line)
 ```
 
 **Diff:**
+
 ```diff
   async function handleRetellWebhook(req, res) {
     const startTime = Date.now();
@@ -163,6 +180,7 @@ src/controllers/retellWebhookController.js (1 line)
 ## 🚀 DEPLOYMENT
 
 ### Immediate Actions:
+
 ```bash
 # Commit the fix
 git add src/controllers/retellWebhookController.js
@@ -174,7 +192,9 @@ git push origin main
 ```
 
 ### Monitoring:
+
 Watch Application Insights for 30 minutes post-deployment:
+
 ```kql
 traces
 | where timestamp > ago(30m)
@@ -190,7 +210,7 @@ traces
 **Fix:** Move declaration outside try block  
 **Status:** FIXED ✅  
 **Tests:** PASSING ✅  
-**Ready for Deploy:** YES ✅  
+**Ready for Deploy:** YES ✅
 
 **Prepared by:** GitHub Copilot  
 **Date:** October 20, 2025

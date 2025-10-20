@@ -11,14 +11,17 @@
 
 ### Problem
 
-Retell AI webhooks were failing in production with **500 Internal Server Error** and causing a **retry storm** (18+ signature verifications per webhook).
+Retell AI webhooks were failing in production with **500 Internal Server Error** and causing a **retry storm**
+(18+ signature verifications per webhook).
 
 ### Root Cause
 
 Two critical bugs in `retellWebhookController.js`:
 
-1. **Circular JSON Serialization** - The error handler was trying to serialize an error object that contained circular references (Socket objects from Express.js)
-2. **Missing Return Statement** - The error handler wasn't returning after sending response, potentially causing double-sends
+1. **Circular JSON Serialization** - The error handler was trying to serialize an error object that contained
+   circular references (Socket objects from Express.js)
+2. **Missing Return Statement** - The error handler wasn't returning after sending response, potentially
+   causing double-sends
 
 ---
 
@@ -41,7 +44,7 @@ Response data: [{"success":false,"error":"1","message":"1","timestamp":"2",
 ### Affected Events
 
 - `call_inbound` - ❌ Failing
-- `call_started` - ❌ Failing  
+- `call_started` - ❌ Failing
 - `call_ended` - ❌ Failing
 - `call_analyzed` - ❌ Failing
 
@@ -68,6 +71,7 @@ Each webhook failure triggered Retell's retry mechanism:
 **Location:** `src/controllers/retellWebhookController.js:296`
 
 **Before:**
+
 ```javascript
 } catch (error) {
   logPerformance(correlationId, 'retell_webhook_error', startTime, {
@@ -80,14 +84,15 @@ Each webhook failure triggered Retell's retry mechanism:
 }
 ```
 
-**Problem:**
-When `error.message` is `undefined`, JavaScript passes the entire `error` object as the `details` parameter. Express.js errors contain circular references:
+**Problem:** When `error.message` is `undefined`, JavaScript passes the entire `error` object as the `details`
+parameter. Express.js errors contain circular references:
 
 ```
 Error → req → socket → parser → socket (circular!)
 ```
 
 **After:**
+
 ```javascript
 } catch (error) {
   // Safe error serialization - extract only serializable properties
@@ -111,18 +116,20 @@ Error → req → socket → parser → socket (circular!)
 **Location:** `src/controllers/retellWebhookController.js:289`
 
 **Before:**
+
 ```javascript
 // For all other webhooks, acknowledge with 204 status
-res.status(204).send();  // ❌ No return!
+res.status(204).send(); // ❌ No return!
 ```
 
-**Problem:**
-Without `return`, the function continues executing. If an error occurs later, it could try to send a response twice, causing Express errors.
+**Problem:** Without `return`, the function continues executing. If an error occurs later, it could try to
+send a response twice, causing Express errors.
 
 **After:**
+
 ```javascript
 // For all other webhooks, acknowledge with 204 status
-return res.status(204).send();  // ✅ Explicit return
+return res.status(204).send(); // ✅ Explicit return
 ```
 
 ---
@@ -132,15 +139,17 @@ return res.status(204).send();  // ✅ Explicit return
 **Location:** `src/middlewares/errorHandler.js:51`
 
 **Before:**
+
 ```javascript
 // Send error response
-sendError(res, message, statusCode, details);  // ❌ No correlationId
+sendError(res, message, statusCode, details); // ❌ No correlationId
 ```
 
 **After:**
+
 ```javascript
 // Send error response with correlation ID for tracking
-sendError(res, message, statusCode, details, req.correlationId);  // ✅ Include correlationId
+sendError(res, message, statusCode, details, req.correlationId); // ✅ Include correlationId
 ```
 
 ---
@@ -188,7 +197,13 @@ Updated 11 test cases in `errorHandler.test.js` to expect the new 5-parameter si
 expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, { field: 'required' });
 
 // After:
-expect(sendError).toHaveBeenCalledWith(mockRes, 'Validation Error', 400, { field: 'required' }, 'test-correlation-id');
+expect(sendError).toHaveBeenCalledWith(
+  mockRes,
+  'Validation Error',
+  400,
+  { field: 'required' },
+  'test-correlation-id'
+);
 ```
 
 **Result:** All 509 tests passing ✅
@@ -244,11 +259,12 @@ After deployment, Retell webhooks should:
 Monitor these Azure Application Insights queries for 1 hour after deployment:
 
 ### 1. Webhook Success Rate
+
 ```kql
 requests
 | where timestamp > ago(1h)
 | where url contains "/api/webhooks/retell"
-| summarize 
+| summarize
     Total = count(),
     Success = countif(resultCode == 200 or resultCode == 204),
     Errors = countif(resultCode >= 400)
@@ -260,6 +276,7 @@ requests
 ---
 
 ### 2. Circular JSON Errors
+
 ```kql
 traces
 | where timestamp > ago(1h)
@@ -272,6 +289,7 @@ traces
 ---
 
 ### 3. Webhook Retry Count
+
 ```kql
 requests
 | where timestamp > ago(1h)
@@ -285,6 +303,7 @@ requests
 ---
 
 ### 4. Error Response Format
+
 ```kql
 requests
 | where timestamp > ago(1h)
@@ -300,23 +319,24 @@ requests
 
 ## 🚀 DEPLOYMENT TIMELINE
 
-| Time | Event |
-|------|-------|
-| 17:25 UTC | Issue discovered in production logs |
+| Time      | Event                                                  |
+| --------- | ------------------------------------------------------ |
+| 17:25 UTC | Issue discovered in production logs                    |
 | 17:30 UTC | Root cause identified (circular JSON + missing return) |
-| 17:35 UTC | Fixes implemented and tested locally |
-| 17:40 UTC | All 509 tests passing |
-| 17:45 UTC | Committed to `code-quality-improvements` branch |
-| 17:50 UTC | Merged to `main` |
-| 17:51 UTC | Pushed to GitHub (commit `63b1e938`) |
-| 17:52 UTC | Azure deployment triggered |
-| 17:55 UTC | **Deployment complete** ✅ |
+| 17:35 UTC | Fixes implemented and tested locally                   |
+| 17:40 UTC | All 509 tests passing                                  |
+| 17:45 UTC | Committed to `code-quality-improvements` branch        |
+| 17:50 UTC | Merged to `main`                                       |
+| 17:51 UTC | Pushed to GitHub (commit `63b1e938`)                   |
+| 17:52 UTC | Azure deployment triggered                             |
+| 17:55 UTC | **Deployment complete** ✅                             |
 
 ---
 
 ## 📚 LESSONS LEARNED
 
 ### 1. Always Return After Sending Response
+
 ```javascript
 // ❌ BAD
 res.status(200).json({ success: true });
@@ -326,6 +346,7 @@ return res.status(200).json({ success: true });
 ```
 
 ### 2. Never Pass Error Objects Directly
+
 ```javascript
 // ❌ BAD - Can contain circular references
 sendError(res, 'Failed', 500, error);
@@ -335,6 +356,7 @@ sendError(res, 'Failed', 500, error.message || error.toString());
 ```
 
 ### 3. Always Include Correlation IDs
+
 ```javascript
 // ❌ BAD
 sendError(res, 'Failed', 500, details);
@@ -344,6 +366,7 @@ sendError(res, 'Failed', 500, details, req.correlationId);
 ```
 
 ### 4. Test Error Paths Thoroughly
+
 - Ensure error handlers are tested with various error types
 - Include tests for missing/undefined properties
 - Verify response format matches expectations
@@ -379,4 +402,5 @@ If issues persist after deployment:
 
 ---
 
-**Next Steps:** Monitor production for 1 hour, then continue with remaining code quality improvements on `code-quality-improvements` branch.
+**Next Steps:** Monitor production for 1 hour, then continue with remaining code quality improvements on
+`code-quality-improvements` branch.

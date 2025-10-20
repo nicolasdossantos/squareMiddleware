@@ -5,22 +5,27 @@
 ### Issue 1: Missing node_modules on Deployment (Commit b31807be)
 
 **Problem:**
+
 - App was crashing with `Error: Cannot find module 'express'`
 - Root cause: `azure/webapps-deploy@v2` automatically excludes `node_modules` from deployment
-- Workflow was copying `node_modules` to deploy folder, but Azure Oryx build system saw them and skipped `npm install`, then excluded them from final deployment
+- Workflow was copying `node_modules` to deploy folder, but Azure Oryx build system saw them and skipped
+  `npm install`, then excluded them from final deployment
 
 **Timeline:**
+
 - 19:06 UTC: Manual restart worked (old node_modules still present from previous deployment)
 - 19:56 UTC: New deployment started, wiped files including node_modules
 - 20:06 UTC: Deployment completed but app crashed (no node_modules to require dependencies)
 
 **Solution:**
+
 1. Removed `npm ci --omit=dev` step from workflow
 2. Removed `cp -R node_modules deploy/` from package creation
 3. Let Azure's Oryx build system handle `npm install --production` on server
 4. `SCM_DO_BUILD_DURING_DEPLOYMENT=true` already configured in Azure
 
 **Changes:**
+
 ```yaml
 # REMOVED:
 - name: Install production dependencies
@@ -42,17 +47,20 @@ cp -R node_modules deploy/
 ### Issue 2: Deployment Verification Timeout Too Short (Commit d38e6d6b)
 
 **Problem:**
+
 - Workflow verification was timing out at 100 seconds
 - npm install + app startup takes 2-3 minutes on Azure's container
 - Health check was failing 10 times at 10-second intervals, then exiting
 
 **Solution:**
+
 1. Increased initial wait from 15s to 30s (let npm install start)
 2. Increased verification attempts from 10 to 24 (360 seconds total)
 3. Increased wait between attempts from 10s to 15s
 4. Added timeout to curl commands (10s connect + read timeout)
 
 **Changes:**
+
 ```yaml
 # BEFORE: Total ~100 seconds
 max_attempts=10
@@ -96,34 +104,36 @@ curl --connect-timeout 10 --max-time 10
 ## Related Production Fixes (Previous Session)
 
 ### Circular JSON Serialization Fix (Commit 63b1e938)
-**Issue:** Webhook error responses were serializing entire error object including Socket references
-**Fix:** Extract only `error.message || error.toString()` before sending
-**File:** `src/controllers/retellWebhookController.js` line 299
-**Impact:** All webhook types (call_inbound, call_started, call_ended, call_analyzed) now return proper JSON
+
+**Issue:** Webhook error responses were serializing entire error object including Socket references **Fix:**
+Extract only `error.message || error.toString()` before sending **File:**
+`src/controllers/retellWebhookController.js` line 299 **Impact:** All webhook types (call_inbound,
+call_started, call_ended, call_analyzed) now return proper JSON
 
 ### Correlations ID Tracking (Commit 63b1e938)
-**Issue:** Error responses missing tracking correlation ID
-**Fix:** Added `req.correlationId` as 5th parameter to all `sendError()` calls
-**File:** `src/middlewares/errorHandler.js` line 51
-**Impact:** Better error tracking in Application Insights
+
+**Issue:** Error responses missing tracking correlation ID **Fix:** Added `req.correlationId` as 5th parameter
+to all `sendError()` calls **File:** `src/middlewares/errorHandler.js` line 51 **Impact:** Better error
+tracking in Application Insights
 
 ---
 
 ## Current Status
 
-| Item | Status | Details |
-|------|--------|---------|
-| Test Suite | ✅ 509/509 | All passing |
-| Webhook Fix | ✅ Deployed | Circular JSON fixed (commit 63b1e938) |
-| Deployment Package | ✅ Fixed | node_modules removed (commit b31807be) |
-| Verification Timeout | ✅ Fixed | Extended to 6 minutes (commit d38e6d6b) |
-| Deployment Running | 🔄 In Progress | Waiting for verification step |
+| Item                 | Status         | Details                                 |
+| -------------------- | -------------- | --------------------------------------- |
+| Test Suite           | ✅ 509/509     | All passing                             |
+| Webhook Fix          | ✅ Deployed    | Circular JSON fixed (commit 63b1e938)   |
+| Deployment Package   | ✅ Fixed       | node_modules removed (commit b31807be)  |
+| Verification Timeout | ✅ Fixed       | Extended to 6 minutes (commit d38e6d6b) |
+| Deployment Running   | 🔄 In Progress | Waiting for verification step           |
 
 ---
 
 ## Monitoring
 
 Watch for:
+
 1. **npm install completion** - Look for successful dependency installation in logs
 2. **App startup** - Health endpoint should respond with 200 OK
 3. **Webhook success** - Next Retell webhook should work without circular JSON errors

@@ -9,22 +9,23 @@
 
 ## Timeline Summary
 
-| Time | Event | Status |
-|------|-------|--------|
-| 19:06 UTC | Manual restart (app healthy) | ✅ Successful |
-| 19:56 UTC | Container crash - "Cannot find module 'express'" | ❌ Production outage |
-| 20:06 UTC | npm install not running, dependencies missing | ❌ Deployment failed |
-| 20:25 UTC | Root cause identified: azure/webapps-deploy excludes node_modules | ✅ Diagnosed |
-| 20:25:19 UTC | Commit b31807be: Remove node_modules from deployment | ✅ Deployed |
-| 20:25:22 UTC | Commit d38e6d6b: Extended verification timeout (attempt 1) | ✅ Deployed |
-| 20:26 UTC | Commit 0232f5d7: Removed blocking verification entirely (final fix) | ✅ Deployed |
-| 17:03 EDT | Monitoring app startup - npm install in progress | 🔄 Current |
+| Time         | Event                                                               | Status               |
+| ------------ | ------------------------------------------------------------------- | -------------------- |
+| 19:06 UTC    | Manual restart (app healthy)                                        | ✅ Successful        |
+| 19:56 UTC    | Container crash - "Cannot find module 'express'"                    | ❌ Production outage |
+| 20:06 UTC    | npm install not running, dependencies missing                       | ❌ Deployment failed |
+| 20:25 UTC    | Root cause identified: azure/webapps-deploy excludes node_modules   | ✅ Diagnosed         |
+| 20:25:19 UTC | Commit b31807be: Remove node_modules from deployment                | ✅ Deployed          |
+| 20:25:22 UTC | Commit d38e6d6b: Extended verification timeout (attempt 1)          | ✅ Deployed          |
+| 20:26 UTC    | Commit 0232f5d7: Removed blocking verification entirely (final fix) | ✅ Deployed          |
+| 17:03 EDT    | Monitoring app startup - npm install in progress                    | 🔄 Current           |
 
 ---
 
 ## Problem & Solution
 
 ### The Bug
+
 ```
 Workflow created ./deploy/node_modules/
   ↓
@@ -44,21 +45,25 @@ CRASH
 ### The Fix (3 Commits)
 
 **Commit b31807be** - `fix: Remove node_modules from deployment package`
+
 - Removed: `npm ci --omit=dev` step
 - Removed: `cp -R node_modules deploy/` line
 - Now: Deploy only src/, package.json, package-lock.json
 
 **Commit d38e6d6b** - `fix: Extend deployment verification timeout for npm install`
+
 - Increased verification attempts: 10 → 24
 - Increased interval: 10s → 15s
 - Reason: Attempt to allow npm install to complete during workflow
 
 **Commit 0232f5d7** - `fix: Remove blocking health check verification from workflow`
+
 - **Removed** entire verification loop
 - Reason: Workflow timeout was killing npm install before completion
 - **Correct approach:** Let app start asynchronously, don't block workflow
 
 ### Result
+
 ```
 Workflow deploys and exits in ~30 seconds
   ↓
@@ -90,6 +95,7 @@ Health endpoint → 200 OK
 ## How to Monitor
 
 **Live monitoring** (running in background terminal):
+
 ```bash
 for i in {1..20}; do
   echo "Check $i: $(curl -s https://square-middleware-prod-api.azurewebsites.net/api/health | jq '.data.status' 2>/dev/null)"
@@ -98,6 +104,7 @@ done
 ```
 
 **Once app is healthy (200 OK):**
+
 ```bash
 # Expected response:
 curl https://square-middleware-prod-api.azurewebsites.net/api/health
@@ -118,12 +125,14 @@ curl https://square-middleware-prod-api.azurewebsites.net/api/health
 ## Production Fixes Deployed
 
 ### Webhook Circular JSON Error (Commit 63b1e938)
+
 - **Status:** ✅ Deployed, awaiting webhook verification
 - **What was fixed:** Circular reference in error serialization
 - **Where:** `src/controllers/retellWebhookController.js` line 299
 - **Verification:** Next Retell webhook should succeed without circular JSON error
 
 ### Correlation ID Tracking (Commit 63b1e938)
+
 - **Status:** ✅ Deployed
 - **What added:** Correlation ID to all error responses
 - **Where:** `src/middlewares/errorHandler.js` line 51
@@ -134,6 +143,7 @@ curl https://square-middleware-prod-api.azurewebsites.net/api/health
 ## Key Deployment Changes
 
 ### Old Workflow (Failed)
+
 ```yaml
 - Install dependencies locally: npm ci --omit=dev
 - Copy to deployment: cp -R node_modules deploy/
@@ -142,6 +152,7 @@ curl https://square-middleware-prod-api.azurewebsites.net/api/health
 ```
 
 ### New Workflow (Working)
+
 ```yaml
 - Create deployment package: src/, package.json, package-lock.json (no node_modules)
 - Deploy to Azure
@@ -155,16 +166,19 @@ curl https://square-middleware-prod-api.azurewebsites.net/api/health
 ## Next Steps
 
 ### Immediate (Next 2-3 minutes)
+
 1. ⏳ Monitor health endpoint for 200 OK
 2. ✅ When healthy, app is ready for traffic
 3. 🎯 Await next Retell webhook event
 
 ### When Webhook Arrives
+
 1. ✅ Verify webhook returns 200/204 (not 500)
 2. ✅ Confirm no circular JSON error
 3. ✅ Check only 1 signature verification (not 18+ retries)
 
 ### Then Continue Code Quality
+
 1. 🔄 Consolidate duplicate services
 2. 🔄 Split large controllers/utils
 3. 🔄 Add circuit breaker pattern
@@ -206,15 +220,15 @@ fe0ac8c9 - docs: Add comprehensive deployment analysis and status documentation
 
 ## Success Criteria (Real-time)
 
-| Criterion | Expected | Status |
-|-----------|----------|--------|
-| Workflow completes | < 1 min | ✅ 0232f5d7 done |
-| Files deployed | 100% | ✅ Complete |
-| Health endpoint exists | 503 initially | 🔄 Monitoring |
-| npm install runs | ~2-3 min | 🔄 In progress |
-| Health becomes 200 | After npm done | ⏳ Waiting |
-| Next webhook works | 200/204 response | ⏳ Awaiting webhook |
-| No circular JSON | Zero errors | ⏳ Awaiting webhook |
+| Criterion              | Expected         | Status              |
+| ---------------------- | ---------------- | ------------------- |
+| Workflow completes     | < 1 min          | ✅ 0232f5d7 done    |
+| Files deployed         | 100%             | ✅ Complete         |
+| Health endpoint exists | 503 initially    | 🔄 Monitoring       |
+| npm install runs       | ~2-3 min         | 🔄 In progress      |
+| Health becomes 200     | After npm done   | ⏳ Waiting          |
+| Next webhook works     | 200/204 response | ⏳ Awaiting webhook |
+| No circular JSON       | Zero errors      | ⏳ Awaiting webhook |
 
 ---
 
@@ -224,7 +238,7 @@ fe0ac8c9 - docs: Add comprehensive deployment analysis and status documentation
 ✅ Identified root cause quickly  
 ✅ Fixed blocker (timeout issue)  
 ✅ Applied correct solution (no verification blocking)  
-✅ Created comprehensive documentation  
+✅ Created comprehensive documentation
 
 ---
 
@@ -250,11 +264,12 @@ curl https://square-middleware-prod-api.azurewebsites.net/api/health | jq '.'
 
 **Status:** 🟢 **DEPLOYMENT SUCCESSFUL - APP COMING ONLINE**
 
-The workflow completed successfully (commit 0232f5d7). The app is deploying without blocking verification loops. Azure is now:
+The workflow completed successfully (commit 0232f5d7). The app is deploying without blocking verification
+loops. Azure is now:
+
 1. Extracting deployment files
 2. Running `npm ci --production`
 3. Starting the Node.js application
 4. (Should be ready in ~2-3 minutes)
 
 Webhook circular JSON fix is already deployed (63b1e938) and will be verified when the next webhook arrives.
-

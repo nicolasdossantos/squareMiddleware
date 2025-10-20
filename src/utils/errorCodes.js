@@ -400,11 +400,11 @@ function createError(errorCodeKey, details = {}, correlationId = null, customMes
   const error = new Error(customMessage || details.message || errorDef.message);
 
   // Add standardized properties
-  error.code = errorCodeKey;              // String code (e.g., 'BOOKING_NOT_FOUND')
-  error.errorCode = errorDef.code;        // Numeric code (e.g., 3001)
-  error.statusCode = errorDef.status;     // HTTP status (e.g., 404)
-  error.details = details;                 // Additional context
-  error.correlationId = correlationId;    // Request tracking ID
+  error.code = errorCodeKey; // String code (e.g., 'BOOKING_NOT_FOUND')
+  error.errorCode = errorDef.code; // Numeric code (e.g., 3001)
+  error.statusCode = errorDef.status; // HTTP status (e.g., 404)
+  error.details = details; // Additional context
+  error.correlationId = correlationId; // Request tracking ID
 
   // Preserve stack trace
   if (Error.captureStackTrace) {

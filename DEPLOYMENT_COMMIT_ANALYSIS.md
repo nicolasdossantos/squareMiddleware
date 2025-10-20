@@ -4,7 +4,8 @@
 
 **Current Status:** Commit a01cb1d0 deployed with CORRECT settings  
 **Problem Fixed:** Verification timeout was too short (100 sec), extended to 240 sec (4 min) for npm install  
-**Root Cause:** My mistake in commit 0232f5d7 removed verification loop entirely, then subsequent fixes didn't provide adequate timeout
+**Root Cause:** My mistake in commit 0232f5d7 removed verification loop entirely, then subsequent fixes didn't
+provide adequate timeout
 
 ---
 
@@ -12,23 +13,24 @@
 
 ### Timeline
 
-| Commit | Time | Change | Status |
-|--------|------|--------|--------|
-| (before e04ff295) | - | Old: `npm ci`, copy node_modules, no verification | ❌ Failed |
-| **e04ff295** | - | Add: Stop/Start, Clean/Restart params, Verify loop (10×10s=100s) | ⚠️ Worked temporarily |
-| **8fcdbd59** | - | Remove: `clean: true`, `restart: true` (unsupported) | ✅ Better |
-| **b31807be** | - | Remove: `npm ci --omit=dev`, `cp -R node_modules` | ✅ Correct approach |
-| **d38e6d6b** | - | Update: Verify 10×10s → 24×15s = 360 sec (6 min) | ✅ Good timeout |
-| **0232f5d7** | 16:59 | **REMOVE: sleep 30 + ENTIRE Verify loop** | ❌ **I BROKE IT** |
-| **c2e3f531** | 17:15 | Restore: `sleep 15` only (NO Verify loop) | ⚠️ Partial fix |
-| **41a26b7f** | 17:16 | Restore: Verify loop (10×10s=100s) | ⚠️ Timeout too short |
-| **a01cb1d0** | 17:17 | Fix: Verify 10×10s → 24×10s = 240 sec (4 min) | ✅ **CURRENT - CORRECT** |
+| Commit            | Time  | Change                                                           | Status                   |
+| ----------------- | ----- | ---------------------------------------------------------------- | ------------------------ |
+| (before e04ff295) | -     | Old: `npm ci`, copy node_modules, no verification                | ❌ Failed                |
+| **e04ff295**      | -     | Add: Stop/Start, Clean/Restart params, Verify loop (10×10s=100s) | ⚠️ Worked temporarily    |
+| **8fcdbd59**      | -     | Remove: `clean: true`, `restart: true` (unsupported)             | ✅ Better                |
+| **b31807be**      | -     | Remove: `npm ci --omit=dev`, `cp -R node_modules`                | ✅ Correct approach      |
+| **d38e6d6b**      | -     | Update: Verify 10×10s → 24×15s = 360 sec (6 min)                 | ✅ Good timeout          |
+| **0232f5d7**      | 16:59 | **REMOVE: sleep 30 + ENTIRE Verify loop**                        | ❌ **I BROKE IT**        |
+| **c2e3f531**      | 17:15 | Restore: `sleep 15` only (NO Verify loop)                        | ⚠️ Partial fix           |
+| **41a26b7f**      | 17:16 | Restore: Verify loop (10×10s=100s)                               | ⚠️ Timeout too short     |
+| **a01cb1d0**      | 17:17 | Fix: Verify 10×10s → 24×10s = 240 sec (4 min)                    | ✅ **CURRENT - CORRECT** |
 
 ---
 
 ## What Each Commit Did to Workflow
 
 ### e04ff295 - Initial 409 Fix
+
 ```
 ADDED:
 - Stop App Service (prevent 409 conflicts)
@@ -41,10 +43,12 @@ KEPT:
 - npm ci --omit=dev (local)
 - cp -R node_modules deploy/ (local)
 ```
+
 **Why deployed:** 409 Conflict errors on concurrent deploys  
 **Status:** Worked briefly but timeouts started occurring
 
 ### 8fcdbd59 - Remove Invalid Parameters
+
 ```
 REMOVED:
 - clean: true (not supported by azure/webapps-deploy@v2)
@@ -52,10 +56,12 @@ REMOVED:
 
 KEPT: Everything else from e04ff295
 ```
+
 **Why deployed:** Parameters caused workflow failures  
 **Status:** Better, but still had issues
 
 ### b31807be - Fix Node Modules Exclusion
+
 ```
 REMOVED:
 - npm ci --omit=dev (local install)
@@ -63,11 +69,13 @@ REMOVED:
 
 KEPT: Stop/Start/Verify pattern
 ```
+
 **Why deployed:** Azure Oryx auto-excludes node_modules, build process broken  
 **Correct insight:** Deploy source only, let Azure run npm ci --production  
 **Status:** Correct architecture
 
 ### d38e6d6b - Extended Verification Timeout
+
 ```
 CHANGED Verify Deployment:
 - Attempts: 10 → 24
@@ -76,10 +84,12 @@ CHANGED Verify Deployment:
 - Added: --connect-timeout 10 --max-time 10 to curl
 - Added: sleep 30 after Start App Service
 ```
+
 **Why deployed:** Attempt to allow npm install to complete during verification  
 **Status:** Better timeout, but verification still blocking
 
 ### 0232f5d7 - **MY MISTAKE**
+
 ```
 REMOVED:
 - sleep 30 after Start App Service
@@ -87,12 +97,14 @@ REMOVED:
 
 KEPT: Everything else
 ```
+
 **Why deployed:** Thought verification was the blocker  
 **Rationale at time:** "Remove blocking verification, let npm install run async"  
 **Result:** ❌ **App starts before npm install finishes = MODULE_NOT_FOUND crash**  
 **Status:** **BROKE PRODUCTION**
 
 ### c2e3f531 - Partial Restoration
+
 ```
 RESTORED:
 - sleep 15 after Start App Service
@@ -100,27 +112,32 @@ RESTORED:
 STILL MISSING:
 - Verify Deployment loop (the critical part!)
 ```
+
 **Why deployed:** Realized sleep was needed  
 **Status:** Still incomplete, no verification
 
 ### 41a26b7f - Restored Verification (with bug)
+
 ```
 RESTORED:
 - Verify Deployment loop
 - BUT: Only 10 attempts × 10 sec = 100 seconds!
 - (Not the 24×15s=360s from d38e6d6b)
 ```
+
 **Why deployed:** Needed verification back  
 **Problem:** Verification loop too short (100s < 180s npm install time)  
 **Result:** Workflow times out waiting for app that's still installing
 
 ### a01cb1d0 - **CURRENT FIX**
+
 ```
 CHANGED Verify Deployment:
 - Attempts: 10 → 24 (restored d38e6d6b value)
 - Interval: stays 10s
 - Total: 100s → 240s (4 minutes)
 ```
+
 **Why deployed:** Extend timeout for npm install (2-3 min) with margin  
 **Status:** ✅ **CORRECT - Should work now**
 
@@ -155,6 +172,7 @@ CHANGED Verify Deployment:
 ```
 
 ### Timeline During Deployment
+
 ```
 0s:   Workflow starts deployment
 ~30s: Files uploaded to Azure
@@ -177,6 +195,7 @@ CHANGED Verify Deployment:
 ## Why This Matters
 
 ### The npm install Problem
+
 - **Local:** `npm ci` takes ~23 seconds (cached, powerful machine)
 - **Azure:** `npm ci --production` takes **2-3 minutes** on shared Linux container
   - Download ~1500 packages
@@ -185,12 +204,14 @@ CHANGED Verify Deployment:
   - Limited CPU/RAM on budget tier
 
 ### Why Verification Loop is Essential
+
 1. **Can't skip it:** App won't be ready if we exit workflow immediately
 2. **Can't make it too short:** npm install hasn't finished yet
 3. **Can't make it too long:** GitHub Actions timeout at 6 hours, but tests should finish faster
 4. **Sweet spot:** 4 minutes (240 sec) gives npm install 3 min + 1 min buffer
 
 ### Why My Commit 0232f5d7 Was Wrong
+
 ```
 Reasoning: "Blocking verification times out, let it run async"
 Reality:   Async didn't work - app crashed with missing modules
@@ -208,12 +229,14 @@ Lesson:    Can't async a DEPENDENCY installation
 **Status:** In progress (verification loop running)  
 **Expected completion:** ~4 minutes from deployment start  
 **Success criteria:**
+
 - [ ] Workflow completes with exit code 0
 - [ ] Health endpoint returns 200 OK
 - [ ] App uptime > 5 seconds
 - [ ] Next Retell webhook processes without circular JSON error
 
 ### Monitoring
+
 ```bash
 # Watch deployment status
 curl https://square-middleware-prod-api.azurewebsites.net/api/health
@@ -236,20 +259,24 @@ curl https://square-middleware-prod-api.azurewebsites.net/api/health
 ## Key Learnings
 
 1. **npm install is not optional**
+
    - Must wait for dependencies before app starts
    - Cannot be "async" in a CI/CD workflow
 
 2. **Timeout needs buffer**
+
    - npm install: 2-3 minutes
    - Timeout: 4 minutes (allows margin)
    - Better to wait longer than fail early
 
 3. **Verification loop is critical**
+
    - Proves dependencies installed
    - Proves app started successfully
    - Provides feedback during deployment
 
 4. **Azure Oryx is smart**
+
    - Detects when node_modules missing
    - Runs npm ci on target platform
    - Better for cross-platform compatibility
@@ -289,7 +316,8 @@ a01cb1d0:      Fixed timeout to 4 min (✅ CURRENT - CORRECT)
 
 ## Files Modified
 
-- `.github/workflows/azure-deploy.yml` (7 commits: e04ff295, 8fcdbd59, b31807be, d38e6d6b, 0232f5d7, c2e3f531, 41a26b7f, a01cb1d0)
+- `.github/workflows/azure-deploy.yml` (7 commits: e04ff295, 8fcdbd59, b31807be, d38e6d6b, 0232f5d7, c2e3f531,
+  41a26b7f, a01cb1d0)
 
 ## Code Quality Fixes Already Deployed
 
@@ -299,4 +327,3 @@ a01cb1d0:      Fixed timeout to 4 min (✅ CURRENT - CORRECT)
 - `91e7d26a`: Documented package.json overrides
 
 All 509 tests passing ✅
-

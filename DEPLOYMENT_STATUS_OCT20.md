@@ -11,6 +11,7 @@
 ## Timeline of Events
 
 ### 19:06 UTC - Manual Restart (Successful)
+
 ```
 ✅ App healthy after manual restart
 - Uptime: 293 seconds
@@ -20,6 +21,7 @@
 ```
 
 ### 19:56 UTC - Container Crash
+
 ```
 ❌ Container exited unexpectedly
 Error: "Container didn't respond to HTTP pings on port 8080"
@@ -27,6 +29,7 @@ Root Cause: Missing dependencies (node_modules)
 ```
 
 ### 20:06 UTC - New Container Startup Failed
+
 ```
 ❌ npm install not running, app cannot find 'express'
 Error: "Cannot find module 'express'"
@@ -34,6 +37,7 @@ Cause: azure/webapps-deploy excludes node_modules from deployment
 ```
 
 ### 20:25:19 UTC - Deployment Fix #1 Committed (b31807be)
+
 ```
 ✅ Fixed deployment package structure
 - Removed node_modules copy from workflow
@@ -42,6 +46,7 @@ Cause: azure/webapps-deploy excludes node_modules from deployment
 ```
 
 ### 20:25:22 UTC - Deployment Verification Timeout Fixed (d38e6d6b)
+
 ```
 ✅ Extended deployment verification timeout
 - Old: 100 seconds total (10 attempts × 10 sec)
@@ -50,6 +55,7 @@ Cause: azure/webapps-deploy excludes node_modules from deployment
 ```
 
 ### 20:26:54 UTC - Current Status
+
 ```
 🔄 Deployment d38e6d6b in progress
 - GitHub Actions workflow running: ✓
@@ -64,6 +70,7 @@ Cause: azure/webapps-deploy excludes node_modules from deployment
 ## What's Happening Right Now
 
 1. **GitHub Actions workflow (d38e6d6b)** is executing deployment steps:
+
    - ✅ Code checked out
    - ✅ Tests ran (509/509 passed)
    - ✅ Deployment package created (src/, package.json, package-lock.json)
@@ -93,28 +100,35 @@ Cause: azure/webapps-deploy excludes node_modules from deployment
 ## Production Fixes Already Deployed
 
 ### Webhook Circular JSON Error (Commit 63b1e938)
+
 **Status:** ✅ DEPLOYED (awaiting verification with next webhook)
 
 **Problem Fixed:**
+
 - Webhooks were crashing with: `Converting circular structure to JSON`
 - Root cause: Passing entire error object (with Socket references) to JSON serialization
 
 **Solution:**
+
 - Extract error message only: `error.message || error.toString()`
 - File: `src/controllers/retellWebhookController.js` (line 299)
 
 **Impact:**
+
 - All webhook types now return proper JSON responses
 - Prevents retry storms (was causing 18+ retries per webhook)
 
 ### Correlation ID Tracking (Commit 63b1e938)
+
 **Status:** ✅ DEPLOYED
 
 **Implementation:**
+
 - Added `req.correlationId` to all error responses
 - File: `src/middlewares/errorHandler.js` (line 51)
 
 **Benefit:**
+
 - Better error tracking in Application Insights
 - Can correlate errors across multiple services
 
@@ -123,17 +137,18 @@ Cause: azure/webapps-deploy excludes node_modules from deployment
 ## Deployment Architecture Changes
 
 ### Before (Broken)
+
 ```
 Workflow:
   npm ci --omit=dev
   ↓ (installs to ./node_modules)
-  
+
   cp -R node_modules deploy/
   ↓ (copies to ./deploy/node_modules)
-  
+
   azure/webapps-deploy (./deploy)
   ↓
-  
+
 Azure Processing:
   Sees node_modules → assumes pre-built
   ↓
@@ -145,6 +160,7 @@ Azure Processing:
 ```
 
 ### After (Fixed)
+
 ```
 Workflow:
   Create deployment package:
@@ -153,10 +169,10 @@ Workflow:
     - package-lock.json
     (NO node_modules)
   ↓
-  
+
   azure/webapps-deploy (./deploy)
   ↓
-  
+
 Azure Processing:
   Sees package.json without node_modules
   ↓
@@ -174,6 +190,7 @@ Azure Processing:
 ### ✅ When npm install completes (~6-8 minutes from workflow start):
 
 1. **Health Endpoint**
+
    ```
    Status: 200 OK
    Response: {
@@ -189,6 +206,7 @@ Azure Processing:
    ```
 
 2. **Webhook Processing**
+
    - Next Retell webhook (call_inbound, call_started, etc.) should:
      - Return 200/204 instead of 500
      - No circular JSON error
@@ -205,6 +223,7 @@ Azure Processing:
 ## Monitoring Strategy
 
 **Check status with:**
+
 ```bash
 # Health endpoint
 curl https://square-middleware-prod-api.azurewebsites.net/api/health
@@ -227,12 +246,14 @@ az webapp log tail --name square-middleware-prod-api \
 ## Next Actions
 
 ### Immediate (After deployment succeeds):
+
 1. ✅ Verify health endpoint returns 200 OK
 2. ✅ Wait for next Retell webhook event
 3. ✅ Confirm webhook succeeds without circular JSON error
 4. ✅ Check Application Insights for successful webhook processing
 
 ### Follow-up (Code quality improvements):
+
 1. 🔄 Consolidate duplicate webhook services (comprehensiveWebhookService + webhookService)
 2. 🔄 Split bookingController.js (1,494 lines → 5 modules)
 3. 🔄 Split squareUtils.js (1,145 lines → 3 modules)
@@ -243,19 +264,19 @@ az webapp log tail --name square-middleware-prod-api \
 
 ## Commits Summary
 
-| Commit | Time | Fix |
-|--------|------|-----|
-| 63b1e938 | Earlier | Webhook circular JSON + correlationId |
-| b31807be | 20:25:19 | Remove node_modules from deployment |
+| Commit   | Time     | Fix                                      |
+| -------- | -------- | ---------------------------------------- |
+| 63b1e938 | Earlier  | Webhook circular JSON + correlationId    |
+| b31807be | 20:25:19 | Remove node_modules from deployment      |
 | d38e6d6b | 20:25:22 | Extend verification timeout to 6 minutes |
 
 ---
 
 ## Key Learnings
 
-1. **Azure Oryx Build System**: Automatically builds dependencies if `package.json` exists without `node_modules`
+1. **Azure Oryx Build System**: Automatically builds dependencies if `package.json` exists without
+   `node_modules`
 2. **npm install Duration**: Takes 2-3 minutes on Azure Linux containers
 3. **azure/webapps-deploy Action**: Has built-in exclusions for `node_modules` folder
 4. **Deployment Verification**: Need to account for full build time, not just app startup time
 5. **Health Check Polling**: Must retry with sufficient delays and iterations for npm install completion
-
