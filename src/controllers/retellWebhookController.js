@@ -251,9 +251,9 @@ async function handleRetellWebhook(req, res) {
           is_returning_customer: 'false',
           current_datetime_store_timezone: currentDateTime,
           service_variations_json: '{}',
-          barbers_with_ids_json: '[{"id":"default","name":"Our Team","displayName":"Our Team"}]',
+          staff_with_ids_json: '[{"id":"default","name":"Our Team","displayName":"Our Team"}]',
           available_services: 'Hair Cut, Beard Trim, Hair Wash, Styling',
-          available_barbers: 'Our Team',
+          available_staff: 'Our Team',
           caller_id: result.fromNumber ? result.fromNumber.replace(/\D/g, '').slice(-10) : '',
           initial_message: `Thank you for calling ${businessName}, who am I speaking with today?`
         };
@@ -353,7 +353,8 @@ async function handleCallStarted(call, correlationId, tenant = null) {
       processed: true,
       event: 'call_started',
       callId: call_id,
-      customerResponse: customerResponse // This contains the full ElevenLabs format
+      customerResponse: customerResponse, // This contains the full ElevenLabs format
+      tenant: useTenant // Include tenant for business name access in webhook handler
     };
   } catch (error) {
     logEvent('retell_call_started_error', {
@@ -361,6 +362,9 @@ async function handleCallStarted(call, correlationId, tenant = null) {
       callId: call_id,
       error: error.message
     });
+
+    // Get business name from tenant for error response
+    const businessName = useTenant?.businessName || 'Elite Barbershop';
 
     // Return error in same format but with basic info
     return {
@@ -385,11 +389,11 @@ async function handleCallStarted(call, correlationId, tenant = null) {
             timeZone: 'America/New_York'
           }),
           service_variations_json: '{}',
-          barbers_with_ids_json: '[]',
+          staff_with_ids_json: '[]',
           available_services: '',
-          available_barbers: '',
+          available_staff: '',
           caller_id: from_number.replace(/\D/g, '').slice(-10),
-          initial_message: 'Thank you for calling, who am I speaking with today?'
+          initial_message: `Thank you for calling ${businessName}, who am I speaking with today?`
         },
         correlation_id: correlationId
       }
@@ -678,11 +682,11 @@ async function handleCallInbound(call_inbound, correlationId) {
             timeZone: 'America/New_York'
           }),
           service_variations_json: '{}',
-          barbers_with_ids_json: '[]',
+          staff_with_ids_json: '[]',
           available_services: '',
-          available_barbers: '',
+          available_staff: '',
           caller_id: from_number ? from_number.replace(/\D/g, '').slice(-10) : '',
-          initial_message: 'Thank you for calling, who am I speaking with today?'
+          initial_message: 'Thank you for calling Elite Barbershop, who am I speaking with today?'
         },
         correlation_id: correlationId
       },
