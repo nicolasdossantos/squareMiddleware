@@ -9,6 +9,7 @@ const { logPerformance, logEvent, logError, logger } = require('../utils/logger'
 const bookingService = require('../services/bookingService');
 const { validateBookingData } = require('../utils/helpers/bookingHelpers');
 const { generateCorrelationId } = require('../utils/security');
+const { stripRetellMeta } = require('../utils/retellPayload');
 
 /**
  * Core booking creation logic - pure business logic
@@ -278,7 +279,8 @@ async function createBookingCore(tenant, bookingData, correlationId) {
  */
 async function createBooking(req, res, next) {
   const { correlationId, tenant } = req;
-  const bookingData = req.body;
+  const bookingDataRaw = req.body || {};
+  const bookingData = stripRetellMeta(bookingDataRaw);
 
   // 🔍 DETAILED PARAMETER LOGGING FOR RETELL DEBUGGING
   console.log('🚀 [BOOKING CREATE] Raw request received:', {
@@ -293,12 +295,13 @@ async function createBooking(req, res, next) {
     timestamp: new Date().toISOString()
   });
 
-  console.log('📋 [BOOKING CREATE] Request body (raw):', JSON.stringify(bookingData, null, 2));
+  console.log('📋 [BOOKING CREATE] Request body (raw):', JSON.stringify(bookingDataRaw, null, 2));
+  console.log('📋 [BOOKING CREATE] Normalized payload:', JSON.stringify(bookingData, null, 2));
 
   console.log('🔍 [BOOKING CREATE] Parameter analysis:', {
-    bodyType: typeof bookingData,
-    bodyKeys: Object.keys(bookingData || {}),
-    bodyLength: JSON.stringify(bookingData).length,
+    bodyType: typeof bookingDataRaw,
+    bodyKeys: Object.keys(bookingDataRaw || {}),
+    bodyLength: JSON.stringify(bookingDataRaw).length,
     hasCustomerId: !!bookingData?.customerId,
     hasAppointmentSegments: !!bookingData?.appointmentSegments,
     appointmentSegmentsType: typeof bookingData?.appointmentSegments,
@@ -908,22 +911,59 @@ async function getServiceAvailability(req, res) {
   const { correlationId, tenant } = req;
 
   try {
-    const { serviceVariationIds, staffMemberId } = req.query;
-    const parsedDaysAhead = req.query.daysAhead ? parseInt(req.query.daysAhead) : null;
-    const daysAhead = parsedDaysAhead !== null && !isNaN(parsedDaysAhead) ? parsedDaysAhead : 14; // Default to 14 days
+    const rawServiceIds =
+      req.query.serviceVariationIds ??
+      req.query.serviceIds ??
+      req.body?.serviceVariationIds ??
+      req.body?.serviceIds ??
+      req.body?.service_variation_ids ??
+      req.retellPayload?.serviceVariationIds ??
+      req.retellPayload?.service_variation_ids;
 
-    logger.info(
-      `Getting service availability - Services: ${serviceVariationIds}, ` +
-        `Staff: ${staffMemberId}, Days: ${daysAhead}`
-    );
+    const rawStaffId =
+      req.query.staffMemberId ??
+      req.query.staffId ??
+      req.body?.staffMemberId ??
+      req.body?.staffId ??
+      req.body?.staff_member_id ??
+      req.retellPayload?.staffMemberId ??
+      req.retellPayload?.staffId ??
+      req.retellPayload?.staff_member_id;
 
-    if (!serviceVariationIds) {
+    const rawDaysAhead =
+      req.query.daysAhead ??
+      req.body?.daysAhead ??
+      req.body?.days_ahead ??
+      req.retellPayload?.daysAhead ??
+      req.retellPayload?.days_ahead;
+
+    const serviceIdArray = Array.isArray(rawServiceIds)
+      ? rawServiceIds.map(id => String(id).trim()).filter(Boolean)
+      : typeof rawServiceIds === 'string'
+        ? rawServiceIds
+            .split(',')
+            .map(id => id.trim())
+            .filter(Boolean)
+        : [];
+
+    if (!serviceIdArray.length) {
       return res.status(400).json({
         success: false,
         message: 'serviceVariationIds parameter is required',
         timestamp: new Date().toISOString()
       });
     }
+
+    const staffMemberId = rawStaffId ? String(rawStaffId).trim() : undefined;
+
+    const parsedDaysAhead =
+      rawDaysAhead !== undefined && rawDaysAhead !== null ? parseInt(rawDaysAhead, 10) : null;
+    const daysAhead = parsedDaysAhead !== null && !Number.isNaN(parsedDaysAhead) ? parsedDaysAhead : 14; // Default to 14 days
+
+    logger.info(
+      `Getting service availability - Services: ${serviceIdArray.join(',')}, ` +
+        `Staff: ${staffMemberId}, Days: ${daysAhead}`
+    );
 
     if (daysAhead < 1 || daysAhead > 90) {
       return res.status(400).json({
@@ -938,13 +978,16 @@ async function getServiceAvailability(req, res) {
     const endDate = new Date();
     endDate.setDate(startDate.getDate() + daysAhead);
 
-    // Split serviceVariationIds string into array
-    const serviceIdArray = serviceVariationIds.split(',').map(id => id.trim());
-
     // Debug logging for Retell integration
-    console.log('🔍 [AVAILABILITY DEBUG] serviceVariationIds parameter:', serviceVariationIds);
-    console.log('🔍 [AVAILABILITY DEBUG] serviceVariationIds type:', typeof serviceVariationIds);
-    console.log('🔍 [AVAILABILITY DEBUG] serviceVariationIds length:', serviceVariationIds.length);
+    console.log('🔍 [AVAILABILITY DEBUG] serviceVariationIds parameter:', rawServiceIds);
+    console.log(
+      '🔍 [AVAILABILITY DEBUG] serviceVariationIds type:',
+      Array.isArray(rawServiceIds) ? 'array' : typeof rawServiceIds
+    );
+    console.log(
+      '🔍 [AVAILABILITY DEBUG] serviceVariationIds length:',
+      Array.isArray(rawServiceIds) ? rawServiceIds.length : String(rawServiceIds || '').length
+    );
     console.log('🔍 [AVAILABILITY DEBUG] serviceIdArray:', serviceIdArray);
     console.log(
       '🔍 [AVAILABILITY DEBUG] serviceIdArray lengths:',
@@ -1050,7 +1093,7 @@ async function manageBooking(req, res) {
   const { correlationId, tenant } = req;
 
   // EXACT AZURE FUNCTIONS LOGIC - Get action from params or determine from method
-  const action = req.params.action || getActionFromMethod(req.method);
+  const action = req.params.action || req.body?.action || getActionFromMethod(req.method);
 
   // 🔍 DETAILED LOGGING FOR RETELL DEBUGGING (MANAGE BOOKING)
   console.log('🚀 [MANAGE BOOKING] Request received:', {
@@ -1170,9 +1213,16 @@ function getActionFromMethod(method) {
 
 async function handleCancelBooking(req, correlationId) {
   // EXACT AZURE FUNCTIONS LOGIC
+  const { tenant } = req || {};
   const query =
     req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
-  const bookingId = query.bookingId || req.params.bookingId || req.params.action;
+  const body = req.body || {};
+  const bookingId =
+    query.bookingId ||
+    req.params.bookingId ||
+    req.params.action ||
+    body.bookingId ||
+    body.booking_id;
 
   if (!bookingId) {
     return {
@@ -1185,6 +1235,10 @@ async function handleCancelBooking(req, correlationId) {
   }
 
   try {
+    if (!tenant) {
+      throw new Error('Tenant context is required to cancel a booking');
+    }
+
     // Create Azure Functions context for compatibility
     const context = {
       log: (...args) => logger.info(...args),
@@ -1224,7 +1278,13 @@ async function handleGetBooking(req, correlationId) {
   // EXACT AZURE FUNCTIONS LOGIC
   const query =
     req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
-  const bookingId = query.bookingId || req.params.bookingId || req.params.action;
+  const body = req.body || {};
+  const bookingId =
+    query.bookingId ||
+    req.params.bookingId ||
+    req.params.action ||
+    body.bookingId ||
+    body.booking_id;
 
   if (!bookingId) {
     return {
@@ -1290,13 +1350,15 @@ async function handleCreateBooking(req, correlationId) {
     timestamp: new Date().toISOString()
   });
 
-  const bookingData = req.body;
-  console.log('📋 [HANDLE CREATE BOOKING] Request body (raw):', JSON.stringify(bookingData, null, 2));
+  const bookingDataRaw = req.body || {};
+  const bookingData = stripRetellMeta(bookingDataRaw);
+  console.log('📋 [HANDLE CREATE BOOKING] Request body (raw):', JSON.stringify(bookingDataRaw, null, 2));
+  console.log('📋 [HANDLE CREATE BOOKING] Normalized payload:', JSON.stringify(bookingData, null, 2));
 
   console.log('🔍 [HANDLE CREATE BOOKING] Parameter analysis:', {
-    bodyType: typeof bookingData,
-    bodyKeys: Object.keys(bookingData || {}),
-    bodyLength: JSON.stringify(bookingData).length,
+    bodyType: typeof bookingDataRaw,
+    bodyKeys: Object.keys(bookingDataRaw || {}),
+    bodyLength: JSON.stringify(bookingDataRaw).length,
     hasCustomerId: !!bookingData?.customerId,
     hasAppointmentSegments: !!bookingData?.appointmentSegments,
     appointmentSegmentsType: typeof bookingData?.appointmentSegments,
@@ -1308,7 +1370,6 @@ async function handleCreateBooking(req, correlationId) {
   });
 
   try {
-    const bookingData = req.body;
     const result = await createBookingCore(tenant, bookingData, correlationId);
 
     // Success - convert to Azure Functions format
@@ -1342,7 +1403,7 @@ async function handleUpdateBooking(req, correlationId) {
   try {
     // Extract bookingId from query params or route params
     const bookingId = req.query.bookingId || req.params.bookingId || req.params.id || req.params.action;
-    let updateData = req.body;
+    let updateData = stripRetellMeta(req.body || {});
 
     console.log('🔍 [HANDLE UPDATE BOOKING] BookingId extraction:', {
       queryBookingId: req.query.bookingId,
@@ -1366,7 +1427,7 @@ async function handleUpdateBooking(req, correlationId) {
     // Handle nested request structure from agents/tools
     if (updateData.args) {
       console.log('🔧 [HANDLE UPDATE BOOKING] Extracting args from nested structure');
-      updateData = updateData.args;
+      updateData = stripRetellMeta(updateData.args);
     }
 
     // Extract the specific parameters that updateBookingCore expects

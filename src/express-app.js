@@ -18,6 +18,7 @@ const requestLogger = require('./middlewares/requestLogger');
 const { securityValidation, sanitizeInputs } = require('./middlewares/validation');
 const correlationId = require('./middlewares/correlationId');
 const tenantContext = require('./middlewares/tenantContext');
+const retellPayloadMiddleware = require('./middlewares/retellPayload');
 
 // Import configuration
 
@@ -97,6 +98,9 @@ function createApp() {
   // Tenant context middleware - creates req.tenant for all requests
   // Falls back to environment variables if agentAuth is not used
   app.use(tenantContext);
+
+  // Normalize Retell tool invocation payloads
+  app.use(retellPayloadMiddleware);
 
   // Authentication is now handled at the route level:
   // - Retell webhooks: retellAuth middleware validates HMAC signatures
