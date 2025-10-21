@@ -8,6 +8,7 @@ on:
 
 env:
   AZURE_WEBAPP_NAME: square-middleware-prod-api
+  AZURE_FUNCTIONAPP_NAME: square-middleware-functions
   AZURE_WEBAPP_PACKAGE_PATH: '.'
   NODE_VERSION: '20.x'
 
@@ -43,6 +44,9 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           enable-AzPSSession: false
 
+      - name: Install Azure Functions Core Tools
+        run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
       - name: Install production dependencies
         run: npm ci --omit=dev
 
@@ -68,6 +72,14 @@ jobs:
             --resource-type Microsoft.Web/sites \
             --name "${{ env.AZURE_WEBAPP_NAME }}/config/web" \
             --set properties.healthCheckPath="/api/health"
+
+      - name: Install Function App dependencies
+        working-directory: azure-functions
+        run: npm ci
+
+      - name: Deploy Azure Functions
+        working-directory: azure-functions
+        run: func azure functionapp publish ${{ env.AZURE_FUNCTIONAPP_NAME }} --node
 
       - name: Azure Logout
         if: always()

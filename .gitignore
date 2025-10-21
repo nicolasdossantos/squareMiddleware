@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 package-lock.json
+!azure-functions/package-lock.json
 
 # Deployment scripts (should not be in version control)
 deploy/
