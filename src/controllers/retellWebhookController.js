@@ -23,12 +23,12 @@ async function handleRetellWebhook(req, res) {
 
   try {
     // Log webhook request details at debug level
-    logEvent(req, 'retell_webhook_received', {
+    logEvent('retell_webhook_received', {
       method: req.method,
       url: req.url,
       bodyType: typeof req.body,
       hasHeaders: !!req.headers['x-retell-signature']
-    });
+    }, correlationId);
 
     webhookData = req.body;
 
