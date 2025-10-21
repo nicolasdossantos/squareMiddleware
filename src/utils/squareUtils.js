@@ -11,11 +11,35 @@ const { toBigInt, bigIntReplacer, cleanBigIntFromObject } = require('./helpers/b
 // Cache TTL constants
 const CATALOG_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const STAFF_TTL = 24 * 60 * 60 * 1000; // 24 hours (renamed from BARBER_TTL)
+const CLIENT_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const CLIENT_CACHE_MAX_SIZE = 50;
 
 // Tenant-scoped in-memory caches
 // Structure: { [tenantId]: { data: {...}, fetched: timestamp } }
 const catalogCaches = new Map();
 const staffCaches = new Map(); // Renamed from barberCache
+const clientCache = new Map(); // Keyed by accessToken + environment
+
+function pruneClientCache() {
+  const now = Date.now();
+  for (const [key, entry] of clientCache) {
+    if (now - entry.lastUsed > CLIENT_CACHE_TTL) {
+      clientCache.delete(key);
+    }
+  }
+
+  if (clientCache.size <= CLIENT_CACHE_MAX_SIZE) {
+    return;
+  }
+
+  const sortedKeys = Array.from(clientCache.entries()).sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+  for (const [key] of sortedKeys) {
+    clientCache.delete(key);
+    if (clientCache.size <= CLIENT_CACHE_MAX_SIZE) {
+      break;
+    }
+  }
+}
 
 /**
  * Create a Square SDK client for a specific tenant
@@ -24,23 +48,40 @@ const staffCaches = new Map(); // Renamed from barberCache
  * @returns {SquareClient} Configured Square client instance
  */
 function createSquareClient(accessToken, environment = 'production') {
-  console.log('[createSquareClient] Creating client', {
+  const normalizedEnvironment = environment === 'sandbox' ? 'sandbox' : 'production';
+  const cacheKey = `${accessToken || 'anonymous'}:${normalizedEnvironment}`;
+
+  if (clientCache.has(cacheKey)) {
+    const cached = clientCache.get(cacheKey);
+    cached.lastUsed = Date.now();
+    console.log('[createSquareClient] Reusing cached client', {
+      environment: normalizedEnvironment,
+      hasToken: !!accessToken,
+      cacheSize: clientCache.size
+    });
+    return cached.client;
+  }
+
+  console.log('[createSquareClient] Creating new Square client', {
     hasToken: !!accessToken,
     tokenLength: accessToken?.length,
-    environment,
+    environment: normalizedEnvironment,
     SquareClientType: typeof SquareClient,
     EnvironmentType: typeof Environment
   });
 
   const client = new SquareClient({
     accessToken: accessToken,
-    environment: environment === 'sandbox' ? Environment.Sandbox : Environment.Production
+    environment: normalizedEnvironment === 'sandbox' ? Environment.Sandbox : Environment.Production
   });
 
   console.log('[createSquareClient] Client created', {
     hasCustomers: !!client.customers,
     clientKeys: Object.keys(client).slice(0, 10)
   });
+
+  clientCache.set(cacheKey, { client, lastUsed: Date.now() });
+  pruneClientCache();
 
   return client;
 }

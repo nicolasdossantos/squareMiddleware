@@ -9,7 +9,7 @@ const { logPerformance, logEvent, logError, logger } = require('../utils/logger'
 const bookingService = require('../services/bookingService');
 const { validateBookingData } = require('../utils/helpers/bookingHelpers');
 const { generateCorrelationId } = require('../utils/security');
-const { stripRetellMeta } = require('../utils/retellPayload');
+const { stripRetellMeta, parseMaybeJson } = require('../utils/retellPayload');
 
 /**
  * Core booking creation logic - pure business logic
@@ -937,14 +937,20 @@ async function getServiceAvailability(req, res) {
       req.retellPayload?.daysAhead ??
       req.retellPayload?.days_ahead;
 
-    const serviceIdArray = Array.isArray(rawServiceIds)
-      ? rawServiceIds.map(id => String(id).trim()).filter(Boolean)
-      : typeof rawServiceIds === 'string'
-        ? rawServiceIds
-            .split(',')
-            .map(id => id.trim())
-            .filter(Boolean)
-        : [];
+    let serviceIdArray = [];
+    if (Array.isArray(rawServiceIds)) {
+      serviceIdArray = rawServiceIds.map(id => String(id).trim()).filter(Boolean);
+    } else if (typeof rawServiceIds === 'string') {
+      const parsedIds = parseMaybeJson(rawServiceIds);
+      if (Array.isArray(parsedIds)) {
+        serviceIdArray = parsedIds.map(id => String(id).trim()).filter(Boolean);
+      } else {
+        serviceIdArray = rawServiceIds
+          .split(',')
+          .map(id => id.trim())
+          .filter(Boolean);
+      }
+    }
 
     if (!serviceIdArray.length) {
       return res.status(400).json({
@@ -954,7 +960,13 @@ async function getServiceAvailability(req, res) {
       });
     }
 
-    const staffMemberId = rawStaffId ? String(rawStaffId).trim() : undefined;
+    let staffMemberId;
+    if (rawStaffId) {
+      const parsedStaff = typeof rawStaffId === 'string' ? parseMaybeJson(rawStaffId) : rawStaffId;
+      staffMemberId = Array.isArray(parsedStaff)
+        ? String(parsedStaff[0]).trim()
+        : String(parsedStaff).trim();
+    }
 
     const parsedDaysAhead =
       rawDaysAhead !== undefined && rawDaysAhead !== null ? parseInt(rawDaysAhead, 10) : null;
