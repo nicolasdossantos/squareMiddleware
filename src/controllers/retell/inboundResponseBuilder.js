@@ -33,6 +33,32 @@ function toBooleanString(value) {
   return value ? 'true' : 'false';
 }
 
+function ensureBusinessNameInMessage(message, businessName) {
+  const trimmedBusinessName = (businessName || '').trim();
+  if (!trimmedBusinessName) {
+    return message;
+  }
+
+  const defaultMessage = `Thank you for calling ${trimmedBusinessName}, who am I speaking with today?`;
+
+  if (!message) {
+    return defaultMessage;
+  }
+
+  const normalizedMessage = message.trim();
+  const prefix = 'Thank you for calling';
+
+  if (!normalizedMessage.toLowerCase().startsWith(prefix.toLowerCase())) {
+    return defaultMessage;
+  }
+
+  if (normalizedMessage.toLowerCase().includes(trimmedBusinessName.toLowerCase())) {
+    return normalizedMessage;
+  }
+
+  return normalizedMessage.replace(/^Thank you for calling/i, `${prefix} ${trimmedBusinessName}`);
+}
+
 /**
  * Build default dynamic variables when customer lookup fails.
  * @param {Object} params
@@ -118,6 +144,10 @@ function buildInboundResponse({ customerResponse, businessName, fromNumber, call
   }
 
   dynamicVariables.call_id = callId;
+  dynamicVariables.initial_message = ensureBusinessNameInMessage(
+    dynamicVariables.initial_message,
+    businessName
+  );
 
   const content = dynamicVariables.initial_message ||
     `Thank you for calling ${businessName}, who am I speaking with today?`;
