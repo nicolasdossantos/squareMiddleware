@@ -3,28 +3,9 @@
  * Sends comprehensive email reports for Retell call_analyzed events
  */
 
-const nodemailer = require('nodemailer');
 const { logEvent, logError } = require('../utils/logger');
 const { config } = require('../config');
-
-/**
- * Create email transporter (reusing existing configuration)
- */
-function createEmailTransporter() {
-  return nodemailer.createTransport({
-    host: config.email.host,
-    port: config.email.port,
-    secure: config.email.port === 465,
-    requireTLS: true,
-    auth: {
-      user: config.email.user,
-      pass: config.email.password
-    },
-    tls: {
-      rejectUnauthorized: false
-    }
-  });
-}
+const { sendEmail: deliverEmail } = require('./emailTransport');
 
 /**
  * Format timestamp for display
@@ -475,7 +456,6 @@ async function sendRetellPostCallEmail(callData, correlationId) {
     }
 
     // Send email
-    const transporter = createEmailTransporter();
     const mailOptions = {
       from: config.email.from,
       to: emailTo,
@@ -492,13 +472,27 @@ async function sendRetellPostCallEmail(callData, correlationId) {
       totalCost: (call.call_cost?.combined_cost || 0) / 100 // Convert cents to dollars for logging
     });
 
-    await transporter.sendMail(mailOptions);
+    const result = await deliverEmail(mailOptions, {
+      correlationId,
+      tenant: call?.tenantId || 'retell',
+      context: 'retell_post_call'
+    });
+
+    if (result.via !== 'function') {
+      logEvent('retell_email_function_fallback', {
+        correlationId,
+        callId: call.call_id,
+        transport: result.via,
+        subject
+      });
+    }
 
     logEvent('retell_email_sent_success', {
       correlationId,
       callId: call.call_id,
       to: emailTo,
-      subject
+      subject,
+      transport: result.via
     });
 
     return {

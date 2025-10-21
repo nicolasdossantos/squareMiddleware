@@ -7,16 +7,22 @@
 const { extractRetellPayload, isPlainObject, stripRetellMeta } = require('../utils/retellPayload');
 
 function retellPayloadMiddleware(req, _res, next) {
-  // Retell tool calls always include x-retell-call-id
   const callId = req.headers['x-retell-call-id'];
-
-  if (!callId) {
-    return next();
-  }
 
   const originalBody = req.body;
 
   if (!isPlainObject(originalBody)) {
+    return next();
+  }
+
+  const looksLikeRetellPayload =
+    callId ||
+    Object.prototype.hasOwnProperty.call(originalBody, 'args') ||
+    Object.prototype.hasOwnProperty.call(originalBody, 'call') ||
+    Object.prototype.hasOwnProperty.call(originalBody, 'tool') ||
+    Object.prototype.hasOwnProperty.call(originalBody, 'name');
+
+  if (!looksLikeRetellPayload) {
     return next();
   }
 
@@ -34,6 +40,10 @@ function retellPayloadMiddleware(req, _res, next) {
 
   req.retellPayload = sanitizedPayload;
   req.retellMetadata = metadata;
+
+  if (callId && !req.retellMetadata.call) {
+    req.retellMetadata.call = { call_id: callId };
+  }
 
   // Expose payload on body for non-GET methods so controllers operate on normalized data
   if (req.method !== 'GET' && req.method !== 'HEAD') {

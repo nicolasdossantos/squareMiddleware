@@ -12,9 +12,11 @@ const {
   cancelBooking: cancelBookingHelper,
   getBooking: getBookingHelper
 } = require('../utils/helpers/bookingHelpers');
+const availabilityHelpers = require('../utils/helpers/availabilityHelpers');
+const { cleanBigIntFromObject, bigIntReplacer } = require('../utils/helpers/bigIntUtils');
 const { generateCorrelationId } = require('../utils/security');
 const { stripRetellMeta, parseMaybeJson } = require('../utils/retellPayload');
-const { createSquareClient, square } = require('../utils/squareUtils');
+const { createSquareClient } = require('../utils/squareUtils');
 
 /**
  * Core booking creation logic - pure business logic

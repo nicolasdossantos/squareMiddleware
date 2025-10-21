@@ -37,6 +37,20 @@ const config = {
     }
   },
 
+  // Azure Function HTTP triggers (email/SMS offloading)
+  azureFunctions: {
+    email: {
+      url: process.env.AZURE_EMAIL_FUNCTION_URL || process.env.AZURE_FUNCTION_EMAIL_URL,
+      key: process.env.AZURE_EMAIL_FUNCTION_KEY || process.env.AZURE_FUNCTION_EMAIL_KEY,
+      timeout: parseInt(process.env.AZURE_EMAIL_FUNCTION_TIMEOUT_MS, 10) || 5000
+    },
+    sms: {
+      url: process.env.AZURE_SMS_FUNCTION_URL || process.env.AZURE_FUNCTION_SMS_URL,
+      key: process.env.AZURE_SMS_FUNCTION_KEY || process.env.AZURE_FUNCTION_SMS_KEY,
+      timeout: parseInt(process.env.AZURE_SMS_FUNCTION_TIMEOUT_MS, 10) || 5000
+    }
+  },
+
   // ElevenLabs configuration
   elevenlabs: {
     webhookSecret: process.env.ELEVENLABS_WEBHOOK_SECRET

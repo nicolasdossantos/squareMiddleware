@@ -1,71 +1,73 @@
 /**
  * SMS Service
- * Handles SMS messaging through Twilio API (regular text messages, not WhatsApp)
+ * Handles SMS messaging (regular text messages, not WhatsApp)
  */
 
-const twilio = require('twilio');
 const { logPerformance, logEvent, logError } = require('../utils/logger');
 const { config } = require('../config');
+const smsTransport = require('./smsTransport');
 
-/**
- * Initialize Twilio client
- */
-function getTwilioClient() {
-  if (!config.twilio.accountSid || !config.twilio.authToken) {
-    throw new Error('Twilio credentials not configured');
-  }
-
-  return twilio(config.twilio.accountSid, config.twilio.authToken);
-}
+const PRIMARY_BARBERSHOP_NUMBER = '+12677210098';
 
 /**
  * Send a simple SMS text message
  * @param {string} to - Phone number in format '+1234567890'
  * @param {string} message - Text message to send
  * @param {string} correlationId - Optional correlation ID for tracking
- * @returns {Promise<Object>} Message response from Twilio
+ * @returns {Promise<Object>} Message response with delivery metadata
  */
 async function sendTextMessage(to, message, correlationId = null) {
   const startTime = Date.now();
+  const formattedTo = formatPhoneNumber(to);
 
   try {
-    const client = getTwilioClient();
-
-    // Format phone number (remove any whatsapp: prefix if present)
-    const formattedTo = to.replace(/^whatsapp:/, '');
-
-    const messageData = {
-      to: formattedTo,
-      from: config.twilio.smsFrom, // Use SMS from number instead of WhatsApp
-      body: message
-    };
-
     logEvent('sms_message_sending', {
       to: formattedTo,
       correlationId,
       messageLength: message.length
     });
 
-    const response = await client.messages.create(messageData);
-
-    logEvent('sms_message_sent', {
-      messageSid: response.sid,
+    const result = await smsTransport.sendSms({
       to: formattedTo,
-      status: response.status,
+      body: message,
+      from: config.twilio.smsFrom,
+      type: 'sms',
+      tenant: 'default_sms',
       correlationId
     });
 
+    const status = result.status || 'queued';
+
+    if (result.via !== 'function') {
+      logEvent('sms_function_fallback', {
+        to: formattedTo,
+        correlationId,
+        transport: result.via,
+        status
+      });
+    }
+
+    logEvent('sms_message_sent', {
+      messageSid: result.messageSid,
+      to: formattedTo,
+      status,
+      correlationId,
+      transport: result.via
+    });
+
     logPerformance(correlationId, 'sendSMSTextMessage', startTime, {
-      messageSid: response.sid,
-      status: response.status
+      messageSid: result.messageSid,
+      status,
+      transport: result.via
     });
 
     return {
       success: true,
-      messageSid: response.sid,
-      status: response.status,
+      messageSid: result.messageSid,
+      status,
       to: formattedTo,
-      from: config.twilio.smsFrom
+      from: config.twilio.smsFrom,
+      transport: result.via
     };
   } catch (error) {
     logError(error, {
@@ -84,14 +86,7 @@ async function sendTextMessage(to, message, correlationId = null) {
 
 /**
  * Send customer message to barbershop via SMS
- * Always sends to +12677210098 and optionally to a second number
- * @param {string} customerFirstName - Customer's first name
- * @param {string} customerLastName - Customer's last name
- * @param {string} customerPhoneNumber - Customer's phone number
- * @param {string} message - Message from customer
- * @param {string} messageTo - Optional second phone number to send to
- * @param {string} correlationId - Optional correlation ID for tracking
- * @returns {Promise<Object>} Message response from Twilio
+ * Always sends to the primary business number and optionally a secondary number
  */
 async function sendCustomerMessageToBarbershop(
   customerFirstName,
@@ -104,9 +99,6 @@ async function sendCustomerMessageToBarbershop(
   const startTime = Date.now();
 
   try {
-    const client = getTwilioClient();
-
-    // Format the message for SMS (no templates needed)
     const formattedMessage = `🔔 Customer Message Alert
 
 👤 Customer: ${customerFirstName} ${customerLastName}
@@ -118,60 +110,82 @@ ${message}
 ---
 Sent via Booking API`;
 
-    // Always send to the main barbershop number
-    const primaryNumber = '+12677210098';
     const results = [];
-
-    // Send to primary number
-    const primaryMessageData = {
-      to: primaryNumber,
-      from: config.twilio.smsFrom,
-      body: formattedMessage
-    };
 
     logEvent('customer_message_to_barbershop_sending', {
       customerName: `${customerFirstName} ${customerLastName}`,
       customerPhone: customerPhoneNumber,
-      primaryRecipient: primaryNumber,
+      primaryRecipient: PRIMARY_BARBERSHOP_NUMBER,
       secondaryRecipient: messageTo || 'none',
       correlationId,
       messageLength: message.length
     });
 
-    const primaryResponse = await client.messages.create(primaryMessageData);
-    results.push({
-      recipient: primaryNumber,
-      messageSid: primaryResponse.sid,
-      status: primaryResponse.status
-    });
-
-    logEvent('customer_message_sent', {
-      messageSid: primaryResponse.sid,
-      recipient: primaryNumber,
-      status: primaryResponse.status,
+    const primaryResult = await smsTransport.sendSms({
+      to: PRIMARY_BARBERSHOP_NUMBER,
+      body: formattedMessage,
+      from: config.twilio.smsFrom,
+      type: 'sms',
+      tenant: 'customer_message_primary',
       correlationId
     });
 
-    // Send to secondary number if provided
-    if (messageTo && validatePhoneNumber(messageTo)) {
-      const secondaryMessageData = {
-        to: messageTo,
-        from: config.twilio.smsFrom,
-        body: formattedMessage
-      };
+    if (primaryResult.via !== 'function') {
+      logEvent('sms_function_fallback', {
+        recipient: PRIMARY_BARBERSHOP_NUMBER,
+        correlationId,
+        transport: primaryResult.via,
+        status: primaryResult.status || 'queued'
+      });
+    }
 
-      const secondaryResponse = await client.messages.create(secondaryMessageData);
+    results.push({
+      recipient: PRIMARY_BARBERSHOP_NUMBER,
+      messageSid: primaryResult.messageSid,
+      status: primaryResult.status || 'queued',
+      transport: primaryResult.via
+    });
+
+    logEvent('customer_message_sent', {
+      messageSid: primaryResult.messageSid,
+      recipient: PRIMARY_BARBERSHOP_NUMBER,
+      status: primaryResult.status || 'queued',
+      correlationId,
+      transport: primaryResult.via
+    });
+
+    if (messageTo && validatePhoneNumber(messageTo)) {
+      const secondaryResult = await smsTransport.sendSms({
+        to: formatPhoneNumber(messageTo),
+        body: formattedMessage,
+        from: config.twilio.smsFrom,
+        type: 'sms',
+        tenant: 'customer_message_secondary',
+        correlationId
+      });
+
+      if (secondaryResult.via !== 'function') {
+        logEvent('sms_function_fallback', {
+          recipient: formatPhoneNumber(messageTo),
+          correlationId,
+          transport: secondaryResult.via,
+          status: secondaryResult.status || 'queued'
+        });
+      }
+
       results.push({
-        recipient: messageTo,
-        messageSid: secondaryResponse.sid,
-        status: secondaryResponse.status
+        recipient: formatPhoneNumber(messageTo),
+        messageSid: secondaryResult.messageSid,
+        status: secondaryResult.status || 'queued',
+        transport: secondaryResult.via
       });
 
       logEvent('customer_message_sent', {
-        messageSid: secondaryResponse.sid,
-        recipient: messageTo,
-        status: secondaryResponse.status,
-        correlationId
+        messageSid: secondaryResult.messageSid,
+        recipient: formatPhoneNumber(messageTo),
+        status: secondaryResult.status || 'queued',
+        correlationId,
+        transport: secondaryResult.via
       });
     }
 
@@ -179,33 +193,32 @@ Sent via Booking API`;
       customerName: `${customerFirstName} ${customerLastName}`,
       customerPhone: customerPhoneNumber,
       recipientCount: results.length,
-      primaryRecipient: primaryNumber,
+      primaryRecipient: PRIMARY_BARBERSHOP_NUMBER,
       secondaryRecipient: messageTo || 'none',
       correlationId
     });
 
     logPerformance(correlationId, 'sendCustomerMessageToBarbershop', startTime, {
       recipientCount: results.length,
-      primarySid: results[0]?.messageSid,
-      secondarySid: results[1]?.messageSid
+      transports: results.map(result => result.transport)
     });
 
     return {
       success: true,
-      results: results,
+      results,
       recipientCount: results.length,
-      primaryRecipient: primaryNumber,
+      primaryRecipient: PRIMARY_BARBERSHOP_NUMBER,
       secondaryRecipient: messageTo || null,
       customerName: `${customerFirstName} ${customerLastName}`,
       customerPhone: customerPhoneNumber,
-      from: config.twilio.smsFrom
+      messageLength: message.length
     };
   } catch (error) {
     logError(error, {
       operation: 'sendCustomerMessageToBarbershop',
       customerName: `${customerFirstName} ${customerLastName}`,
       customerPhone: customerPhoneNumber,
-      primaryRecipient: '+12677210098',
+      primaryRecipient: PRIMARY_BARBERSHOP_NUMBER,
       secondaryRecipient: messageTo || 'none',
       correlationId
     });
@@ -220,16 +233,11 @@ Sent via Booking API`;
 
 /**
  * Send booking confirmation SMS message
- * @param {Object} bookingData - Booking details
- * @param {string} customerPhone - Customer's phone number
- * @param {string} correlationId - Optional correlation ID for tracking
- * @returns {Promise<Object>} Message response
  */
 async function sendBookingConfirmation(bookingData, customerPhone, correlationId = null) {
   const startTime = Date.now();
 
   try {
-    // Format booking confirmation message
     const confirmationMessage = `✅ Booking Confirmed!
 
 📅 Date: ${bookingData.date || 'TBD'}
@@ -245,12 +253,14 @@ See you soon!
       bookingId: bookingData.bookingId,
       customerPhone,
       status: result.status,
-      correlationId
+      correlationId,
+      transport: result.transport
     });
 
     logPerformance(correlationId, 'sendBookingConfirmation', startTime, {
       messageSid: result.messageSid,
-      status: result.status
+      status: result.status,
+      transport: result.transport
     });
 
     return result;
@@ -270,24 +280,12 @@ See you soon!
   }
 }
 
-/**
- * Validate phone number format for SMS
- * @param {string} phoneNumber - Phone number to validate
- * @returns {boolean} True if valid phone format
- */
 function validatePhoneNumber(phoneNumber) {
-  // Remove any whatsapp: prefix and validate E.164 format
   const cleanNumber = phoneNumber.replace(/^whatsapp:/, '');
   return /^\+[1-9]\d{9,14}$/.test(cleanNumber);
 }
 
-/**
- * Format phone number for SMS
- * @param {string} phoneNumber - Phone number to format
- * @returns {string} Formatted phone number
- */
 function formatPhoneNumber(phoneNumber) {
-  // Remove whatsapp: prefix if present
   return phoneNumber.replace(/^whatsapp:/, '');
 }
 
