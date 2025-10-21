@@ -1,5 +1,6 @@
 const { Retell } = require('retell-sdk');
 const { config } = require('../config');
+const { logger } = require('../utils/logger');
 
 /**
  * Retell Signature Verification Middleware
@@ -16,7 +17,7 @@ async function retellAuthMiddleware(req, res, next) {
   const signatureHeader = req.headers['x-retell-signature'];
 
   if (!signatureHeader) {
-    console.warn('[RetellAuth] Missing x-retell-signature header');
+    logger.warn('[RetellAuth] Missing x-retell-signature header');
     return res.status(401).json({ error: 'Missing x-retell-signature header' });
   }
 
@@ -24,7 +25,7 @@ async function retellAuthMiddleware(req, res, next) {
     const apiKey = config.retell?.apiKey;
 
     if (!apiKey) {
-      console.error('[RetellAuth] RETELL_API_KEY not configured');
+      logger.error('[RetellAuth] RETELL_API_KEY not configured');
       return res.status(500).json({ error: 'Retell API key not configured' });
     }
 
@@ -35,14 +36,14 @@ async function retellAuthMiddleware(req, res, next) {
     const isValid = Retell.verify(payload, apiKey, signatureHeader);
 
     if (!isValid) {
-      console.warn('[RetellAuth] Signature verification failed');
+      logger.warn('[RetellAuth] Signature verification failed');
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    console.log('[RetellAuth] ✅ Signature verified successfully');
+    logger.info('[RetellAuth] ✅ Signature verified successfully');
     next();
   } catch (error) {
-    console.error('[RetellAuth] Error during signature verification:', error);
+    logger.error('[RetellAuth] Error during signature verification:', error);
     return res.status(500).json({ error: 'Authentication service error' });
   }
 }

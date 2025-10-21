@@ -1,6 +1,7 @@
 const { Retell } = require('retell-sdk');
 const { config } = require('../config');
 const sessionStore = require('../services/sessionStore');
+const { logger } = require('../utils/logger');
 
 /**
  * Per-Agent Authorization Middleware
@@ -43,7 +44,7 @@ async function agentAuthMiddleware(req, res, next) {
     const session = sessionStore.getSession(callId);
 
     if (!session) {
-      console.error(`[AgentAuth] ❌ Session not found or expired: ${callId}`);
+      logger.error('Session not found or expired', { callId });
       return res.status(401).json({
         error: 'Session expired or not found',
         callId
@@ -69,20 +70,20 @@ async function agentAuthMiddleware(req, res, next) {
     req.retellContext = tenantContext;
     req.tenant = tenantContext;
 
-    console.log(`[AgentAuth] ✅ Agent authenticated from session: ${session.agentId}`);
+    logger.debug('Agent authenticated from session', { agentId: session.agentId, callId });
     return next();
   }
 
   // FLOW 2: WEBHOOK CALLS (with Retell signature, NO call_id)
   // Webhooks only have signature header - verify it
   if (signatureHeader) {
-    console.log('[AgentAuth] 🔐 Verifying Retell webhook signature');
+    logger.debug('Verifying Retell webhook signature');
 
     try {
       const apiKey = config.retell?.apiKey;
 
       if (!apiKey) {
-        console.error('[AgentAuth] RETELL_API_KEY not configured');
+        logger.error('RETELL_API_KEY not configured');
         return res.status(500).json({
           error: 'Retell API key not configured'
         });
@@ -93,17 +94,17 @@ async function agentAuthMiddleware(req, res, next) {
       const isValid = Retell.verify(payload, apiKey, signatureHeader);
 
       if (!isValid) {
-        console.warn('[AgentAuth] ❌ Signature verification failed');
+        logger.warn('Signature verification failed');
         return res.status(401).json({
           error: 'Invalid signature'
         });
       }
 
       // Signature verified - webhook handler will create session
-      console.log('[AgentAuth] ✅ Webhook signature verified');
+      logger.debug('Webhook signature verified');
       return next();
     } catch (error) {
-      console.error('[AgentAuth] Error verifying signature:', error);
+      logger.error('Error verifying signature', error);
       return res.status(500).json({
         error: 'Signature verification error'
       });
@@ -112,7 +113,7 @@ async function agentAuthMiddleware(req, res, next) {
 
   // FLOW 3: REGULAR REST CALLS (no Retell headers)
   // Use default environment credentials
-  console.log('[AgentAuth] ℹ️  No Retell headers - treating as regular REST API call');
+  logger.debug('No Retell headers - treating as regular REST API call');
 
   const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
   const squareLocationId = process.env.SQUARE_LOCATION_ID;

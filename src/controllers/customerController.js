@@ -112,7 +112,7 @@ async function updateCustomerInfo(req, res) {
   const { tenant, correlationId } = req;
 
   // 🔍 COMPREHENSIVE PARAMETER LOGGING FOR UPDATE CUSTOMER INFO
-  console.log('🚀 [UPDATE CUSTOMER] Raw request received:', {
+  logger.info('🚀 [UPDATE CUSTOMER] Raw request received:', {
     method: req.method,
     url: req.url,
     tenantId: tenant.id,
@@ -124,9 +124,9 @@ async function updateCustomerInfo(req, res) {
     timestamp: new Date().toISOString()
   });
 
-  console.log('📋 [UPDATE CUSTOMER] Query parameters:', JSON.stringify(req.query, null, 2));
-  console.log('📋 [UPDATE CUSTOMER] Route parameters:', JSON.stringify(req.params, null, 2));
-  console.log('📋 [UPDATE CUSTOMER] Request body analysis:', {
+  logger.info('📋 [UPDATE CUSTOMER] Query parameters:', JSON.stringify(req.query, null, 2));
+  logger.info('📋 [UPDATE CUSTOMER] Route parameters:', JSON.stringify(req.params, null, 2));
+  logger.info('📋 [UPDATE CUSTOMER] Request body analysis:', {
     bodyKeys: Object.keys(req.body || {}),
     bodySize: JSON.stringify(req.body || {}).length,
     rawBody: JSON.stringify(req.body, null, 2)
@@ -136,7 +136,7 @@ async function updateCustomerInfo(req, res) {
   const customerId =
     req.query.customerId || req.params.customerId || req.body.customerId || req.body.customer_id;
 
-  console.log('🔍 [UPDATE CUSTOMER] Customer ID extraction:', {
+  logger.info('🔍 [UPDATE CUSTOMER] Customer ID extraction:', {
     queryCustomerId: req.query.customerId,
     paramsCustomerId: req.params.customerId,
     bodyCustomerId: req.body.customerId,
@@ -150,7 +150,7 @@ async function updateCustomerInfo(req, res) {
   delete updateData.customerId;
   delete updateData.customer_id;
 
-  console.log('📝 [UPDATE CUSTOMER] Update data analysis:', {
+  logger.info('📝 [UPDATE CUSTOMER] Update data analysis:', {
     originalBodyKeys: Object.keys(req.body || {}),
     cleanedUpdateDataKeys: Object.keys(updateData),
     updateDataPresent: !!Object.keys(updateData).length,
@@ -158,7 +158,7 @@ async function updateCustomerInfo(req, res) {
   });
 
   if (!customerId) {
-    console.log('❌ [UPDATE CUSTOMER] Missing customer ID');
+    logger.info('❌ [UPDATE CUSTOMER] Missing customer ID');
     return res.status(400).json({
       success: false,
       message: 'Customer ID is required',
@@ -166,7 +166,7 @@ async function updateCustomerInfo(req, res) {
     });
   }
 
-  console.log('👤 [UPDATE CUSTOMER] Starting update process for customer:', customerId);
+  logger.info('👤 [UPDATE CUSTOMER] Starting update process for customer:', customerId);
 
   try {
     logEvent('update_customer_info_request', {
@@ -285,8 +285,8 @@ async function getCustomerInfoByPhone(req, res) {
 async function updateCustomerInfoCompatibility(req, res) {
   const { tenant } = req;
 
-  console.log('🔍 COMPATIBILITY FUNCTION CALLED');
-  console.log('req.body:', req.body);
+  logger.info('🔍 COMPATIBILITY FUNCTION CALLED');
+  logger.info('req.body:', req.body);
 
   try {
     // Support both Express.js (customerId) and Azure Functions (customer_id) formats
@@ -295,10 +295,10 @@ async function updateCustomerInfoCompatibility(req, res) {
     delete updateData.customerId;
     delete updateData.customer_id;
 
-    console.log('Extracted customerId:', customerId);
+    logger.info('Extracted customerId:', customerId);
 
     if (!customerId) {
-      console.log('❌ Customer ID is missing in compatibility function!');
+      logger.info('❌ Customer ID is missing in compatibility function!');
       return sendError(res, 'Customer ID is required', 400);
     }
 

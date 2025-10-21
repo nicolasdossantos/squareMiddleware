@@ -7,9 +7,14 @@
 const { sendSuccess, sendError } = require('../utils/responseBuilder');
 const { logPerformance, logEvent, logError, logger } = require('../utils/logger');
 const bookingService = require('../services/bookingService');
-const { validateBookingData } = require('../utils/helpers/bookingHelpers');
+const {
+  validateBookingData,
+  cancelBooking: cancelBookingHelper,
+  getBooking: getBookingHelper
+} = require('../utils/helpers/bookingHelpers');
 const { generateCorrelationId } = require('../utils/security');
 const { stripRetellMeta, parseMaybeJson } = require('../utils/retellPayload');
+const { createSquareClient, square } = require('../utils/squareUtils');
 
 /**
  * Core booking creation logic - pure business logic
@@ -52,8 +57,6 @@ async function createBookingCore(tenant, bookingData, correlationId) {
   });
 
   try {
-    const { createSquareClient } = require('../utils/squareUtils');
-
     // Create tenant-specific Square client
     const square = createSquareClient(
       tenant.accessToken || tenant.squareAccessToken,
@@ -158,8 +161,6 @@ async function createBookingCore(tenant, bookingData, correlationId) {
     });
 
     try {
-      const { square } = require('../utils/squareUtils');
-
       // Get customer's existing bookings around the requested time (±30 minutes)
       const bufferMinutes = 30;
       const requestedStartTime = new Date(bookingData.startAt);
@@ -208,8 +209,6 @@ async function createBookingCore(tenant, bookingData, correlationId) {
           })),
           correlationId
         });
-
-        const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
 
         throw {
           message: 'Customer already has an appointment at this time. Please select a different time slot.',
@@ -283,7 +282,7 @@ async function createBooking(req, res, next) {
   const bookingData = stripRetellMeta(bookingDataRaw);
 
   // 🔍 DETAILED PARAMETER LOGGING FOR RETELL DEBUGGING
-  console.log('🚀 [BOOKING CREATE] Raw request received:', {
+  logger.info('🚀 [BOOKING CREATE] Raw request received:', {
     correlationId,
     method: req.method,
     url: req.url,
@@ -295,10 +294,10 @@ async function createBooking(req, res, next) {
     timestamp: new Date().toISOString()
   });
 
-  console.log('📋 [BOOKING CREATE] Request body (raw):', JSON.stringify(bookingDataRaw, null, 2));
-  console.log('📋 [BOOKING CREATE] Normalized payload:', JSON.stringify(bookingData, null, 2));
+  logger.info('📋 [BOOKING CREATE] Request body (raw):', JSON.stringify(bookingDataRaw, null, 2));
+  logger.info('📋 [BOOKING CREATE] Normalized payload:', JSON.stringify(bookingData, null, 2));
 
-  console.log('🔍 [BOOKING CREATE] Parameter analysis:', {
+  logger.info('🔍 [BOOKING CREATE] Parameter analysis:', {
     bodyType: typeof bookingDataRaw,
     bodyKeys: Object.keys(bookingDataRaw || {}),
     bodyLength: JSON.stringify(bookingDataRaw).length,
@@ -313,7 +312,7 @@ async function createBooking(req, res, next) {
   });
 
   if (bookingData?.appointmentSegments) {
-    console.log(
+    logger.info(
       '📅 [BOOKING CREATE] Appointment segments details:',
       bookingData.appointmentSegments.map((segment, index) => ({
         index,
@@ -354,8 +353,6 @@ async function createBooking(req, res, next) {
     }
 
     if (error.statusCode) {
-      const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
-
       return res.status(error.statusCode).json({
         success: false,
         message: error.message,
@@ -417,7 +414,7 @@ async function updateBookingCore(
   };
 
   // 🔍 COMPREHENSIVE PARAMETER LOGGING FOR UPDATE BOOKING CORE
-  console.log('🚀 [UPDATE BOOKING CORE] Function called with parameters:', {
+  logger.info('🚀 [UPDATE BOOKING CORE] Function called with parameters:', {
     correlationId,
     bookingId,
     startAt,
@@ -437,7 +434,7 @@ async function updateBookingCore(
 
   // Validate required parameters
   if (!bookingId) {
-    console.log('❌ [UPDATE BOOKING CORE] Missing required parameter: bookingId');
+    logger.info('❌ [UPDATE BOOKING CORE] Missing required parameter: bookingId');
     throw {
       message: 'bookingId is required',
       code: 'MISSING_BOOKING_ID',
@@ -447,7 +444,7 @@ async function updateBookingCore(
 
   // Validate startAt if provided
   if (startAt && safeDateToISO(startAt) === 'Invalid Date') {
-    console.log('❌ [UPDATE BOOKING CORE] Invalid startAt date:', startAt);
+    logger.info('❌ [UPDATE BOOKING CORE] Invalid startAt date:', startAt);
     throw {
       message: 'Invalid time value for startAt',
       code: 'INVALID_START_TIME',
@@ -458,7 +455,7 @@ async function updateBookingCore(
 
   // Validate endAt if provided
   if (endAt && safeDateToISO(endAt) === 'Invalid Date') {
-    console.log('❌ [UPDATE BOOKING CORE] Invalid endAt date:', endAt);
+    logger.info('❌ [UPDATE BOOKING CORE] Invalid endAt date:', endAt);
     throw {
       message: 'Invalid time value for endAt',
       code: 'INVALID_END_TIME',
@@ -467,7 +464,7 @@ async function updateBookingCore(
     };
   }
 
-  console.log('📅 [UPDATE BOOKING CORE] Starting update process for booking:', bookingId);
+  logger.info('📅 [UPDATE BOOKING CORE] Starting update process for booking:', bookingId);
 
   logEvent('booking_update_core_attempt', {
     correlationId,
@@ -489,13 +486,13 @@ async function updateBookingCore(
     if (customerId) updateData.customerId = customerId;
     if (appointmentSegments) updateData.appointmentSegments = appointmentSegments;
 
-    console.log('🚀 [UPDATE BOOKING CORE] Calling booking service with:', updateData);
+    logger.info('🚀 [UPDATE BOOKING CORE] Calling booking service with:', updateData);
     // Call the booking service with tenant context
     const result = await bookingService.updateBooking(tenant, bookingId, updateData, correlationId);
-    console.log('✅ [UPDATE BOOKING CORE] Booking service response:', result);
+    logger.info('✅ [UPDATE BOOKING CORE] Booking service response:', result);
     return result;
   } catch (error) {
-    console.error('❌ [UPDATE BOOKING CORE] Error calling booking service:', error.message || error);
+    logger.error('❌ [UPDATE BOOKING CORE] Error calling booking service:', error.message || error);
     throw {
       message: error.message || 'Failed to update booking',
       code: error.code || 'UPDATE_FAILED',
@@ -515,7 +512,7 @@ async function updateBooking(req, res, next) {
   const updateData = req.body;
 
   // 🔍 COMPREHENSIVE PARAMETER LOGGING FOR UPDATE BOOKING
-  console.log('🚀 [UPDATE BOOKING] Raw request received:', {
+  logger.info('🚀 [UPDATE BOOKING] Raw request received:', {
     correlationId,
     method: req.method,
     url: req.url,
@@ -527,15 +524,15 @@ async function updateBooking(req, res, next) {
     timestamp: new Date().toISOString()
   });
 
-  console.log('📋 [UPDATE BOOKING] Route parameters:', JSON.stringify(req.params, null, 2));
-  console.log('📋 [UPDATE BOOKING] Request body analysis:', {
+  logger.info('📋 [UPDATE BOOKING] Route parameters:', JSON.stringify(req.params, null, 2));
+  logger.info('📋 [UPDATE BOOKING] Request body analysis:', {
     bodyKeys: Object.keys(updateData || {}),
     bodySize: JSON.stringify(updateData || {}).length,
     rawBody: JSON.stringify(updateData, null, 2),
     correlationId
   });
 
-  console.log('🔍 [UPDATE BOOKING] Parameter extraction:', {
+  logger.info('🔍 [UPDATE BOOKING] Parameter extraction:', {
     bookingIdFromParams: req.params.id,
     finalBookingId: bookingId,
     updateDataPresent: !!updateData,
@@ -595,7 +592,7 @@ async function cancelBooking(req, res) {
   const { correlationId, tenant } = req;
 
   // 🔍 DETAILED PARAMETER LOGGING FOR CANCEL BOOKING
-  console.log('🚀 [CANCEL BOOKING] Raw request received:', {
+  logger.info('🚀 [CANCEL BOOKING] Raw request received:', {
     correlationId,
     tenantId: tenant.id,
     method: req.method,
@@ -608,8 +605,8 @@ async function cancelBooking(req, res) {
     timestamp: new Date().toISOString()
   });
 
-  console.log('📋 [CANCEL BOOKING] Query parameters:', JSON.stringify(req.query, null, 2));
-  console.log('📋 [CANCEL BOOKING] Route parameters:', JSON.stringify(req.params, null, 2));
+  logger.info('📋 [CANCEL BOOKING] Query parameters:', JSON.stringify(req.query, null, 2));
+  logger.info('📋 [CANCEL BOOKING] Route parameters:', JSON.stringify(req.params, null, 2));
 
   try {
     // EXACT AZURE FUNCTIONS LOGIC - Convert URLSearchParams to plain object if needed
@@ -619,7 +616,7 @@ async function cancelBooking(req, res) {
     // Get bookingId from route params (DELETE /api/bookings/:bookingId)
     const bookingId = req.params.bookingId || req.params.id || query.bookingId;
 
-    console.log('🔍 [CANCEL BOOKING] Parameter analysis:', {
+    logger.info('🔍 [CANCEL BOOKING] Parameter analysis:', {
       queryBookingId: query.bookingId,
       paramsBookingId: req.params.bookingId,
       paramsId: req.params.id,
@@ -629,7 +626,7 @@ async function cancelBooking(req, res) {
     });
 
     if (!bookingId) {
-      console.log('❌ [CANCEL BOOKING] Missing booking ID');
+      logger.info('❌ [CANCEL BOOKING] Missing booking ID');
       return res.status(400).json({
         success: false,
         message: 'bookingId is required',
@@ -637,7 +634,7 @@ async function cancelBooking(req, res) {
       });
     }
 
-    console.log('📅 [CANCEL BOOKING] Starting cancellation process for booking:', bookingId);
+    logger.info('📅 [CANCEL BOOKING] Starting cancellation process for booking:', bookingId);
 
     logEvent('booking_cancel_attempt', {
       correlationId,
@@ -651,9 +648,8 @@ async function cancelBooking(req, res) {
     };
 
     // EXACT AZURE FUNCTIONS LOGIC - Call the shared helper with proper error handling
-    const { cancelBooking: cancelBookingHelper } = require('../utils/helpers/bookingHelpers');
 
-    console.log('🔧 [CANCEL BOOKING] Calling cancelBookingHelper with:', {
+    logger.info('🔧 [CANCEL BOOKING] Calling cancelBookingHelper with:', {
       bookingId,
       contextPresent: !!context,
       tenantId: tenant.id,
@@ -662,7 +658,7 @@ async function cancelBooking(req, res) {
 
     const result = await cancelBookingHelper(context, tenant, bookingId);
 
-    console.log('✅ [CANCEL BOOKING] Helper function completed successfully:', {
+    logger.info('✅ [CANCEL BOOKING] Helper function completed successfully:', {
       resultPresent: !!result,
       bookingPresent: !!(result && result.booking),
       correlationId
@@ -674,10 +670,9 @@ async function cancelBooking(req, res) {
     });
 
     // EXACT AZURE FUNCTIONS PATTERN - Return the booking data
-    const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
     const cleanedBooking = cleanBigIntFromObject(result.booking);
 
-    console.log('🧹 [CANCEL BOOKING] Booking data cleaned and ready for response:', {
+    logger.info('🧹 [CANCEL BOOKING] Booking data cleaned and ready for response:', {
       originalBookingKeys: result.booking ? Object.keys(result.booking) : [],
       cleanedBookingKeys: cleanedBooking ? Object.keys(cleanedBooking) : [],
       correlationId
@@ -690,7 +685,7 @@ async function cancelBooking(req, res) {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.log('❌ [CANCEL BOOKING] Error occurred:', {
+    logger.info('❌ [CANCEL BOOKING] Error occurred:', {
       errorMessage: error.message,
       errorType: error.constructor.name,
       errorStack: error.stack,
@@ -703,7 +698,7 @@ async function cancelBooking(req, res) {
 
     // EXACT AZURE FUNCTIONS ERROR HANDLING
     if (error.message && error.message.includes('not found')) {
-      console.log('🔍 [CANCEL BOOKING] Booking not found error');
+      logger.info('🔍 [CANCEL BOOKING] Booking not found error');
       return res.status(404).json({
         success: false,
         message: 'Booking not found',
@@ -712,7 +707,7 @@ async function cancelBooking(req, res) {
     }
 
     if (error.message && error.message.includes('authentication failed')) {
-      console.log('🔍 [CANCEL BOOKING] Authentication failed error');
+      logger.info('🔍 [CANCEL BOOKING] Authentication failed error');
       return res.status(401).json({
         success: false,
         message: 'Square API authentication failed',
@@ -720,7 +715,7 @@ async function cancelBooking(req, res) {
       });
     }
 
-    console.log('🔍 [CANCEL BOOKING] Generic server error');
+    logger.info('🔍 [CANCEL BOOKING] Generic server error');
     return res.status(500).json({
       success: false,
       message: 'Failed to cancel booking',
@@ -843,6 +838,7 @@ async function listBookings(req, res) {
     endDate,
     limit = 50,
     offset = 0,
+    cursor, // Pagination cursor from Square API
     sortBy = 'startAt',
     sortOrder = 'asc'
   } = req.query;
@@ -855,6 +851,7 @@ async function listBookings(req, res) {
       endDate,
       limit: parseInt(limit),
       offset: parseInt(offset),
+      cursor, // Pass cursor for pagination
       sortBy,
       sortOrder
     };
@@ -887,12 +884,12 @@ async function listBookings(req, res) {
 
     return sendSuccess(res, 'Bookings listed successfully', {
       bookings: result.data.bookings,
-      total: result.data.total,
+      count: result.data.bookings.length, // Number of bookings in this page
       filters,
       pagination: {
         limit: parseInt(limit),
-        offset: parseInt(offset),
-        hasMore: result.data.total > parseInt(offset) + parseInt(limit)
+        cursor: result.data.cursor, // Next page cursor from Square
+        hasMore: !!result.data.cursor // Has more if cursor exists
       }
     });
   } catch (error) {
@@ -963,14 +960,13 @@ async function getServiceAvailability(req, res) {
     let staffMemberId;
     if (rawStaffId) {
       const parsedStaff = typeof rawStaffId === 'string' ? parseMaybeJson(rawStaffId) : rawStaffId;
-      staffMemberId = Array.isArray(parsedStaff)
-        ? String(parsedStaff[0]).trim()
-        : String(parsedStaff).trim();
+      staffMemberId = Array.isArray(parsedStaff) ? String(parsedStaff[0]).trim() : String(parsedStaff).trim();
     }
 
     const parsedDaysAhead =
       rawDaysAhead !== undefined && rawDaysAhead !== null ? parseInt(rawDaysAhead, 10) : null;
-    const daysAhead = parsedDaysAhead !== null && !Number.isNaN(parsedDaysAhead) ? parsedDaysAhead : 14; // Default to 14 days
+    // Default to 14 days
+    const daysAhead = parsedDaysAhead !== null && !Number.isNaN(parsedDaysAhead) ? parsedDaysAhead : 14;
 
     logger.info(
       `Getting service availability - Services: ${serviceIdArray.join(',')}, ` +
@@ -991,17 +987,17 @@ async function getServiceAvailability(req, res) {
     endDate.setDate(startDate.getDate() + daysAhead);
 
     // Debug logging for Retell integration
-    console.log('🔍 [AVAILABILITY DEBUG] serviceVariationIds parameter:', rawServiceIds);
-    console.log(
+    logger.info('🔍 [AVAILABILITY DEBUG] serviceVariationIds parameter:', rawServiceIds);
+    logger.info(
       '🔍 [AVAILABILITY DEBUG] serviceVariationIds type:',
       Array.isArray(rawServiceIds) ? 'array' : typeof rawServiceIds
     );
-    console.log(
+    logger.info(
       '🔍 [AVAILABILITY DEBUG] serviceVariationIds length:',
       Array.isArray(rawServiceIds) ? rawServiceIds.length : String(rawServiceIds || '').length
     );
-    console.log('🔍 [AVAILABILITY DEBUG] serviceIdArray:', serviceIdArray);
-    console.log(
+    logger.info('🔍 [AVAILABILITY DEBUG] serviceIdArray:', serviceIdArray);
+    logger.info(
       '🔍 [AVAILABILITY DEBUG] serviceIdArray lengths:',
       serviceIdArray.map(id => ({ id, length: id.length }))
     );
@@ -1009,7 +1005,7 @@ async function getServiceAvailability(req, res) {
     // Validate service ID lengths before processing
     for (const serviceId of serviceIdArray) {
       if (serviceId.length > 36) {
-        console.log('🔍 [AVAILABILITY DEBUG] Service ID too long:', {
+        logger.info('🔍 [AVAILABILITY DEBUG] Service ID too long:', {
           serviceId,
           length: serviceId.length,
           first50chars: serviceId.substring(0, 50)
@@ -1033,7 +1029,6 @@ async function getServiceAvailability(req, res) {
     });
 
     // Use the availability helpers to get slots
-    const availabilityHelpers = require('../utils/helpers/availabilityHelpers');
 
     // Create a context object similar to Azure Functions
     const context = {
@@ -1050,7 +1045,6 @@ async function getServiceAvailability(req, res) {
     );
 
     // Clean BigInt values from the availabilityRecord BEFORE creating response
-    const { cleanBigIntFromObject, bigIntReplacer } = require('../utils/helpers/bigIntUtils');
     const cleanAvailabilityRecord = cleanBigIntFromObject(availabilityRecord);
 
     const response = {
@@ -1108,7 +1102,7 @@ async function manageBooking(req, res) {
   const action = req.params.action || req.body?.action || getActionFromMethod(req.method);
 
   // 🔍 DETAILED LOGGING FOR RETELL DEBUGGING (MANAGE BOOKING)
-  console.log('🚀 [MANAGE BOOKING] Request received:', {
+  logger.info('🚀 [MANAGE BOOKING] Request received:', {
     correlationId,
     action,
     method: req.method,
@@ -1230,11 +1224,7 @@ async function handleCancelBooking(req, correlationId) {
     req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
   const body = req.body || {};
   const bookingId =
-    query.bookingId ||
-    req.params.bookingId ||
-    req.params.action ||
-    body.bookingId ||
-    body.booking_id;
+    query.bookingId || req.params.bookingId || req.params.action || body.bookingId || body.booking_id;
 
   if (!bookingId) {
     return {
@@ -1258,11 +1248,9 @@ async function handleCancelBooking(req, correlationId) {
     };
 
     // EXACT AZURE FUNCTIONS LOGIC - Call the shared helper
-    const { cancelBooking: cancelBookingHelper } = require('../utils/helpers/bookingHelpers');
     const result = await cancelBookingHelper(context, tenant, bookingId);
 
     // IMMEDIATELY clean BigInt values before processing
-    const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
     const cleanedResult = cleanBigIntFromObject(result);
 
     return {
@@ -1292,11 +1280,7 @@ async function handleGetBooking(req, correlationId) {
     req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
   const body = req.body || {};
   const bookingId =
-    query.bookingId ||
-    req.params.bookingId ||
-    req.params.action ||
-    body.bookingId ||
-    body.booking_id;
+    query.bookingId || req.params.bookingId || req.params.action || body.bookingId || body.booking_id;
 
   if (!bookingId) {
     return {
@@ -1316,11 +1300,9 @@ async function handleGetBooking(req, correlationId) {
     };
 
     // EXACT AZURE FUNCTIONS LOGIC - Call the shared helper
-    const { getBooking: getBookingHelper } = require('../utils/helpers/bookingHelpers');
     const result = await getBookingHelper(context, bookingId);
 
     // IMMEDIATELY clean BigInt values before processing
-    const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
     const cleanedResult = cleanBigIntFromObject(result);
 
     return {
@@ -1349,7 +1331,7 @@ async function handleCreateBooking(req, correlationId) {
   const { tenant } = req;
 
   // 🔍 DETAILED PARAMETER LOGGING FOR RETELL DEBUGGING (HANDLE CREATE)
-  console.log('🚀 [HANDLE CREATE BOOKING] Raw request received:', {
+  logger.info('🚀 [HANDLE CREATE BOOKING] Raw request received:', {
     correlationId,
     tenantId: tenant.id,
     method: req.method,
@@ -1364,10 +1346,10 @@ async function handleCreateBooking(req, correlationId) {
 
   const bookingDataRaw = req.body || {};
   const bookingData = stripRetellMeta(bookingDataRaw);
-  console.log('📋 [HANDLE CREATE BOOKING] Request body (raw):', JSON.stringify(bookingDataRaw, null, 2));
-  console.log('📋 [HANDLE CREATE BOOKING] Normalized payload:', JSON.stringify(bookingData, null, 2));
+  logger.info('📋 [HANDLE CREATE BOOKING] Request body (raw):', JSON.stringify(bookingDataRaw, null, 2));
+  logger.info('📋 [HANDLE CREATE BOOKING] Normalized payload:', JSON.stringify(bookingData, null, 2));
 
-  console.log('🔍 [HANDLE CREATE BOOKING] Parameter analysis:', {
+  logger.info('🔍 [HANDLE CREATE BOOKING] Parameter analysis:', {
     bodyType: typeof bookingDataRaw,
     bodyKeys: Object.keys(bookingDataRaw || {}),
     bodyLength: JSON.stringify(bookingDataRaw).length,
@@ -1417,7 +1399,7 @@ async function handleUpdateBooking(req, correlationId) {
     const bookingId = req.query.bookingId || req.params.bookingId || req.params.id || req.params.action;
     let updateData = stripRetellMeta(req.body || {});
 
-    console.log('🔍 [HANDLE UPDATE BOOKING] BookingId extraction:', {
+    logger.info('🔍 [HANDLE UPDATE BOOKING] BookingId extraction:', {
       queryBookingId: req.query.bookingId,
       paramsBookingId: req.params.bookingId,
       paramsAction: req.params.action,
@@ -1428,7 +1410,7 @@ async function handleUpdateBooking(req, correlationId) {
 
     // Validate bookingId is present
     if (!bookingId) {
-      console.log('❌ [HANDLE UPDATE BOOKING] Missing booking ID');
+      logger.info('❌ [HANDLE UPDATE BOOKING] Missing booking ID');
       throw {
         message: 'bookingId is required',
         code: 'MISSING_BOOKING_ID',
@@ -1438,7 +1420,7 @@ async function handleUpdateBooking(req, correlationId) {
 
     // Handle nested request structure from agents/tools
     if (updateData.args) {
-      console.log('🔧 [HANDLE UPDATE BOOKING] Extracting args from nested structure');
+      logger.info('🔧 [HANDLE UPDATE BOOKING] Extracting args from nested structure');
       updateData = stripRetellMeta(updateData.args);
     }
 
@@ -1449,7 +1431,7 @@ async function handleUpdateBooking(req, correlationId) {
     // Handle both appointmentSegments and bookingSegments (agent might send either)
     const segments = appointmentSegments || bookingSegments;
 
-    console.log('🚀 [HANDLE UPDATE BOOKING] Processing request:', {
+    logger.info('🚀 [HANDLE UPDATE BOOKING] Processing request:', {
       correlationId,
       bookingId,
       originalBodyKeys: Object.keys(req.body || {}),
@@ -1481,7 +1463,7 @@ async function handleUpdateBooking(req, correlationId) {
       correlationId
     };
   } catch (error) {
-    console.error('❌ [HANDLE UPDATE BOOKING] Error:', error);
+    logger.error('❌ [HANDLE UPDATE BOOKING] Error:', error);
     // Convert Express-style errors to Azure Functions format
     return {
       success: false,

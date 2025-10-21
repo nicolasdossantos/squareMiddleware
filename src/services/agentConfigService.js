@@ -7,7 +7,7 @@
  * Configuration is stored as JSON in AGENT_CONFIGS environment variable.
  */
 
-const { logError } = require('../utils/logger');
+const { logError, logger } = require('../utils/logger');
 
 class AgentConfigService {
   constructor() {
@@ -33,10 +33,10 @@ class AgentConfigService {
         this.agents.set(config.agentId, config);
       });
 
-      console.log(`[AgentConfig] Loaded ${this.agents.size} agent configuration(s)`);
+      logger.info(`[AgentConfig] Loaded ${this.agents.size} agent configuration(s)`);
       this.initialized = true;
     } catch (error) {
-      console.error('[AgentConfig] Failed to load agent configurations:', error.message);
+      logger.error('[AgentConfig] Failed to load agent configurations:', error.message);
       throw new Error(`Agent configuration initialization failed: ${error.message}`);
     }
   }
@@ -138,6 +138,45 @@ class AgentConfigService {
     this.agents.clear();
     this.initialized = false;
     this._initialize();
+  }
+
+  /**
+   * Get all agents (for admin panel)
+   * @returns {Map}
+   */
+  getAllAgents() {
+    this._initialize();
+    return this.agents;
+  }
+
+  /**
+   * Add a new agent configuration (runtime)
+   * @param {Object} agentConfig - Agent configuration
+   */
+  addAgentConfig(agentConfig) {
+    this._initialize();
+
+    if (!agentConfig.agentId) {
+      throw new Error('agentId is required');
+    }
+
+    this.agents.set(agentConfig.agentId, agentConfig);
+    logger.info('Agent config added', { agentId: agentConfig.agentId });
+  }
+
+  /**
+   * Remove an agent configuration (runtime)
+   * @param {string} agentId - Agent ID to remove
+   */
+  removeAgentConfig(agentId) {
+    this._initialize();
+
+    if (!this.agents.has(agentId)) {
+      throw new Error(`Agent ${agentId} not found`);
+    }
+
+    this.agents.delete(agentId);
+    logger.info('Agent config removed', { agentId });
   }
 }
 

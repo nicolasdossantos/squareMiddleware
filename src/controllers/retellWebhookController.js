@@ -89,10 +89,7 @@ function validateWebhookPayload(payload) {
 
 function extractCallId(payload) {
   return (
-    payload?.call?.call_id ||
-    payload?.call_inbound?.call_id ||
-    payload?.call_inbound?.agent_id ||
-    'unknown'
+    payload?.call?.call_id || payload?.call_inbound?.call_id || payload?.call_inbound?.agent_id || 'unknown'
   );
 }
 

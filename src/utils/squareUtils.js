@@ -7,6 +7,9 @@
 const { Client: SquareClient, Environment } = require('square/legacy');
 const { logCacheHit, logApiCall, trackException } = require('./telemetry');
 const { toBigInt, bigIntReplacer, cleanBigIntFromObject } = require('./helpers/bigIntUtils');
+const { logger } = require('./logger');
+const circuitBreaker = require('./circuitBreaker');
+const queryCoalescer = require('./queryCoalescing');
 
 // Cache TTL constants
 const CATALOG_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -54,7 +57,7 @@ function createSquareClient(accessToken, environment = 'production') {
   if (clientCache.has(cacheKey)) {
     const cached = clientCache.get(cacheKey);
     cached.lastUsed = Date.now();
-    console.log('[createSquareClient] Reusing cached client', {
+    logger.debug('Reusing cached Square client', {
       environment: normalizedEnvironment,
       hasToken: !!accessToken,
       cacheSize: clientCache.size
@@ -62,12 +65,10 @@ function createSquareClient(accessToken, environment = 'production') {
     return cached.client;
   }
 
-  console.log('[createSquareClient] Creating new Square client', {
+  logger.debug('Creating new Square client', {
     hasToken: !!accessToken,
     tokenLength: accessToken?.length,
-    environment: normalizedEnvironment,
-    SquareClientType: typeof SquareClient,
-    EnvironmentType: typeof Environment
+    environment: normalizedEnvironment
   });
 
   const client = new SquareClient({
@@ -75,9 +76,8 @@ function createSquareClient(accessToken, environment = 'production') {
     environment: normalizedEnvironment === 'sandbox' ? Environment.Sandbox : Environment.Production
   });
 
-  console.log('[createSquareClient] Client created', {
-    hasCustomers: !!client.customers,
-    clientKeys: Object.keys(client).slice(0, 10)
+  logger.debug('Square client created', {
+    hasCustomers: !!client.customers
   });
 
   clientCache.set(cacheKey, { client, lastUsed: Date.now() });
@@ -286,100 +286,113 @@ async function loadStaffMembers(context, tenant) {
 
   logCacheHit(context, 'staff_members', false);
 
-  // Create tenant-specific Square client
-  const square = createSquareClient(
-    tenant.accessToken || tenant.squareAccessToken,
-    tenant.squareEnvironment || tenant.environment || 'production'
+  // Use query coalescing to prevent redundant API calls
+  const coalescingKey = `staff-${tenant.id}`;
+  const result = await queryCoalescer.coalesce(
+    coalescingKey,
+    async () => {
+      // Create tenant-specific Square client
+      const square = createSquareClient(
+        tenant.accessToken || tenant.squareAccessToken,
+        tenant.squareEnvironment || tenant.environment || 'production'
+      );
+
+      const locationId = tenant.locationId || tenant.squareLocationId;
+      const staffMembers = [];
+
+      try {
+        const apiStartTime = Date.now();
+        const resp = await square.employeesApi.listEmployees(locationId, 'ACTIVE');
+        const apiDuration = Date.now() - apiStartTime;
+
+        const employees = resp.result?.employees || [];
+
+        logApiCall(context, 'employees_list', true, apiDuration, {
+          employee_count: employees.length,
+          tenant_id: tenant.id
+        });
+
+        context.log(`Staff members response received, employee count: ${employees.length}`);
+
+        employees.forEach(employee => {
+          staffMembers.push({
+            id: employee.id,
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+            fullName: `${employee.firstName} ${employee.lastName}`.trim(),
+            email: employee.email,
+            phoneNumber: employee.phoneNumber,
+            isOwner: employee.isOwner || false,
+            status: employee.status,
+            locationIds: employee.locationIds || []
+          });
+        });
+      } catch (employeesError) {
+        const apiDuration = Date.now() - startTime;
+        logApiCall(context, 'employees_list', false, apiDuration);
+        trackException(employeesError, {
+          function: 'loadStaffMembers_employeesApi',
+          tenant_id: tenant.id
+        });
+        context.log('⚠️  employeesApi failed, attempting teamMembersApi fallback', employeesError);
+
+        try {
+          const fallbackStart = Date.now();
+          const resp = await square.teamMembersApi.searchTeamMembers({
+            query: {
+              filter: {
+                locationIds: locationId ? [locationId] : undefined,
+                status: 'ACTIVE'
+              }
+            }
+          });
+          const fallbackDuration = Date.now() - fallbackStart;
+
+          const teamMembers = resp.result?.teamMembers || [];
+
+          logApiCall(context, 'team_members_search', true, fallbackDuration, {
+            team_member_count: teamMembers.length,
+            tenant_id: tenant.id
+          });
+
+          context.log(`Team members fallback response received, count: ${teamMembers.length}`);
+
+          teamMembers.forEach(member => {
+            staffMembers.push({
+              id: member.id,
+              firstName: member.givenName,
+              lastName: member.familyName,
+              fullName: `${member.givenName || ''} ${member.familyName || ''}`.trim(),
+              email: member.emailAddress,
+              phoneNumber: member.phoneNumber,
+              isOwner: member.isOwner || false,
+              status: member.status,
+              locationIds: member.assignedLocations?.locationIds || []
+            });
+          });
+        } catch (teamMembersError) {
+          trackException(teamMembersError, {
+            function: 'loadStaffMembers_teamMembersFallback',
+            tenant_id: tenant.id
+          });
+          context.log(
+            '❌ Both employeesApi and teamMembersApi failed to load staff members',
+            teamMembersError
+          );
+          throw teamMembersError;
+        }
+      }
+
+      context.log(`Loaded ${staffMembers.length} active staff members`);
+
+      const processedData = { staffMembers };
+      setTenantCache(staffCaches, tenant.id, processedData);
+      return processedData;
+    },
+    5000 // 5 second TTL for query coalescing
   );
 
-  const locationId = tenant.locationId || tenant.squareLocationId;
-  const staffMembers = [];
-
-  try {
-    const apiStartTime = Date.now();
-    const resp = await square.employeesApi.listEmployees(locationId, 'ACTIVE');
-    const apiDuration = Date.now() - apiStartTime;
-
-    const employees = resp.result?.employees || [];
-
-    logApiCall(context, 'employees_list', true, apiDuration, {
-      employee_count: employees.length,
-      tenant_id: tenant.id
-    });
-
-    context.log(`Staff members response received, employee count: ${employees.length}`);
-
-    employees.forEach(employee => {
-      staffMembers.push({
-        id: employee.id,
-        firstName: employee.firstName,
-        lastName: employee.lastName,
-        fullName: `${employee.firstName} ${employee.lastName}`.trim(),
-        email: employee.email,
-        phoneNumber: employee.phoneNumber,
-        isOwner: employee.isOwner || false,
-        status: employee.status,
-        locationIds: employee.locationIds || []
-      });
-    });
-  } catch (employeesError) {
-    const apiDuration = Date.now() - startTime;
-    logApiCall(context, 'employees_list', false, apiDuration);
-    trackException(employeesError, {
-      function: 'loadStaffMembers_employeesApi',
-      tenant_id: tenant.id
-    });
-    context.log('⚠️  employeesApi failed, attempting teamMembersApi fallback', employeesError);
-
-    try {
-      const fallbackStart = Date.now();
-      const resp = await square.teamMembersApi.searchTeamMembers({
-        query: {
-          filter: {
-            locationIds: locationId ? [locationId] : undefined,
-            status: 'ACTIVE'
-          }
-        }
-      });
-      const fallbackDuration = Date.now() - fallbackStart;
-
-      const teamMembers = resp.result?.teamMembers || [];
-
-      logApiCall(context, 'team_members_search', true, fallbackDuration, {
-        team_member_count: teamMembers.length,
-        tenant_id: tenant.id
-      });
-
-      context.log(`Team members fallback response received, count: ${teamMembers.length}`);
-
-      teamMembers.forEach(member => {
-        staffMembers.push({
-          id: member.id,
-          firstName: member.givenName,
-          lastName: member.familyName,
-          fullName: `${member.givenName || ''} ${member.familyName || ''}`.trim(),
-          email: member.emailAddress,
-          phoneNumber: member.phoneNumber,
-          isOwner: member.isOwner || false,
-          status: member.status,
-          locationIds: member.assignedLocations?.locationIds || []
-        });
-      });
-    } catch (teamMembersError) {
-      trackException(teamMembersError, {
-        function: 'loadStaffMembers_teamMembersFallback',
-        tenant_id: tenant.id
-      });
-      context.log('❌ Both employeesApi and teamMembersApi failed to load staff members', teamMembersError);
-      throw teamMembersError;
-    }
-  }
-
-  context.log(`Loaded ${staffMembers.length} active staff members`);
-
-  const processedData = { staffMembers };
-  setTenantCache(staffCaches, tenant.id, processedData);
-  return processedData;
+  return result;
 }
 
 /**
@@ -1004,7 +1017,7 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
     context.log(`🔍 Formatted phone for exact search: ${formattedPhone}`);
 
     // Create tenant-specific Square client
-    console.log('[squareUtils] Creating Square client for tenant:', {
+    logger.debug('[squareUtils] Creating Square client for tenant', {
       tenantId: tenant.id,
       hasAccessToken: !!(tenant.accessToken || tenant.squareAccessToken),
       accessTokenLength: (tenant.accessToken || tenant.squareAccessToken)?.length,
@@ -1190,6 +1203,12 @@ module.exports = {
   // Cache management
   getTenantCache,
   setTenantCache,
+
+  // Circuit breaker
+  withCircuitBreaker: (tenantId, apiCall, operationName) =>
+    circuitBreaker.execute(tenantId, apiCall, operationName),
+  getCircuitState: tenantId => circuitBreaker.getState(tenantId),
+  getAllCircuitStates: () => circuitBreaker.getAllStates(),
 
   // Telemetry
   logCacheHit,

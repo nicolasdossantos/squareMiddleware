@@ -3,7 +3,7 @@
  * Business logic for processing Retell AI webhook events
  */
 
-const { logPerformance, logEvent, logError } = require('../utils/logger');
+const { logPerformance, logEvent, logError, logger } = require('../utils/logger');
 const customerService = require('./customerService');
 const retellEmailService = require('./retellEmailService');
 
@@ -51,7 +51,7 @@ async function processCallAnalysis({
     if (callData) {
       try {
         const emailTo = process.env.EMAIL_TO || tenant?.staffEmail;
-        console.log(`📧 [RETELL EMAIL] Sending post-call email to ${emailTo}`);
+        logger.info(`📧 [RETELL EMAIL] Sending post-call email to ${emailTo}`);
 
         await retellEmailService.sendRetellPostCallEmail(callData, correlationId);
 
@@ -67,7 +67,7 @@ async function processCallAnalysis({
           recipient: emailTo
         });
       } catch (emailError) {
-        console.error('❌ [RETELL EMAIL] Failed to send email:', emailError);
+        logger.error('❌ [RETELL EMAIL] Failed to send email:', emailError);
 
         logError(emailError, {
           operation: 'sendRetellPostCallEmail',
@@ -82,7 +82,7 @@ async function processCallAnalysis({
         };
       }
     } else {
-      console.warn('⚠️ [RETELL EMAIL] Skipping email - missing callData');
+      logger.warn('⚠️ [RETELL EMAIL] Skipping email - missing callData');
     }
 
     // Log performance

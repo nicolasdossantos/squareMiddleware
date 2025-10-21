@@ -7,6 +7,7 @@ const { Client: SquareClient, Environment } = require('square/legacy');
 const { logPerformance, logEvent, logError } = require('../utils/logger');
 const { config } = require('../config');
 const emailService = require('./emailService');
+const { getAllCircuitStates } = require('../utils/squareUtils');
 
 // Lazy initialization of Square client for health checks
 let squareClient = null;
@@ -30,12 +31,14 @@ async function getDetailedHealth() {
     logEvent('health_check_detailed_start');
 
     // Run dependency checks in parallel
-    const [squareHealth, emailHealth, memoryHealth, diskHealth] = await Promise.allSettled([
-      checkSquareConnection(),
-      checkEmailService(),
-      checkMemoryUsage(),
-      checkDiskSpace()
-    ]);
+    const [squareHealth, emailHealth, memoryHealth, diskHealth, circuitBreakerHealth] =
+      await Promise.allSettled([
+        checkSquareConnection(),
+        checkEmailService(),
+        checkMemoryUsage(),
+        checkDiskSpace(),
+        checkCircuitBreakers()
+      ]);
 
     const dependencies = [
       {
@@ -61,6 +64,15 @@ async function getDetailedHealth() {
         status: diskHealth.status === 'fulfilled' && diskHealth.value.healthy ? 'healthy' : 'warning',
         details: diskHealth.value?.details,
         error: diskHealth.status === 'rejected' ? diskHealth.reason.message : null
+      },
+      {
+        name: 'Circuit Breakers',
+        status:
+          circuitBreakerHealth.status === 'fulfilled' && circuitBreakerHealth.value.healthy
+            ? 'healthy'
+            : 'warning',
+        details: circuitBreakerHealth.value?.details,
+        error: circuitBreakerHealth.status === 'rejected' ? circuitBreakerHealth.reason.message : null
       }
     ];
 
@@ -274,6 +286,35 @@ async function checkEnvironmentVariables() {
 }
 
 /**
+ * Check circuit breaker states
+ */
+async function checkCircuitBreakers() {
+  try {
+    const circuitStates = getAllCircuitStates();
+    const openCircuits = Object.entries(circuitStates).filter(([, state]) => state.state === 'OPEN');
+
+    return {
+      healthy: openCircuits.length === 0,
+      details: {
+        totalCircuits: Object.keys(circuitStates).length,
+        openCircuits: openCircuits.length,
+        states: circuitStates
+      },
+      message:
+        openCircuits.length === 0
+          ? 'All circuit breakers closed'
+          : `${openCircuits.length} circuit breaker(s) open`
+    };
+  } catch (error) {
+    return {
+      healthy: true, // Don't fail health check if circuit breaker check fails
+      error: error.message,
+      message: 'Circuit breaker check failed'
+    };
+  }
+}
+
+/**
  * Get system metrics
  */
 async function getSystemMetrics() {
@@ -311,5 +352,6 @@ module.exports = {
   checkLiveness,
   checkSquareConnection,
   checkEmailService,
+  checkCircuitBreakers,
   getSystemMetrics
 };

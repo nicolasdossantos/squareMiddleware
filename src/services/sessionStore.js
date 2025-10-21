@@ -10,6 +10,8 @@
  * 4. Timeout → Auto-cleanup after 10 minutes
  */
 
+const { logger } = require('../utils/logger');
+
 class SessionStore {
   constructor() {
     this.sessions = new Map();
@@ -55,9 +57,12 @@ class SessionStore {
 
     this.sessions.set(callId, session);
 
-    console.log(
-      `[SessionStore] 📝 Session created: ${callId} (agent: ${agentId}, expires in ${ttlSeconds}s)`
-    );
+    logger.info('Session created', {
+      callId,
+      agentId,
+      expiresInSeconds: ttlSeconds,
+      totalSessions: this.sessions.size
+    });
 
     return session;
   }
@@ -71,13 +76,13 @@ class SessionStore {
     const session = this.sessions.get(callId);
 
     if (!session) {
-      console.log(`[SessionStore] ❌ Session not found: ${callId}`);
+      logger.debug('Session not found', { callId });
       return null;
     }
 
     // Check if session expired
     if (Date.now() > session.expiresAt) {
-      console.log(`[SessionStore] ⏱️  Session expired: ${callId}`);
+      logger.debug('Session expired', { callId });
       this.sessions.delete(callId);
       return null;
     }
@@ -86,7 +91,7 @@ class SessionStore {
     session.lastAccessedAt = Date.now();
     session.accessCount++;
 
-    console.log(`[SessionStore] ✅ Session found: ${callId} (access #${session.accessCount})`);
+    logger.debug('Session found', { callId, accessCount: session.accessCount });
 
     return session;
   }
@@ -101,9 +106,9 @@ class SessionStore {
 
     if (existed) {
       this.sessions.delete(callId);
-      console.log(`[SessionStore] 🗑️  Session destroyed: ${callId}`);
+      logger.info('Session destroyed', { callId, remainingSessions: this.sessions.size });
     } else {
-      console.log(`[SessionStore] ⚠️  Attempted to destroy non-existent session: ${callId}`);
+      logger.warn('Attempted to destroy non-existent session', { callId });
     }
 
     return existed;
@@ -121,12 +126,14 @@ class SessionStore {
       if (now > session.expiresAt) {
         this.sessions.delete(callId);
         cleaned++;
-        console.log(`[SessionStore] 🧹 Auto-cleanup expired session: ${callId}`);
       }
     }
 
     if (cleaned > 0) {
-      console.log(`[SessionStore] Cleaned up ${cleaned} expired sessions (${this.sessions.size} remaining)`);
+      logger.info('Auto-cleanup expired sessions', {
+        cleanedCount: cleaned,
+        remainingSessions: this.sessions.size
+      });
     }
 
     return cleaned;
@@ -170,7 +177,9 @@ class SessionStore {
   shutdown() {
     if (this.globalCleanupInterval) {
       clearInterval(this.globalCleanupInterval);
-      console.log('[SessionStore] Shutdown: Global cleanup interval cleared');
+      logger.info('SessionStore shutdown: Global cleanup interval cleared', {
+        activeSessions: this.sessions.size
+      });
     }
   }
 }

@@ -7,6 +7,7 @@ const {
 } = require('../utils/helpers/bookingHelpers');
 const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
 const { createSquareClient } = require('../utils/squareUtils');
+const { logger } = require('../utils/logger');
 
 class BookingService {
   /**
@@ -19,10 +20,10 @@ class BookingService {
     try {
       // Create mock Azure Functions context
       const context = {
-        log: (...args) => console.log('[BOOKING]', ...args),
-        error: (...args) => console.error('[BOOKING ERROR]', ...args),
-        warn: (...args) => console.warn('[BOOKING WARN]', ...args),
-        info: (...args) => console.info('[BOOKING INFO]', ...args)
+        log: (...args) => logger.info('[BOOKING]', ...args),
+        error: (...args) => logger.error('[BOOKING ERROR]', ...args),
+        warn: (...args) => logger.warn('[BOOKING WARN]', ...args),
+        info: (...args) => logger.info('[BOOKING INFO]', ...args)
       };
 
       // Call the helper with tenant context
@@ -35,7 +36,7 @@ class BookingService {
         }
       };
     } catch (error) {
-      console.error('BookingService.createBooking error:', error.message || error);
+      logger.error('BookingService.createBooking error:', error.message || error);
       throw {
         message: error.message || 'Failed to create booking',
         code: error.code || 'BOOKING_ERROR',
@@ -56,10 +57,10 @@ class BookingService {
     try {
       // Create mock Azure Functions context
       const context = {
-        log: (...args) => console.log('[BOOKING UPDATE]', ...args),
-        error: (...args) => console.error('[BOOKING UPDATE ERROR]', ...args),
-        warn: (...args) => console.warn('[BOOKING UPDATE WARN]', ...args),
-        info: (...args) => console.info('[BOOKING UPDATE INFO]', ...args)
+        log: (...args) => logger.info('[BOOKING UPDATE]', ...args),
+        error: (...args) => logger.error('[BOOKING UPDATE ERROR]', ...args),
+        warn: (...args) => logger.warn('[BOOKING UPDATE WARN]', ...args),
+        info: (...args) => logger.info('[BOOKING UPDATE INFO]', ...args)
       };
 
       // Process appointmentSegments to ensure correct data types
@@ -87,7 +88,7 @@ class BookingService {
         }
       };
     } catch (error) {
-      console.error('BookingService.updateBooking error:', error);
+      logger.error('BookingService.updateBooking error:', error);
       return {
         success: false,
         error: error.message,
@@ -106,10 +107,10 @@ class BookingService {
   async getBooking(tenant, bookingId, correlationId) {
     try {
       const context = {
-        log: (...args) => console.log('[BOOKING GET]', ...args),
-        error: (...args) => console.error('[BOOKING GET ERROR]', ...args),
-        warn: (...args) => console.warn('[BOOKING GET WARN]', ...args),
-        info: (...args) => console.info('[BOOKING GET INFO]', ...args)
+        log: (...args) => logger.info('[BOOKING GET]', ...args),
+        error: (...args) => logger.error('[BOOKING GET ERROR]', ...args),
+        warn: (...args) => logger.warn('[BOOKING GET WARN]', ...args),
+        info: (...args) => logger.info('[BOOKING GET INFO]', ...args)
       };
 
       const result = await getBookingHelper(context, tenant, bookingId);
@@ -121,7 +122,7 @@ class BookingService {
         }
       };
     } catch (error) {
-      console.error('BookingService.getBooking error:', error);
+      logger.error('BookingService.getBooking error:', error);
       return {
         success: false,
         error: error.message,
@@ -164,7 +165,7 @@ class BookingService {
       // The access token already scopes to the location
       const response = await square.bookingsApi.listBookings(
         params.limit, // limit
-        undefined, // cursor (pagination)
+        filters.cursor || undefined, // cursor (pagination) - pass from request
         params.customerId, // customerId
         params.teamMemberId // teamMemberId
         // Omitting locationId, startAtMin, startAtMax to avoid validation errors
@@ -172,17 +173,17 @@ class BookingService {
 
       // Square SDK v42+ response structure
       const bookings = response.result?.bookings || [];
+      const cursor = response.result?.cursor; // Next page cursor
 
       return {
         success: true,
         data: {
           bookings: bookings.map(b => cleanBigIntFromObject(b)),
-          total: bookings.length,
-          cursor: response.result?.cursor
+          cursor: cursor // Return cursor for next page
         }
       };
     } catch (error) {
-      console.error('BookingService.listBookings error:', error);
+      logger.error('BookingService.listBookings error:', error);
       return {
         success: false,
         error: error.message,
@@ -201,10 +202,10 @@ class BookingService {
   async cancelBooking(tenant, bookingId, correlationId) {
     try {
       const context = {
-        log: (...args) => console.log('[BOOKING CANCEL]', ...args),
-        error: (...args) => console.error('[BOOKING CANCEL ERROR]', ...args),
-        warn: (...args) => console.warn('[BOOKING CANCEL WARN]', ...args),
-        info: (...args) => console.info('[BOOKING CANCEL INFO]', ...args)
+        log: (...args) => logger.info('[BOOKING CANCEL]', ...args),
+        error: (...args) => logger.error('[BOOKING CANCEL ERROR]', ...args),
+        warn: (...args) => logger.warn('[BOOKING CANCEL WARN]', ...args),
+        info: (...args) => logger.info('[BOOKING CANCEL INFO]', ...args)
       };
 
       const result = await cancelBookingHelper(context, tenant, bookingId);
@@ -216,7 +217,7 @@ class BookingService {
         }
       };
     } catch (error) {
-      console.error('BookingService.cancelBooking error:', error);
+      logger.error('BookingService.cancelBooking error:', error);
       return {
         success: false,
         error: error.message,
@@ -235,10 +236,10 @@ class BookingService {
   async getBookingsByCustomer(tenant, customerId, correlationId) {
     try {
       const context = {
-        log: (...args) => console.log('[BOOKING CUSTOMER]', ...args),
-        error: (...args) => console.error('[BOOKING CUSTOMER ERROR]', ...args),
-        warn: (...args) => console.warn('[BOOKING CUSTOMER WARN]', ...args),
-        info: (...args) => console.info('[BOOKING CUSTOMER INFO]', ...args)
+        log: (...args) => logger.info('[BOOKING CUSTOMER]', ...args),
+        error: (...args) => logger.error('[BOOKING CUSTOMER ERROR]', ...args),
+        warn: (...args) => logger.warn('[BOOKING CUSTOMER WARN]', ...args),
+        info: (...args) => logger.info('[BOOKING CUSTOMER INFO]', ...args)
       };
 
       const result = await getBookingsByCustomerHelper(context, tenant, customerId);
@@ -250,7 +251,7 @@ class BookingService {
         }
       };
     } catch (error) {
-      console.error('BookingService.getBookingsByCustomer error:', error);
+      logger.error('BookingService.getBookingsByCustomer error:', error);
       return {
         success: false,
         error: error.message,
@@ -269,10 +270,10 @@ class BookingService {
   async confirmBooking(tenant, bookingId, correlationId) {
     try {
       const context = {
-        log: (...args) => console.log('[BOOKING CONFIRM]', ...args),
-        error: (...args) => console.error('[BOOKING CONFIRM ERROR]', ...args),
-        warn: (...args) => console.warn('[BOOKING CONFIRM WARN]', ...args),
-        info: (...args) => console.info('[BOOKING CONFIRM INFO]', ...args)
+        log: (...args) => logger.info('[BOOKING CONFIRM]', ...args),
+        error: (...args) => logger.error('[BOOKING CONFIRM ERROR]', ...args),
+        warn: (...args) => logger.warn('[BOOKING CONFIRM WARN]', ...args),
+        info: (...args) => logger.info('[BOOKING CONFIRM INFO]', ...args)
       };
 
       // First get the current booking to get its version
@@ -289,7 +290,7 @@ class BookingService {
         data: cleanBigIntFromObject(result)
       };
     } catch (error) {
-      console.error('BookingService.confirmBooking error:', error);
+      logger.error('BookingService.confirmBooking error:', error);
       return {
         success: false,
         error: error.message,

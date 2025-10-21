@@ -13,6 +13,7 @@ const {
   validatePhoneNumber,
   formatPhoneNumber
 } = require('../squareUtils');
+const { logger } = require('../logger');
 const { toBigInt, formatPrice, durationToMinutes } = require('./bigIntUtils');
 
 // const ACTIVE_BOOKINGS = new Set(['ACCEPTED', 'PENDING']);
@@ -40,7 +41,7 @@ function validateBookingData(bookingData, isPartialUpdate = false) {
   const errors = [];
 
   // 🔍 CRITICAL DEBUG: Log the exact data being validated
-  console.log('🔍 [VALIDATION DEBUG] validateBookingData called with:', {
+  logger.info('🔍 [VALIDATION DEBUG] validateBookingData called with:', {
     bookingDataType: typeof bookingData,
     bookingDataKeys: bookingData ? Object.keys(bookingData) : 'null/undefined',
     bookingDataRaw: JSON.stringify(bookingData, null, 2),
@@ -49,7 +50,7 @@ function validateBookingData(bookingData, isPartialUpdate = false) {
   });
 
   if (!bookingData || typeof bookingData !== 'object') {
-    console.log('❌ [VALIDATION DEBUG] Invalid booking data object:', bookingData);
+    logger.info('❌ [VALIDATION DEBUG] Invalid booking data object:', bookingData);
     errors.push('Booking data must be a valid object');
     return { isValid: false, errors };
   }

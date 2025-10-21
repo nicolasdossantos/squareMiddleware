@@ -4,8 +4,13 @@
  */
 
 const nodemailer = require('nodemailer');
-const { logPerformance, logEvent, logError } = require('../utils/logger');
+const { logPerformance, logEvent, logError, logger } = require('../utils/logger');
 const { config } = require('../config');
+
+// Azure Function configuration (for async email sending)
+const USE_AZURE_FUNCTION = process.env.AZURE_FUNCTION_EMAIL_URL && process.env.AZURE_FUNCTION_EMAIL_KEY;
+const AZURE_FUNCTION_URL = process.env.AZURE_FUNCTION_EMAIL_URL;
+const AZURE_FUNCTION_KEY = process.env.AZURE_FUNCTION_EMAIL_KEY;
 
 // Create email transporter
 let transporter = null;
@@ -26,6 +31,80 @@ function createTransporter() {
 }
 
 /**
+ * Send email via Azure Function (async, non-blocking)
+ * @param {Object} mailOptions - Email options (to, subject, html, text)
+ * @param {string} tenant - Tenant ID for tracking
+ * @returns {Promise} Fire-and-forget (doesn't wait for response)
+ */
+async function sendViaAzureFunction(mailOptions, tenant = 'unknown') {
+  try {
+    // Fire and forget - don't wait for response
+    fetch(AZURE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-functions-key': AZURE_FUNCTION_KEY
+      },
+      body: JSON.stringify({
+        to: mailOptions.to,
+        subject: mailOptions.subject,
+        text: mailOptions.text,
+        html: mailOptions.html,
+        from: mailOptions.from,
+        tenant
+      })
+    }).catch(error => {
+      logger.error('Azure Function email failed (fire-and-forget)', {
+        error: error.message,
+        to: mailOptions.to,
+        tenant
+      });
+    });
+
+    // Return immediately (don't wait)
+    logger.info('Email queued via Azure Function', {
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      tenant
+    });
+
+    return {
+      success: true,
+      messageId: 'queued-' + Date.now(),
+      async: true,
+      recipient: mailOptions.to
+    };
+  } catch (error) {
+    logger.error('Failed to queue email via Azure Function', { error: error.message });
+    throw error;
+  }
+}
+
+/**
+ * Send email - uses Azure Function if configured, otherwise direct SMTP
+ * @param {Object} mailOptions - Email options
+ * @param {string} tenant - Tenant ID
+ * @returns {Promise}
+ */
+async function sendEmail(mailOptions, tenant = 'unknown') {
+  // Use Azure Function if configured (async, non-blocking)
+  if (USE_AZURE_FUNCTION) {
+    return sendViaAzureFunction(mailOptions, tenant);
+  }
+
+  // Otherwise send directly via SMTP (blocking)
+  const transporter = createTransporter();
+  const result = await transporter.sendMail(mailOptions);
+
+  return {
+    success: true,
+    messageId: result.messageId,
+    async: false,
+    recipient: mailOptions.to
+  };
+}
+
+/**
  * Send booking confirmation email to customer
  */
 async function sendBookingConfirmation(bookingDetails) {
@@ -38,8 +117,6 @@ async function sendBookingConfirmation(bookingDetails) {
       conversationId: bookingDetails.conversationId
     });
 
-    const transporter = createTransporter();
-
     const mailOptions = {
       from: config.email.from,
       to: bookingDetails.customerEmail,
@@ -48,7 +125,7 @@ async function sendBookingConfirmation(bookingDetails) {
       text: generateBookingConfirmationText(bookingDetails)
     };
 
-    const result = await transporter.sendMail(mailOptions);
+    const result = await sendEmail(mailOptions, bookingDetails.tenant || 'unknown');
 
     logPerformance(null, 'email_booking_confirmation', startTime, {
       customerEmail: bookingDetails.customerEmail,
@@ -89,8 +166,6 @@ async function sendStaffNotification(callDetails) {
       bookingDetected: callDetails.bookingInfo?.hasBookingIntent
     });
 
-    const transporter = createTransporter();
-
     const priorityPrefix = callDetails.priority === 'high' ? '[HIGH PRIORITY] ' : '';
     const subject = `${priorityPrefix}New Customer Call - ${callDetails.conversationId}`;
     const mailOptions = {
@@ -101,7 +176,7 @@ async function sendStaffNotification(callDetails) {
       text: generateStaffNotificationText(callDetails)
     };
 
-    const result = await transporter.sendMail(mailOptions);
+    const result = await sendEmail(mailOptions, callDetails.tenant || 'unknown');
 
     logPerformance(null, 'email_staff_notification', startTime, {
       conversationId: callDetails.conversationId,

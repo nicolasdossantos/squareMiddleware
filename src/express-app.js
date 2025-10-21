@@ -107,6 +107,10 @@ function createApp() {
   // - API endpoints: agentAuth middleware validates Bearer tokens
   // See src/routes/webhooks.js and src/routes/api.js for implementation
 
+  // Admin routes (with basic auth)
+  const adminRoutes = require('./routes/admin');
+  app.use('/admin', adminRoutes);
+
   // API routes
   app.use('/api', routes);
 

@@ -59,7 +59,10 @@ async function handleCallStarted(payload, context) {
           config.square.environment ||
           'sandbox',
         timezone:
-          session.credentials.timezone || requestTenant?.timezone || config.server.timezone || 'America/New_York',
+          session.credentials.timezone ||
+          requestTenant?.timezone ||
+          config.server.timezone ||
+          'America/New_York',
         businessName:
           session.credentials.businessName ||
           requestTenant?.businessName ||
@@ -111,8 +114,7 @@ async function handleCallStarted(payload, context) {
     }
   }
 
-  const tenant =
-    normalizeTenantShape(sessionTenant) ||
+  const tenant = normalizeTenantShape(sessionTenant) ||
     normalizeTenantShape(agentConfigTenant) ||
     normalizeTenantShape(requestTenant) || {
       id: 'default',

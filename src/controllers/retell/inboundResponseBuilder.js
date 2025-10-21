@@ -128,10 +128,7 @@ function buildInboundResponse({ customerResponse, businessName, fromNumber, call
       ),
       service_variations_json: toStringOrFallback(dynamicVariablesSource.service_variations_json, '{}'),
       staff_with_ids_json: toStringOrFallback(dynamicVariablesSource.staff_with_ids_json, DEFAULT_STAFF_JSON),
-      available_services: toStringOrFallback(
-        dynamicVariablesSource.available_services,
-        DEFAULT_SERVICES
-      ),
+      available_services: toStringOrFallback(dynamicVariablesSource.available_services, DEFAULT_SERVICES),
       available_staff: toStringOrFallback(dynamicVariablesSource.available_staff, 'Our Team'),
       caller_id: toStringOrFallback(dynamicVariablesSource.caller_id, '').replace(/\D/g, '').slice(-10),
       initial_message: toStringOrFallback(
@@ -149,7 +146,8 @@ function buildInboundResponse({ customerResponse, businessName, fromNumber, call
     businessName
   );
 
-  const content = dynamicVariables.initial_message ||
+  const content =
+    dynamicVariables.initial_message ||
     `Thank you for calling ${businessName}, who am I speaking with today?`;
 
   return {

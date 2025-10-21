@@ -1,5 +1,6 @@
 const { SecretClient } = require('@azure/keyvault-secrets');
 const { DefaultAzureCredential } = require('@azure/identity');
+const { logger } = require('../utils/logger');
 
 /**
  * Azure Key Vault Service
@@ -73,7 +74,7 @@ class KeyVaultService {
 
       return secret.value;
     } catch (error) {
-      console.error(`[KeyVault] Failed to fetch secret ${secretName}:`, error.message);
+      logger.error(`[KeyVault] Failed to fetch secret ${secretName}:`, error.message);
       throw new Error(`Key Vault secret not found: ${secretName}`);
     }
   }
@@ -127,6 +128,37 @@ class KeyVaultService {
     }
 
     throw new Error(`Mock secret not found: ${secretName}`);
+  }
+
+  /**
+   * Set a secret in Key Vault
+   * @param {string} secretName - Secret name
+   * @param {string} secretValue - Secret value
+   * @returns {Promise}
+   */
+  async setSecret(secretName, secretValue) {
+    if (this.useMock) {
+      logger.warn(`Mock mode: Cannot set secret ${secretName}`);
+      throw new Error('Cannot set secrets in mock mode');
+    }
+
+    try {
+      const client = this.getClient();
+
+      logger.info('Setting secret in Key Vault', { secretName });
+
+      await client.setSecret(secretName, secretValue);
+
+      logger.info('Secret set successfully', { secretName });
+
+      return { success: true };
+    } catch (error) {
+      logger.error('Failed to set secret', {
+        secretName,
+        error: error.message
+      });
+      throw error;
+    }
   }
 }
 

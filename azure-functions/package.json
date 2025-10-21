@@ -1,0 +1,17 @@
+{
+  "name": "square-middleware-functions",
+  "version": "1.0.0",
+  "description": "Azure Functions for async email and SMS sending",
+  "scripts": {
+    "start": "func start",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.7",
+    "twilio": "^5.8.2"
+  },
+  "devDependencies": {
+    "@azure/functions": "^4.0.0",
+    "azure-functions-core-tools": "^4.0.5611"
+  }
+}
