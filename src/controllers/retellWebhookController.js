@@ -133,6 +133,13 @@ async function handleRetellWebhook(req, res) {
   }
 
   try {
+    if (webhookData.event === 'call_analyzed') {
+      logEvent('retell_call_analyzed_payload', {
+        correlationId,
+        payload: webhookData
+      });
+    }
+
     const context = { correlationId, tenant };
     const result = await handler(webhookData, context);
     const callId = result.callId || extractCallId(webhookData);

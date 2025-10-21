@@ -7,6 +7,11 @@
 const { extractRetellPayload, isPlainObject, stripRetellMeta } = require('../utils/retellPayload');
 
 function retellPayloadMiddleware(req, _res, next) {
+  // Skip normalization for Retell webhook events so controllers receive the raw payload
+  if (req.path && req.path.startsWith('/api/webhooks/retell')) {
+    return next();
+  }
+
   const callId = req.headers['x-retell-call-id'];
 
   const originalBody = req.body;
