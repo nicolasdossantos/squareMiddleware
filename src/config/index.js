@@ -84,6 +84,21 @@ const config = {
     staffNotificationEmail: process.env.EMAIL_TO
   },
 
+  // Database configuration
+  database: {
+    connectionString:
+      process.env.PG_CONNECTION_STRING ||
+      process.env.PG_CONN_STRING ||
+      process.env.POSTGRES_CONNECTION_STRING ||
+      process.env.DATABASE_URL,
+    ssl: {
+      mode: process.env.PG_SSL_MODE || null,
+      caPath: process.env.PG_SSL_CA_PATH || null,
+      ca: process.env.PG_SSL_CA || null,
+      rejectUnauthorized: process.env.PG_SSL_REJECT_UNAUTHORIZED !== 'false'
+    }
+  },
+
   // Security configuration
   security: {
     corsOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['*'],

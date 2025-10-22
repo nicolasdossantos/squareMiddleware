@@ -5,6 +5,7 @@ const sessionStore = require('../../services/sessionStore');
 const retellWebhookService = require('../../services/retellWebhookService');
 const retellEmailService = require('../../services/retellEmailService');
 const agentConfigService = require('../../services/agentConfigService');
+const customerContextService = require('../../services/customerContextService');
 const { config } = require('../../config');
 const { buildConversationInitiationData } = require('../../services/customerInfoResponseService');
 const { buildInboundResponse, buildDefaultDynamicVariables } = require('./inboundResponseBuilder');
@@ -176,7 +177,7 @@ async function handleCallStarted(payload, context) {
 }
 
 async function handleCallAnalyzed(payload, context) {
-  const { correlationId } = context;
+  const { correlationId, tenant: requestTenant } = context;
   const call = payload.call;
   const { call_id, from_number, transcript, call_analysis } = call;
 
@@ -187,6 +188,27 @@ async function handleCallAnalyzed(payload, context) {
     hasTranscript: !!transcript,
     hasAnalysis: !!call_analysis
   });
+
+  const session = sessionStore.getSession(call_id);
+
+  const tenant = normalizeTenantShape(requestTenant) ||
+    (session
+      ? normalizeTenantShape({
+          id: session.agentId || requestTenant?.id || 'default',
+          squareAccessToken: session.credentials?.squareAccessToken,
+          squareLocationId: session.credentials?.squareLocationId,
+          squareEnvironment: session.credentials?.squareEnvironment || config.square.environment || 'sandbox',
+          timezone: session.credentials?.timezone || config.server.timezone || 'America/New_York',
+          businessName: session.credentials?.businessName || config.businessName || 'Elite Barbershop'
+        })
+      : null) || {
+      id: requestTenant?.id || 'default',
+      squareAccessToken: config.square.accessToken,
+      squareLocationId: config.square.locationId,
+      squareEnvironment: config.square.environment || 'sandbox',
+      timezone: config.server.timezone || 'America/New_York',
+      businessName: config.businessName || 'Elite Barbershop'
+    };
 
   try {
     let emailSent = false;
@@ -214,6 +236,28 @@ async function handleCallAnalyzed(payload, context) {
       correlationId
     });
 
+    let contextPersistence = null;
+    try {
+      contextPersistence = await customerContextService.saveCallAnalysis({
+        tenant,
+        call,
+        correlationId
+      });
+
+      if (call_id && contextPersistence?.profile?.id) {
+        sessionStore.updateSession(call_id, {
+          customerProfileId: contextPersistence.profile.id,
+          contextPersistedAt: new Date().toISOString()
+        });
+      }
+    } catch (contextError) {
+      logEvent('retell_call_analyzed_context_error', {
+        correlationId,
+        callId: call_id,
+        error: contextError.message
+      });
+    }
+
     return {
       processed: true,
       event: 'call_analyzed',
@@ -222,7 +266,9 @@ async function handleCallAnalyzed(payload, context) {
       metrics: {
         emailSent,
         hasTranscript: !!transcript,
-        hasAnalysis: !!call_analysis
+        hasAnalysis: !!call_analysis,
+        contextUpserts: contextPersistence?.contextUpserted || 0,
+        issuesCreated: contextPersistence?.issuesCreated || 0
       }
     };
   } catch (error) {
@@ -349,7 +395,11 @@ async function handleCallInbound(payload, context) {
           timezone: tenant.timezone,
           businessName: tenant.businessName
         },
-        600
+        600,
+        {
+          fromNumber: from_number,
+          tenantId: tenant.id
+        }
       );
 
       logEvent('retell_session_created', {
@@ -378,6 +428,51 @@ async function handleCallInbound(payload, context) {
         agentId: agent_id,
         error: customerLookupError.message || String(customerLookupError)
       });
+    }
+
+    if (from_number) {
+      try {
+        const storedContext = await customerContextService.getCustomerContext({
+          tenantId: tenant.id,
+          phoneNumber: from_number,
+          correlationId
+        });
+
+        if (storedContext) {
+          const dynamicVariables =
+            customerResponse?.dynamic_variables ||
+            customerResponse?.customer?.dynamic_variables ||
+            (customerResponse
+              ? (customerResponse.dynamic_variables = {})
+              : (customerResponse = {
+                  success: false,
+                  type: 'conversation_initiation_client_data',
+                  dynamic_variables: {}
+                }));
+
+          if (storedContext.dynamicVariables && dynamicVariables) {
+            Object.assign(dynamicVariables, storedContext.dynamicVariables);
+          }
+
+          if (dynamicVariables && storedContext.openIssues) {
+            dynamicVariables.open_issues_json = JSON.stringify(storedContext.openIssues);
+            dynamicVariables.has_open_issues = storedContext.openIssues.length > 0 ? 'true' : 'false';
+          }
+
+          sessionStore.updateSession(callId, {
+            customerProfileId: storedContext?.profile?.id || null,
+            normalizedPhone: storedContext?.normalizedPhone || null,
+            lastContextSync: new Date().toISOString()
+          });
+        }
+      } catch (contextError) {
+        logEvent('retell_call_inbound_context_error', {
+          correlationId,
+          agentId: agent_id,
+          callId,
+          error: contextError.message
+        });
+      }
     }
 
     const inboundResponse = buildInboundResponse({

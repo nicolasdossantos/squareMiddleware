@@ -31,7 +31,7 @@ class SessionStore {
    * @param {number} ttlSeconds - Time to live (default 600 = 10 minutes)
    * @returns {object} Session object
    */
-  createSession(callId, agentId, credentials, ttlSeconds = 600) {
+  createSession(callId, agentId, credentials, ttlSeconds = 600, metadata = {}) {
     if (!callId || !agentId || !credentials) {
       throw new Error('callId, agentId, and credentials are required');
     }
@@ -49,6 +49,7 @@ class SessionStore {
         timezone: credentials.timezone || 'America/New_York',
         businessName: credentials.businessName
       },
+      metadata: { ...(metadata || {}) },
       createdAt: now,
       expiresAt,
       lastAccessedAt: now,
@@ -65,6 +66,48 @@ class SessionStore {
     });
 
     return session;
+  }
+
+  /**
+   * Update session metadata with additional fields
+   * @param {string} callId
+   * @param {object} updates
+   * @returns {object|null}
+   */
+  updateSession(callId, updates = {}) {
+    const session = this.sessions.get(callId);
+
+    if (!session) {
+      logger.warn('Attempted to update non-existent session', { callId });
+      return null;
+    }
+
+    session.metadata = {
+      ...(session.metadata || {}),
+      ...(updates || {})
+    };
+    session.lastAccessedAt = Date.now();
+
+    logger.debug('Session metadata updated', {
+      callId,
+      keys: Object.keys(updates || {}),
+      accessCount: session.accessCount
+    });
+
+    return session;
+  }
+
+  /**
+   * Get a shallow copy of session metadata
+   * @param {string} callId
+   * @returns {object|null}
+   */
+  getSessionMetadata(callId) {
+    const session = this.getSession(callId);
+    if (!session || !session.metadata) {
+      return null;
+    }
+    return { ...session.metadata };
   }
 
   /**
