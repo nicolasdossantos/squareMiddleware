@@ -245,9 +245,29 @@ async function handleCallAnalyzed(payload, context) {
       });
 
       if (call_id && contextPersistence?.profile?.id) {
-        sessionStore.updateSession(call_id, {
+        const updatedSession = sessionStore.updateSession(call_id, {
           customerProfileId: contextPersistence.profile.id,
           contextPersistedAt: new Date().toISOString()
+        });
+
+        if (updatedSession) {
+          logEvent('retell_call_analyzed_context_session_update', {
+            correlationId,
+            callId: call_id,
+            metadataKeys: Object.keys(updatedSession.metadata || {})
+          });
+        }
+      }
+
+      if (contextPersistence) {
+        logEvent('retell_call_analyzed_context_persisted', {
+          correlationId,
+          callId: call_id,
+          tenantId: tenant.id,
+          profileId: contextPersistence.profile?.id || null,
+          contextUpserts: contextPersistence.contextUpserted || 0,
+          issuesCreated: contextPersistence.issuesCreated || 0,
+          issuesUpdated: contextPersistence.issuesUpdated || 0
         });
       }
     } catch (contextError) {
@@ -459,11 +479,29 @@ async function handleCallInbound(payload, context) {
             dynamicVariables.has_open_issues = storedContext.openIssues.length > 0 ? 'true' : 'false';
           }
 
-          sessionStore.updateSession(callId, {
+          const updatedSession = sessionStore.updateSession(callId, {
             customerProfileId: storedContext?.profile?.id || null,
             normalizedPhone: storedContext?.normalizedPhone || null,
             lastContextSync: new Date().toISOString()
           });
+
+          logEvent('retell_call_inbound_context_applied', {
+            correlationId,
+            agentId: agent_id,
+            callId,
+            profileId: storedContext?.profile?.id || null,
+            dynamicKeys: Object.keys(storedContext.dynamicVariables || {}),
+            openIssues: storedContext.openIssues?.length || 0
+          });
+
+          if (updatedSession) {
+            logEvent('retell_call_inbound_session_metadata_updated', {
+              correlationId,
+              agentId: agent_id,
+              callId,
+              metadataKeys: Object.keys(updatedSession.metadata || {})
+            });
+          }
         }
       } catch (contextError) {
         logEvent('retell_call_inbound_context_error', {

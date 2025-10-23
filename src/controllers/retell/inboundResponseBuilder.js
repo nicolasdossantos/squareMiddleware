@@ -6,6 +6,27 @@ const DEFAULT_STAFF_JSON = '[{"id":"default","name":"Our Team","displayName":"Ou
 const DEFAULT_SERVICES = 'Hair Cut, Beard Trim, Hair Wash, Styling';
 
 /**
+ * Normalize arbitrary dynamic variable values into strings Retell expects.
+ * @param {any} value
+ * @returns {string}
+ */
+function normalizeDynamicValue(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value);
+    } catch (error) {
+      return String(value);
+    }
+  }
+
+  return String(value);
+}
+
+/**
  * Convert any value to string, preserving empty string fallback.
  * @param {any} value
  * @param {string} fallback
@@ -136,6 +157,13 @@ function buildInboundResponse({ customerResponse, businessName, fromNumber, call
         `Thank you for calling ${businessName}, who am I speaking with today?`
       )
     };
+
+    for (const [key, value] of Object.entries(dynamicVariablesSource)) {
+      if (key in dynamicVariables) {
+        continue;
+      }
+      dynamicVariables[key] = normalizeDynamicValue(value);
+    }
   } else {
     dynamicVariables = buildDefaultDynamicVariables({ businessName, fromNumber });
   }
