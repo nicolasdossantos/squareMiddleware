@@ -55,6 +55,8 @@ jobs:
           rm -rf deploy
           mkdir -p deploy
           cp -R src deploy/
+          cp -R scripts deploy/
+          cp -R db deploy/
           cp package.json package-lock.json deploy/
           cp -R node_modules deploy/
 
