@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const smsController = require('../controllers/smsController');
 const { validateSchema, validateContentType } = require('../middlewares/validation');
+const { formatPhoneNumber } = require('../utils/squareUtils');
 
 // SMS validation functions
 const validateSendMessage = body => {
@@ -14,8 +15,13 @@ const validateSendMessage = body => {
 
   if (!body.to || typeof body.to !== 'string') {
     errors.push('Field "to" is required and must be a string');
-  } else if (!/^\+[1-9]\d{9,14}$/.test(body.to)) {
-    errors.push('Field "to" must be a valid phone number in format +1234567890');
+  } else {
+    const normalized = formatPhoneNumber(body.to);
+    if (!normalized.isValid) {
+      errors.push('Field "to" must be a valid phone number in format +1234567890');
+    } else {
+      body.to = normalized.formatted;
+    }
   }
 
   if (!body.message || typeof body.message !== 'string') {
@@ -38,8 +44,13 @@ const validateBookingConfirmation = body => {
 
   if (!body.customerPhone || typeof body.customerPhone !== 'string') {
     errors.push('Field "customerPhone" is required and must be a string');
-  } else if (!/^\+[1-9]\d{9,14}$/.test(body.customerPhone)) {
-    errors.push('Field "customerPhone" must be a valid phone number in format +1234567890');
+  } else {
+    const normalized = formatPhoneNumber(body.customerPhone);
+    if (!normalized.isValid) {
+      errors.push('Field "customerPhone" must be a valid phone number in format +1234567890');
+    } else {
+      body.customerPhone = normalized.formatted;
+    }
   }
 
   return errors;
@@ -62,8 +73,13 @@ const validateCustomerMessage = body => {
 
   if (!body.customerPhoneNumber || typeof body.customerPhoneNumber !== 'string') {
     errors.push('Field "customerPhoneNumber" is required and must be a string');
-  } else if (!/^\+[1-9]\d{9,14}$/.test(body.customerPhoneNumber)) {
-    errors.push('Field "customerPhoneNumber" must be a valid phone number in format +1234567890');
+  } else {
+    const normalized = formatPhoneNumber(body.customerPhoneNumber);
+    if (!normalized.isValid) {
+      errors.push('Field "customerPhoneNumber" must be a valid phone number in format +1234567890');
+    } else {
+      body.customerPhoneNumber = normalized.formatted;
+    }
   }
 
   if (!body.message || typeof body.message !== 'string') {
@@ -78,8 +94,13 @@ const validateCustomerMessage = body => {
   if (body.messageTo) {
     if (typeof body.messageTo !== 'string') {
       errors.push('Field "messageTo" must be a string');
-    } else if (!/^\+[1-9]\d{9,14}$/.test(body.messageTo)) {
-      errors.push('Field "messageTo" must be a valid phone number in format +1234567890');
+    } else {
+      const normalized = formatPhoneNumber(body.messageTo);
+      if (!normalized.isValid) {
+        errors.push('Field "messageTo" must be a valid phone number in format +1234567890');
+      } else {
+        body.messageTo = normalized.formatted;
+      }
     }
   }
 

@@ -8,6 +8,7 @@ const { logPerformance, logEvent, logError } = require('../utils/logger');
 const { config } = require('../config');
 const emailService = require('./emailService');
 const { getAllCircuitStates } = require('../utils/squareUtils');
+const agentConfigService = require('./agentConfigService');
 
 // Lazy initialization of Square client for health checks
 let squareClient = null;
@@ -31,14 +32,23 @@ async function getDetailedHealth() {
     logEvent('health_check_detailed_start');
 
     // Run dependency checks in parallel
-    const [squareHealth, emailHealth, memoryHealth, diskHealth, circuitBreakerHealth] =
-      await Promise.allSettled([
-        checkSquareConnection(),
-        checkEmailService(),
-        checkMemoryUsage(),
-        checkDiskSpace(),
-        checkCircuitBreakers()
-      ]);
+    const [
+      squareHealth,
+      emailHealth,
+      memoryHealth,
+      diskHealth,
+      circuitBreakerHealth,
+      agentConfigHealth,
+      squareCredentialHealth
+    ] = await Promise.allSettled([
+      checkSquareConnection(),
+      checkEmailService(),
+      checkMemoryUsage(),
+      checkDiskSpace(),
+      checkCircuitBreakers(),
+      checkAgentConfigurations(),
+      checkSquareCredentialIsolation()
+    ]);
 
     const dependencies = [
       {
@@ -73,6 +83,25 @@ async function getDetailedHealth() {
             : 'warning',
         details: circuitBreakerHealth.value?.details,
         error: circuitBreakerHealth.status === 'rejected' ? circuitBreakerHealth.reason.message : null
+      },
+      {
+        name: 'Agent Configuration',
+        status:
+          agentConfigHealth.status === 'fulfilled' && agentConfigHealth.value.healthy ? 'healthy' : 'unhealthy',
+        details: agentConfigHealth.value?.details,
+        error: agentConfigHealth.status === 'rejected' ? agentConfigHealth.reason.message : agentConfigHealth.value?.error
+      },
+      {
+        name: 'Square Credential Isolation',
+        status:
+          squareCredentialHealth.status === 'fulfilled' && squareCredentialHealth.value.healthy
+            ? 'healthy'
+            : 'warning',
+        details: squareCredentialHealth.value?.details,
+        error:
+          squareCredentialHealth.status === 'rejected'
+            ? squareCredentialHealth.reason.message
+            : squareCredentialHealth.value?.error
       }
     ];
 
@@ -314,6 +343,118 @@ async function checkCircuitBreakers() {
   }
 }
 
+async function checkAgentConfigurations() {
+  try {
+    const agents = agentConfigService.getAllAgents();
+    const totalAgents = agents?.size || 0;
+
+    if (!totalAgents) {
+      return {
+        healthy: false,
+        error: 'No agent configurations loaded',
+        details: {
+          agentCount: 0
+        }
+      };
+    }
+
+    const invalidAgents = [];
+
+    agents.forEach(agent => {
+      if (!agent.squareAccessToken || !agent.squareLocationId || !agent.bearerToken) {
+        invalidAgents.push(agent.agentId || 'unknown');
+      }
+    });
+
+    if (invalidAgents.length > 0) {
+      return {
+        healthy: false,
+        error: 'One or more agents missing required credentials',
+        details: {
+          agentCount: totalAgents,
+          invalidAgents
+        }
+      };
+    }
+
+    return {
+      healthy: true,
+      details: {
+        agentCount: totalAgents
+      },
+      message: 'Agent configurations loaded'
+    };
+  } catch (error) {
+    return {
+      healthy: false,
+      error: error.message,
+      message: 'Failed to evaluate agent configurations'
+    };
+  }
+}
+
+async function checkSquareCredentialIsolation() {
+  try {
+    const agents = agentConfigService.getAllAgents();
+    if (!agents || agents.size === 0) {
+      return {
+        healthy: false,
+        error: 'No agent configurations available for credential isolation check',
+        details: {
+          agentCount: 0
+        }
+      };
+    }
+
+    const tokenMap = new Map();
+    const duplicateGroups = new Map();
+    const defaultTokenMatches = [];
+
+    agents.forEach(agent => {
+      if (!agent.squareAccessToken) {
+        return;
+      }
+
+      if (agent.squareAccessToken === config.square.accessToken) {
+        defaultTokenMatches.push(agent.agentId || 'unknown');
+      }
+
+      const existing = tokenMap.get(agent.squareAccessToken) || [];
+      existing.push(agent.agentId || 'unknown');
+      tokenMap.set(agent.squareAccessToken, existing);
+    });
+
+    tokenMap.forEach((agentIds, token) => {
+      if (agentIds.length > 1) {
+        duplicateGroups.set(token, agentIds);
+      }
+    });
+
+    const healthy = defaultTokenMatches.length === 0 && duplicateGroups.size === 0;
+
+    return {
+      healthy,
+      details: {
+        agentCount: agents.size,
+        defaultTokenMatches,
+        duplicateTokens: Array.from(duplicateGroups.entries()).map(([token, agentIds]) => ({
+          tokenSuffix: `${token.substring(0, 6)}...${token.substring(token.length - 4)}`,
+          agents: agentIds
+        }))
+      },
+      message: healthy
+        ? 'Square access tokens are isolated per tenant'
+        : 'Square access tokens reused across tenants'
+    };
+  } catch (error) {
+    return {
+      healthy: false,
+      error: error.message,
+      message: 'Failed to evaluate Square credential isolation'
+    };
+  }
+}
+
 /**
  * Get system metrics
  */
@@ -353,5 +494,7 @@ module.exports = {
   checkSquareConnection,
   checkEmailService,
   checkCircuitBreakers,
+  checkAgentConfigurations,
+  checkSquareCredentialIsolation,
   getSystemMetrics
 };

@@ -5,6 +5,7 @@
 
 const smsService = require('../services/smsService');
 const { logEvent, logError } = require('../utils/logger');
+const { formatPhoneNumber } = require('../utils/squareUtils');
 const { generateCorrelationId } = require('../utils/security');
 
 /**
@@ -173,7 +174,8 @@ async function sendCustomerMessage(req, res) {
   const correlationId = generateCorrelationId();
 
   try {
-    const { customerFirstName, customerLastName, customerPhoneNumber, message, messageTo } = req.body;
+    const { customerFirstName, customerLastName, message, messageTo } = req.body;
+    const customerPhoneNumber = formatPhoneNumber(req.body.customerPhoneNumber)?.formatted || req.body.customerPhoneNumber;
 
     logEvent('customer_message_to_barbershop_request', {
       customerFirstName,

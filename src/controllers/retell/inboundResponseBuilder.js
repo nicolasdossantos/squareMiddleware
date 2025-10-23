@@ -95,6 +95,7 @@ function buildDefaultDynamicVariables({ businessName, fromNumber }) {
     customer_full_name: '',
     customer_email: '',
     customer_phone: toStringOrFallback(fromNumber, ''),
+    customer_phone_e164: '',
     customer_id: '',
     upcoming_bookings_json: '[]',
     booking_history_json: '[]',
@@ -140,6 +141,10 @@ function buildInboundResponse({ customerResponse, businessName, fromNumber, call
       customer_full_name: toStringOrFallback(dynamicVariablesSource.customer_full_name),
       customer_email: toStringOrFallback(dynamicVariablesSource.customer_email),
       customer_phone: toStringOrFallback(dynamicVariablesSource.customer_phone, fromNumber || ''),
+      customer_phone_e164: toStringOrFallback(
+        dynamicVariablesSource.customer_phone_e164,
+        toStringOrFallback(dynamicVariablesSource.customer_phone, '')
+      ),
       customer_id: toStringOrFallback(dynamicVariablesSource.customer_id),
       upcoming_bookings_json: toStringOrFallback(dynamicVariablesSource.upcoming_bookings_json, '[]'),
       booking_history_json: toStringOrFallback(dynamicVariablesSource.booking_history_json, '[]'),

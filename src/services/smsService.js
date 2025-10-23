@@ -6,6 +6,7 @@
 const { logPerformance, logEvent, logError } = require('../utils/logger');
 const { config } = require('../config');
 const smsTransport = require('./smsTransport');
+const { formatPhoneNumber: formatPhoneNumberE164 } = require('../utils/squareUtils');
 
 const PRIMARY_BARBERSHOP_NUMBER = '+12677210098';
 
@@ -18,7 +19,7 @@ const PRIMARY_BARBERSHOP_NUMBER = '+12677210098';
  */
 async function sendTextMessage(to, message, correlationId = null) {
   const startTime = Date.now();
-  const formattedTo = formatPhoneNumber(to);
+  const formattedTo = formatPhoneNumberE164(to);
 
   try {
     logEvent('sms_message_sending', {
@@ -99,10 +100,15 @@ async function sendCustomerMessageToBarbershop(
   const startTime = Date.now();
 
   try {
+    const normalizedCustomerPhone = formatPhoneNumberE164(customerPhoneNumber);
+    const safeCustomerPhone = normalizedCustomerPhone.isValid
+      ? normalizedCustomerPhone.formatted
+      : customerPhoneNumber;
+
     const formattedMessage = `🔔 Customer Message Alert
 
 👤 Customer: ${customerFirstName} ${customerLastName}
-📞 Phone: ${customerPhoneNumber}
+📞 Phone: ${safeCustomerPhone}
 
 💬 Message:
 ${message}
@@ -114,7 +120,7 @@ Sent via Booking API`;
 
     logEvent('customer_message_to_barbershop_sending', {
       customerName: `${customerFirstName} ${customerLastName}`,
-      customerPhone: customerPhoneNumber,
+      customerPhone: safeCustomerPhone,
       primaryRecipient: PRIMARY_BARBERSHOP_NUMBER,
       secondaryRecipient: messageTo || 'none',
       correlationId,

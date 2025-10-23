@@ -11,6 +11,10 @@ deploy/
 .env.local
 .env.*.local
 
+# Sensitive files
+agents.json
+Elite Barbershop_UPGRADED.json
+
 # Test coverage
 coverage/
 *.lcov

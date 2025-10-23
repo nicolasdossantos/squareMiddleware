@@ -10,6 +10,32 @@ const { config } = require('../../config');
 const { buildConversationInitiationData } = require('../../services/customerInfoResponseService');
 const { buildInboundResponse, buildDefaultDynamicVariables } = require('./inboundResponseBuilder');
 
+function buildMissingAgentConfigResponse(agentId, correlationId, callId, source) {
+  logEvent('retell_agent_config_missing', {
+    correlationId,
+    callId,
+    agentId,
+    source
+  });
+
+  return {
+    processed: false,
+    event: source,
+    callId,
+    summary: `Agent configuration missing for ${agentId}`,
+    response: {
+      status: 401,
+      body: {
+        success: false,
+        error: 'Agent configuration not found',
+        agentId,
+        correlationId,
+        source
+      }
+    }
+  };
+}
+
 function maskNumber(number) {
   if (!number) return 'unknown';
   const value = String(number);
@@ -84,6 +110,10 @@ async function handleCallStarted(payload, context) {
     }
   }
 
+  if (!sessionTenant && !agent_id) {
+    return buildMissingAgentConfigResponse('unknown', correlationId, call_id, 'call_started');
+  }
+
   if (!sessionTenant && agent_id) {
     try {
       const agentConfig = agentConfigService.getAgentConfig(agent_id);
@@ -106,25 +136,15 @@ async function handleCallStarted(payload, context) {
         agentId: agentConfigTenant.id
       });
     } catch (configError) {
-      logEvent('retell_call_started_agent_config_error', {
-        correlationId,
-        callId: call_id,
-        agentId: agent_id,
-        error: configError.message
-      });
+      return buildMissingAgentConfigResponse(agent_id, correlationId, call_id, 'call_started');
     }
   }
 
-  const tenant = normalizeTenantShape(sessionTenant) ||
-    normalizeTenantShape(agentConfigTenant) ||
-    normalizeTenantShape(requestTenant) || {
-      id: 'default',
-      squareAccessToken: config.square.accessToken,
-      squareLocationId: config.square.locationId,
-      squareEnvironment: config.square.environment || 'sandbox',
-      timezone: config.server.timezone || 'America/New_York',
-      businessName: config.businessName || 'Elite Barbershop'
-    };
+  const tenant = normalizeTenantShape(sessionTenant) || normalizeTenantShape(agentConfigTenant);
+
+  if (!tenant?.squareAccessToken) {
+    return buildMissingAgentConfigResponse(agent_id || 'unknown', correlationId, call_id, 'call_started');
+  }
 
   if (!tenant.squareAccessToken) {
     logEvent('retell_call_started_missing_credentials', {
@@ -370,6 +390,10 @@ async function handleCallInbound(payload, context) {
   });
 
   try {
+    if (!agent_id) {
+      return buildMissingAgentConfigResponse('unknown', correlationId, null, 'call_inbound');
+    }
+
     let tenant;
     try {
       const agentConfig = agentConfigService.getAgentConfig(agent_id);
@@ -385,21 +409,11 @@ async function handleCallInbound(payload, context) {
         businessName: agentConfig.businessName
       };
     } catch (configError) {
-      logEvent('retell_config_fallback', {
-        correlationId,
-        agentId: agent_id,
-        error: configError.message,
-        fallbackTenantId: 'default'
-      });
+      return buildMissingAgentConfigResponse(agent_id, correlationId, null, 'call_inbound');
+    }
 
-      tenant = {
-        id: 'default',
-        accessToken: config.square.accessToken,
-        locationId: config.square.locationId,
-        environment: config.square.environment || 'sandbox',
-        timezone: config.server.timezone || 'America/New_York',
-        businessName: config.businessName || 'Elite Barbershop'
-      };
+    if (!tenant?.accessToken) {
+      return buildMissingAgentConfigResponse(agent_id, correlationId, null, 'call_inbound');
     }
 
     const callId = crypto.randomUUID();

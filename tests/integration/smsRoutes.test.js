@@ -3,14 +3,41 @@
  * Tests for basic SMS API functionality without complex mocking
  */
 
+jest.mock('../../src/services/smsService', () => ({
+  sendTextMessage: jest.fn().mockResolvedValue({
+    success: true,
+    messageSid: 'SM123',
+    status: 'queued',
+    to: '+12675551234',
+    from: '+12675130090'
+  }),
+  sendBookingConfirmation: jest.fn().mockResolvedValue({
+    success: true,
+    messageSid: 'SM456',
+    status: 'queued',
+    to: '+12675554321',
+    from: '+12675130090'
+  }),
+  sendCustomerMessageToBarbershop: jest.fn().mockResolvedValue({
+    success: true,
+    results: [],
+    recipientCount: 1,
+    primaryRecipient: '+12677210098',
+    customerName: 'John Doe',
+    customerPhone: '+12675551234'
+  })
+}));
+
 const request = require('supertest');
 const express = require('express');
 const smsRoutes = require('../../src/routes/sms');
+const smsService = require('../../src/services/smsService');
 
 describe('SMS Routes Basic Integration', () => {
   let app;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     // Create express app with SMS routes
     app = express();
     app.use(express.json());
@@ -88,6 +115,28 @@ describe('SMS Routes Basic Integration', () => {
 
       expect(response.body.details).toContain(
         'Field "messageTo" must be a valid phone number in format +1234567890'
+      );
+    });
+
+    it('should normalize 10-digit customer numbers to E.164 automatically', async () => {
+      const response = await request(app)
+        .post('/api/sms/customer-message')
+        .send({
+          customerFirstName: 'John',
+          customerLastName: 'Doe',
+          customerPhoneNumber: '2677210098',
+          message: 'Running a few minutes late'
+        })
+        .expect(200);
+
+      expect(response.body.success).toBe(true);
+      expect(smsService.sendCustomerMessageToBarbershop).toHaveBeenCalledWith(
+        'John',
+        'Doe',
+        '+12677210098',
+        'Running a few minutes late',
+        undefined,
+        expect.any(String)
       );
     });
   });

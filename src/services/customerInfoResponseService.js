@@ -5,7 +5,7 @@
 const logger = require('../utils/logger');
 const { logPerformance, logEvent } = logger;
 const customerService = require('./customerService');
-const { createSquareClient, loadServiceVariations, loadStaffMembers } = require('../utils/squareUtils');
+const { createSquareClient, loadServiceVariations, loadStaffMembers, formatPhoneNumber } = require('../utils/squareUtils');
 const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
 const { getRelativeTimeframe } = require('../utils/helpers/dateHelpers');
 
@@ -333,6 +333,9 @@ async function buildConversationInitiationData({ tenant, phoneNumber, correlatio
       }
     }
 
+    const normalizedPhoneResult = phoneNumber ? formatPhoneNumber(phoneNumber) : { isValid: false };
+    const customerPhoneE164 = normalizedPhoneResult?.isValid ? normalizedPhoneResult.formatted : '';
+
     const elevenLabsResponse = {
       success: true,
       type: 'conversation_initiation_client_data',
@@ -346,6 +349,7 @@ async function buildConversationInitiationData({ tenant, phoneNumber, correlatio
           : '',
         customer_email: customerData?.emailAddress || customerData?.email || '',
         customer_phone: formatPhoneForDisplay(phoneNumber),
+        customer_phone_e164: customerPhoneE164,
         customer_id: customerData?.id || '',
         upcoming_bookings_json: JSON.stringify(nextBookings.map(formatBooking)),
         booking_history_json: JSON.stringify(filteredPastBookings.map(formatBooking)),
