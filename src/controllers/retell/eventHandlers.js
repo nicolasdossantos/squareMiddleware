@@ -224,7 +224,7 @@ async function handleCallAnalyzed(payload, context) {
 
   const session = sessionStore.getSession(call_id);
 
-  const tenant = normalizeTenantShape(requestTenant) ||
+  let tenant = normalizeTenantShape(requestTenant) ||
     (session
       ? normalizeTenantShape({
           id: session.agentId || requestTenant?.id || 'default',
@@ -242,6 +242,34 @@ async function handleCallAnalyzed(payload, context) {
       timezone: config.server.timezone || 'America/New_York',
       businessName: config.businessName || 'Elite Barbershop'
     };
+
+  if (tenant.id === 'default' && call.agent_id) {
+    try {
+      const agentConfig = agentConfigService.getAgentConfig(call.agent_id);
+
+      tenant = normalizeTenantShape({
+        id: agentConfig.agentId || call.agent_id,
+        squareAccessToken: agentConfig.squareAccessToken,
+        squareLocationId: agentConfig.squareLocationId,
+        squareEnvironment: agentConfig.squareEnvironment,
+        timezone: agentConfig.timezone,
+        businessName: agentConfig.businessName
+      });
+
+      console.log('@@@ retell_call_analyzed_agent_fallback', {
+        correlationId,
+        callId: call_id,
+        tenantId: tenant.id
+      });
+    } catch (agentError) {
+      console.log('@@@ retell_call_analyzed_agent_fallback_failed', {
+        correlationId,
+        callId: call_id,
+        agentId: call.agent_id,
+        error: agentError.message
+      });
+    }
+  }
 
   try {
     let emailSent = false;

@@ -43,6 +43,46 @@ const ISSUE_PRIORITIES = {
   low: 'low'
 };
 
+function normalizeTimestamp(value, fallback = new Date()) {
+  if (value === null || value === undefined || value === '') {
+    return fallback instanceof Date ? new Date(fallback.getTime()) : new Date(fallback);
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d+$/.test(trimmed)) {
+      const numeric = Number(trimmed);
+      const dateFromNumeric = new Date(numeric);
+      if (!Number.isNaN(dateFromNumeric.getTime())) {
+        return dateFromNumeric;
+      }
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  if (typeof value === 'number') {
+    const fromNumber = new Date(value);
+    if (!Number.isNaN(fromNumber.getTime())) {
+      return fromNumber;
+    }
+  }
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed;
+  }
+
+  return fallback instanceof Date ? new Date(fallback.getTime()) : new Date(fallback);
+}
+
 /**
  * Normalize phone number (strip non-digits, trim country code for US numbers).
  */
@@ -212,7 +252,7 @@ async function createCustomerProfile(
     callTimestamp
   }
 ) {
-  const timestamp = callTimestamp || new Date();
+  const timestamp = normalizeTimestamp(callTimestamp, new Date());
 
   const insert = await client.query(
     `
@@ -333,13 +373,16 @@ async function upsertCallHistory(client, tenantId, customerProfileId, callPayloa
     callPayload.call_id
   ]);
 
-  const startTime =
-    callPayload.start_timestamp || callPayload.metadata?.timestamp || new Date().toISOString();
-  const endTime = callPayload.end_timestamp || null;
+  const startTime = normalizeTimestamp(
+    callPayload.start_timestamp || callPayload.metadata?.timestamp || callPayload.created_at || new Date(),
+    new Date()
+  );
+  const endTimeRaw = callPayload.end_timestamp || null;
+  const endTime = endTimeRaw ? normalizeTimestamp(endTimeRaw, startTime) : null;
   const durationSeconds = callPayload.duration_ms
     ? Math.round(callPayload.duration_ms / 1000)
     : endTime && startTime
-      ? Math.round((new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000)
+      ? Math.round((endTime.getTime() - startTime.getTime()) / 1000)
       : null;
 
   const callSummary =
@@ -479,13 +522,15 @@ async function updateCustomerProfileMetrics(
 ) {
   if (!profile) return null;
 
+  const normalizedStart = normalizeTimestamp(callStartTime, new Date());
+
   const updates = [
     'total_calls = total_calls + 1',
     'last_call_date = $2',
     'first_call_date = COALESCE(first_call_date, $2)',
     'updated_at = NOW()'
   ];
-  const params = [profile.id, callStartTime || new Date()];
+  const params = [profile.id, normalizedStart];
   let index = 3;
 
   if (bookingCreated) {
