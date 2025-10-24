@@ -61,3 +61,5 @@ PERFORMANCE_SCALABILITY_ANALYSIS.md
 
 
 onboard-elite-barbershop.sh
+scripts/decrypt-agent-configs.js
+.DS_Store

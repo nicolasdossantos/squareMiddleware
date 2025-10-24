@@ -7,7 +7,57 @@
  * Configuration is stored as JSON in AGENT_CONFIGS environment variable.
  */
 
+const crypto = require('crypto');
 const { logError, logger } = require('../utils/logger');
+
+function resolveEncryptionKey() {
+  const rawKey = process.env.AGENT_CONFIG_ENCRYPTION_KEY;
+  if (!rawKey) {
+    throw new Error('AGENT_CONFIG_ENCRYPTION_KEY is required to decrypt agent configurations');
+  }
+
+  const trimmed = rawKey.trim();
+  let buffer;
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+    buffer = Buffer.from(trimmed, 'hex');
+  } else {
+    buffer = Buffer.from(trimmed, 'base64');
+  }
+
+  if (buffer.length !== 32) {
+    throw new Error('AGENT_CONFIG_ENCRYPTION_KEY must resolve to 32 bytes for AES-256-GCM');
+  }
+
+  return buffer;
+}
+
+function tryParseJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`Unable to parse AGENT_CONFIGS JSON: ${error.message}`);
+  }
+}
+
+function decryptAgentConfigs(payload) {
+  const key = resolveEncryptionKey();
+
+  if (!payload.iv || !payload.ciphertext || !payload.authTag) {
+    throw new Error('Encrypted AGENT_CONFIGS payload is missing iv/ciphertext/authTag');
+  }
+
+  const iv = Buffer.from(payload.iv, 'base64');
+  const ciphertext = Buffer.from(payload.ciphertext, 'base64');
+  const authTag = Buffer.from(payload.authTag, 'base64');
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(authTag);
+
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  const jsonString = decrypted.toString('utf8');
+
+  return tryParseJson(jsonString);
+}
 
 class AgentConfigService {
   constructor() {
@@ -23,9 +73,25 @@ class AgentConfigService {
     if (this.initialized) return;
 
     try {
-      // Load agent configurations from environment variable
-      const configJson = process.env.AGENT_CONFIGS || '[]';
-      const configs = JSON.parse(configJson);
+      const raw = process.env.AGENT_CONFIGS;
+      let configs = [];
+
+      if (raw) {
+        const parsed = tryParseJson(raw);
+
+        if (Array.isArray(parsed)) {
+          configs = parsed;
+        } else if (parsed && typeof parsed === 'object' && parsed.algorithm === 'AES-256-GCM') {
+          logger.info('[AgentConfig] Decrypting agent configurations payload');
+          configs = decryptAgentConfigs(parsed);
+
+          if (!Array.isArray(configs)) {
+            throw new Error('Decrypted AGENT_CONFIGS payload is not an array');
+          }
+        } else {
+          throw new Error('AGENT_CONFIGS must be a JSON array or an encrypted payload');
+        }
+      }
 
       // Validate and store each agent config
       configs.forEach(config => {
