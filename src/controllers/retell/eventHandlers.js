@@ -210,7 +210,7 @@ async function handleCallAnalyzed(payload, context) {
   console.log('@@@ retell_call_analyzed_start', {
     correlationId,
     callId: call_id,
-    fromNumber,
+    fromNumber: from_number,
     hasAnalysis: Boolean(call_analysis)
   });
 
@@ -274,7 +274,8 @@ async function handleCallAnalyzed(payload, context) {
       console.log('@@@ retell_call_analyzed_before_save', {
         correlationId,
         callId: call_id,
-        tenantId: tenant.id
+        tenantId: tenant.id,
+        fromNumber: call.from_number || call.customer_phone
       });
 
       contextPersistence = await customerContextService.saveCallAnalysis({
