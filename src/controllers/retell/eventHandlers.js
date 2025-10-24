@@ -207,13 +207,6 @@ async function handleCallAnalyzed(payload, context) {
     hasAnalysis: Boolean(call_analysis),
     fromNumber: from_number ? `${maskNumber(from_number)}` : 'unknown'
   });
-  console.log('@@@ retell_call_analyzed_start', {
-    correlationId,
-    callId: call_id,
-    fromNumber: from_number,
-    hasAnalysis: Boolean(call_analysis)
-  });
-
   logEvent('retell_call_analyzed', {
     correlationId,
     callId: call_id,
@@ -256,13 +249,13 @@ async function handleCallAnalyzed(payload, context) {
         businessName: agentConfig.businessName
       });
 
-      console.log('@@@ retell_call_analyzed_agent_fallback', {
+      logger.info('retell_call_analyzed_agent_fallback', {
         correlationId,
         callId: call_id,
         tenantId: tenant.id
       });
     } catch (agentError) {
-      console.log('@@@ retell_call_analyzed_agent_fallback_failed', {
+      logger.warn('retell_call_analyzed_agent_fallback_failed', {
         correlationId,
         callId: call_id,
         agentId: call.agent_id,
@@ -299,13 +292,6 @@ async function handleCallAnalyzed(payload, context) {
 
     let contextPersistence = null;
     try {
-      console.log('@@@ retell_call_analyzed_before_save', {
-        correlationId,
-        callId: call_id,
-        tenantId: tenant.id,
-        fromNumber: call.from_number || call.customer_phone
-      });
-
       contextPersistence = await customerContextService.saveCallAnalysis({
         tenant,
         call,
@@ -317,13 +303,6 @@ async function handleCallAnalyzed(payload, context) {
         callId: call_id,
         tenantId: tenant.id
       });
-      console.log('@@@ retell_call_analyzed_after_save', {
-        correlationId,
-        callId: call_id,
-        tenantId: tenant.id,
-        contextPersistence
-      });
-
       if (call_id && contextPersistence?.profile?.id) {
         const updatedSession = sessionStore.updateSession(call_id, {
           customerProfileId: contextPersistence.profile.id,
@@ -359,15 +338,6 @@ async function handleCallAnalyzed(payload, context) {
           issuesCreated: contextPersistence.issuesCreated || 0,
           issuesUpdated: contextPersistence.issuesUpdated || 0
         });
-        console.log('@@@ retell_call_analyzed_save_success', {
-          correlationId,
-          callId: call_id,
-          tenantId: tenant.id,
-          profileId: contextPersistence.profile?.id || null,
-          contextUpserts: contextPersistence.contextUpserted || 0,
-          issuesCreated: contextPersistence.issuesCreated || 0,
-          issuesUpdated: contextPersistence.issuesUpdated || 0
-        });
       }
     } catch (contextError) {
       logEvent('retell_call_analyzed_context_error', {
@@ -377,11 +347,6 @@ async function handleCallAnalyzed(payload, context) {
       });
 
       logger.error('retell_call_analyzed_save_failure', {
-        correlationId,
-        callId: call_id,
-        error: contextError.stack || contextError.message
-      });
-      console.log('@@@ retell_call_analyzed_save_failure', {
         correlationId,
         callId: call_id,
         error: contextError.stack || contextError.message

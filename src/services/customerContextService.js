@@ -29,9 +29,7 @@ const CONTEXT_MAPPINGS = [
     }
   },
   { field: 'service_interest', key: 'service_interest', valueType: 'string' },
-  { field: 'preferred_time_of_day', key: 'preferred_time', valueType: 'string' },
-  { field: 'referral_source', key: 'referral_source', valueType: 'string', agentVisible: false },
-  { field: 'hallucination_details', key: 'hallucination_details', valueType: 'string', agentVisible: false }
+  { field: 'preferred_time_of_day', key: 'preferred_time', valueType: 'string' }
 ];
 
 const AGENT_VISIBLE_CONTEXT_KEYS = new Set(['favorite_staff', 'service_interest', 'preferred_time']);
@@ -697,11 +695,6 @@ async function saveCallAnalysis({ tenant, call, correlationId }) {
       hasTenant: Boolean(tenant),
       hasCall: Boolean(call)
     });
-    console.log('@@@ saveCallAnalysis_missing_tenant_or_call', {
-      correlationId,
-      hasTenant: Boolean(tenant),
-      hasCall: Boolean(call)
-    });
     return null;
   }
 
@@ -714,10 +707,6 @@ async function saveCallAnalysis({ tenant, call, correlationId }) {
       callId: call.call_id,
       correlationId
     });
-    console.log('@@@ saveCallAnalysis_missing_phone', {
-      correlationId,
-      callId: call.call_id
-    });
     return null;
   }
 
@@ -728,14 +717,6 @@ async function saveCallAnalysis({ tenant, call, correlationId }) {
     normalizedPhone,
     hasAnalysis: Boolean(analysis)
   });
-  console.log('@@@ saveCallAnalysis_start', {
-    correlationId,
-    callId: call.call_id,
-    tenantId,
-    normalizedPhone,
-    hasAnalysis: Boolean(analysis)
-  });
-
   const dynamicVars = call.retell_llm_dynamic_variables || {};
   const squareCustomerId =
     dynamicVars.customer_id ||
@@ -846,18 +827,6 @@ async function saveCallAnalysis({ tenant, call, correlationId }) {
       issuesUpdated: issuesResult.updated,
       contextUpserted: contextResult.upserted
     });
-    console.log('@@@ saveCallAnalysis_result', {
-      correlationId,
-      callId: call.call_id,
-      tenantId,
-      profileId: updatedProfile?.id || null,
-      createdProfile: created,
-      createdCallHistory: callCreated,
-      issuesCreated: issuesResult.created,
-      issuesUpdated: issuesResult.updated,
-      contextUpserted: contextResult.upserted
-    });
-
     return result;
   });
 
@@ -872,9 +841,7 @@ function buildDynamicVariablesFromContext(context) {
     return {};
   }
 
-  const dynamicVariables = {
-    is_returning_customer: context.profile.total_calls > 0 ? 'true' : 'false'
-  };
+  const dynamicVariables = {};
 
   if (context.profile.preferred_language) {
     dynamicVariables.preferred_language = context.profile.preferred_language;
