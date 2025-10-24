@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 
-const { logEvent } = require('../../utils/logger');
+const { logEvent, logger } = require('../../utils/logger');
 const sessionStore = require('../../services/sessionStore');
 const retellWebhookService = require('../../services/retellWebhookService');
 const retellEmailService = require('../../services/retellEmailService');
@@ -201,6 +201,19 @@ async function handleCallAnalyzed(payload, context) {
   const call = payload.call;
   const { call_id, from_number, transcript, call_analysis } = call;
 
+  logger.info('retell_call_analyzed_start', {
+    correlationId,
+    callId: call_id,
+    hasAnalysis: Boolean(call_analysis),
+    fromNumber: from_number ? `${maskNumber(from_number)}` : 'unknown'
+  });
+  console.log('@@@ retell_call_analyzed_start', {
+    correlationId,
+    callId: call_id,
+    fromNumber,
+    hasAnalysis: Boolean(call_analysis)
+  });
+
   logEvent('retell_call_analyzed', {
     correlationId,
     callId: call_id,
@@ -258,10 +271,28 @@ async function handleCallAnalyzed(payload, context) {
 
     let contextPersistence = null;
     try {
+      console.log('@@@ retell_call_analyzed_before_save', {
+        correlationId,
+        callId: call_id,
+        tenantId: tenant.id
+      });
+
       contextPersistence = await customerContextService.saveCallAnalysis({
         tenant,
         call,
         correlationId
+      });
+
+      logger.info('retell_call_analyzed_save_attempt', {
+        correlationId,
+        callId: call_id,
+        tenantId: tenant.id
+      });
+      console.log('@@@ retell_call_analyzed_after_save', {
+        correlationId,
+        callId: call_id,
+        tenantId: tenant.id,
+        contextPersistence
       });
 
       if (call_id && contextPersistence?.profile?.id) {
@@ -289,12 +320,42 @@ async function handleCallAnalyzed(payload, context) {
           issuesCreated: contextPersistence.issuesCreated || 0,
           issuesUpdated: contextPersistence.issuesUpdated || 0
         });
+
+        logger.info('retell_call_analyzed_save_success', {
+          correlationId,
+          callId: call_id,
+          tenantId: tenant.id,
+          profileId: contextPersistence.profile?.id || null,
+          contextUpserts: contextPersistence.contextUpserted || 0,
+          issuesCreated: contextPersistence.issuesCreated || 0,
+          issuesUpdated: contextPersistence.issuesUpdated || 0
+        });
+        console.log('@@@ retell_call_analyzed_save_success', {
+          correlationId,
+          callId: call_id,
+          tenantId: tenant.id,
+          profileId: contextPersistence.profile?.id || null,
+          contextUpserts: contextPersistence.contextUpserted || 0,
+          issuesCreated: contextPersistence.issuesCreated || 0,
+          issuesUpdated: contextPersistence.issuesUpdated || 0
+        });
       }
     } catch (contextError) {
       logEvent('retell_call_analyzed_context_error', {
         correlationId,
         callId: call_id,
         error: contextError.message
+      });
+
+      logger.error('retell_call_analyzed_save_failure', {
+        correlationId,
+        callId: call_id,
+        error: contextError.stack || contextError.message
+      });
+      console.log('@@@ retell_call_analyzed_save_failure', {
+        correlationId,
+        callId: call_id,
+        error: contextError.stack || contextError.message
       });
     }
 

@@ -647,6 +647,16 @@ async function upsertOpenIssues(client, tenantId, customerProfileId, callHistory
  */
 async function saveCallAnalysis({ tenant, call, correlationId }) {
   if (!tenant || !tenant.id || !call) {
+    logger.warn('customer_context_missing_tenant_or_call', {
+      correlationId,
+      hasTenant: Boolean(tenant),
+      hasCall: Boolean(call)
+    });
+    console.log('@@@ saveCallAnalysis_missing_tenant_or_call', {
+      correlationId,
+      hasTenant: Boolean(tenant),
+      hasCall: Boolean(call)
+    });
     return null;
   }
 
@@ -659,8 +669,27 @@ async function saveCallAnalysis({ tenant, call, correlationId }) {
       callId: call.call_id,
       correlationId
     });
+    console.log('@@@ saveCallAnalysis_missing_phone', {
+      correlationId,
+      callId: call.call_id
+    });
     return null;
   }
+
+  logger.debug('customer_context_save_start', {
+    correlationId,
+    callId: call.call_id,
+    tenantId,
+    normalizedPhone,
+    hasAnalysis: Boolean(analysis)
+  });
+  console.log('@@@ saveCallAnalysis_start', {
+    correlationId,
+    callId: call.call_id,
+    tenantId,
+    normalizedPhone,
+    hasAnalysis: Boolean(analysis)
+  });
 
   const dynamicVars = call.retell_llm_dynamic_variables || {};
   const squareCustomerId =
@@ -751,7 +780,7 @@ async function saveCallAnalysis({ tenant, call, correlationId }) {
       contextUpserted: contextResult.upserted
     });
 
-    return {
+    const result = {
       profile: updatedProfile,
       callHistory,
       createdProfile: created,
@@ -760,6 +789,31 @@ async function saveCallAnalysis({ tenant, call, correlationId }) {
       issuesUpdated: issuesResult.updated,
       contextUpserted: contextResult.upserted
     };
+
+    logger.debug('customer_context_save_result', {
+      correlationId,
+      callId: call.call_id,
+      tenantId,
+      profileId: updatedProfile?.id || null,
+      createdProfile: created,
+      createdCallHistory: callCreated,
+      issuesCreated: issuesResult.created,
+      issuesUpdated: issuesResult.updated,
+      contextUpserted: contextResult.upserted
+    });
+    console.log('@@@ saveCallAnalysis_result', {
+      correlationId,
+      callId: call.call_id,
+      tenantId,
+      profileId: updatedProfile?.id || null,
+      createdProfile: created,
+      createdCallHistory: callCreated,
+      issuesCreated: issuesResult.created,
+      issuesUpdated: issuesResult.updated,
+      contextUpserted: contextResult.upserted
+    });
+
+    return result;
   });
 
   return metrics;
