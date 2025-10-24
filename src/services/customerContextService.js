@@ -230,7 +230,7 @@ async function createCustomerProfile(
         first_call_date,
         last_call_date
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0.50), 0, 0, $9, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 0.50), 0, 0, $9, $10)
       RETURNING *
     `,
     [
