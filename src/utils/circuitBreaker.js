@@ -12,6 +12,8 @@
  * - failureThreshold: Number of failures before opening (default: 5)
  * - failureTimeout: Time window for counting failures (default: 60s)
  * - resetTimeout: Time to wait before half-open (default: 30s)
+ * - circuitTTL: Time before removing stale circuits (default: 24 hours)
+ * - cleanupInterval: How often to clean stale circuits (default: 1 hour)
  */
 
 const { logger } = require('./logger');
@@ -27,10 +29,67 @@ class CircuitBreaker {
     this.failureThreshold = options.failureThreshold || 5;
     this.failureTimeout = options.failureTimeout || 60000; // 60 seconds
     this.resetTimeout = options.resetTimeout || 30000; // 30 seconds
+    this.circuitTTL = options.circuitTTL || 24 * 60 * 60 * 1000; // 24 hours
+    this.cleanupInterval = options.cleanupInterval || 60 * 60 * 1000; // 1 hour
 
     // Per-tenant circuit state
-    // Structure: { [tenantId]: { state, failures: [], nextAttempt } }
+    // Structure: { [tenantId]: { state, failures: [], nextAttempt, lastAccessed } }
     this.circuits = new Map();
+
+    // Start cleanup interval to prevent memory leaks
+    this.startCleanupInterval();
+  }
+
+  /**
+   * Start periodic cleanup of stale circuits
+   * Prevents memory leak from accumulating circuits for defunct tenants
+   */
+  startCleanupInterval() {
+    if (this.cleanupIntervalHandle) {
+      clearInterval(this.cleanupIntervalHandle);
+    }
+
+    this.cleanupIntervalHandle = setInterval(() => {
+      this.cleanupStaleCircuits();
+    }, this.cleanupInterval);
+
+    // Don't keep process alive just for cleanup
+    if (this.cleanupIntervalHandle.unref) {
+      this.cleanupIntervalHandle.unref();
+    }
+  }
+
+  /**
+   * Remove circuits that haven't been accessed in circuitTTL
+   */
+  cleanupStaleCircuits() {
+    const now = Date.now();
+    let staleCount = 0;
+
+    for (const [tenantId, circuit] of this.circuits.entries()) {
+      const timeSinceAccess = now - (circuit.lastAccessed || 0);
+      if (timeSinceAccess > this.circuitTTL) {
+        this.circuits.delete(tenantId);
+        staleCount++;
+      }
+    }
+
+    if (staleCount > 0) {
+      logger.info('Circuit breaker cleanup', {
+        removedCircuits: staleCount,
+        remainingCircuits: this.circuits.size
+      });
+    }
+  }
+
+  /**
+   * Shutdown cleanup interval (for testing/graceful shutdown)
+   */
+  shutdown() {
+    if (this.cleanupIntervalHandle) {
+      clearInterval(this.cleanupIntervalHandle);
+      this.cleanupIntervalHandle = null;
+    }
   }
 
   /**
@@ -41,8 +100,13 @@ class CircuitBreaker {
       this.circuits.set(tenantId, {
         state: STATE.CLOSED,
         failures: [],
-        nextAttempt: null
+        nextAttempt: null,
+        lastAccessed: Date.now()
       });
+    } else {
+      // Update last accessed time on each access
+      const circuit = this.circuits.get(tenantId);
+      circuit.lastAccessed = Date.now();
     }
     return this.circuits.get(tenantId);
   }
