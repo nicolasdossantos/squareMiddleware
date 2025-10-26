@@ -9,15 +9,15 @@ const { logPerformance, logEvent, logError, logger } = require('../utils/logger'
 const bookingService = require('../services/bookingService');
 const agentBookingService = require('../services/agentBookingService');
 const bookingAvailabilityService = require('../services/bookingAvailabilityService');
+const bookingManagementService = require('../services/bookingManagementService');
 const {
   validateBookingData,
-  cancelBooking: cancelBookingHelper,
-  getBooking: getBookingHelper
+  cancelBooking: cancelBookingHelper
 } = require('../utils/helpers/bookingHelpers');
-const availabilityHelpers = require('../utils/helpers/availabilityHelpers');
-const { cleanBigIntFromObject, bigIntReplacer } = require('../utils/helpers/bigIntUtils');
+const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
+const { checkSlotAvailability, checkCustomerConflicts } = require('../utils/helpers/bookingValidationHelpers');
 const { generateCorrelationId } = require('../utils/security');
-const { stripRetellMeta, parseMaybeJson } = require('../utils/retellPayload');
+const { stripRetellMeta } = require('../utils/retellPayload');
 const { createSquareClient } = require('../utils/squareUtils');
 
 /**
@@ -88,12 +88,6 @@ async function createBookingCore(tenant, bookingData, correlationId) {
 
   // ✅ SLOT AVAILABILITY CHECK
   // Verify the requested time slot is still available before creating booking
-  logger.info('🔍 [AVAILABILITY CHECK] Verifying slot is still available...', {
-    startAt: bookingData.startAt,
-    appointmentSegments: bookingData.appointmentSegments?.length,
-    correlationId
-  });
-
   try {
     // Create tenant-specific Square client
     const square = createSquareClient(
@@ -101,90 +95,29 @@ async function createBookingCore(tenant, bookingData, correlationId) {
       tenant.squareEnvironment || tenant.environment || 'production'
     );
 
-    // Create segment filters for availability search
-    const segmentFilters = bookingData.appointmentSegments.map(segment => ({
-      serviceVariationId: segment.serviceVariationId,
-      ...(segment.teamMemberId && {
-        teamMemberIdFilter: {
-          any: [segment.teamMemberId]
-        }
-      })
-    }));
+    const availabilityResult = await checkSlotAvailability(
+      square,
+      tenant,
+      bookingData.startAt,
+      bookingData.appointmentSegments
+    );
 
-    // Search for availability at the exact requested time (±30 minutes window)
-    // Note: Square API requires minimum 1 hour range
-    const requestedStartTime = new Date(bookingData.startAt);
-    const searchStart = new Date(requestedStartTime.getTime() - 30 * 60 * 1000);
-    const searchEnd = new Date(requestedStartTime.getTime() + 30 * 60 * 1000);
-
-    const availabilityResponse = await square.bookingsApi.searchAvailability({
-      query: {
-        filter: {
-          startAtRange: {
-            startAt: searchStart.toISOString(),
-            endAt: searchEnd.toISOString()
-          },
-          locationId: tenant.locationId,
-          segmentFilters
-        }
-      }
-    });
-
-    // Square returns availabilities array directly in result
-    const availableSlots =
-      availabilityResponse.result?.availabilities || availabilityResponse.availabilities || [];
-
-    logger.info('🔍 [AVAILABILITY CHECK] Square API response:', {
-      availableSlotsCount: availableSlots.length,
-      availableSlotTimes: availableSlots.slice(0, 5).map(s => s.startAt),
-      correlationId
-    });
-
-    // Check if the exact requested time slot is available
-    const isSlotAvailable = availableSlots.some(slot => {
-      const slotStartTime = new Date(slot.startAt);
-      const timeDifference = Math.abs(slotStartTime.getTime() - requestedStartTime.getTime());
-
-      // Consider it the same slot if within 1 minute
-      return timeDifference < 60 * 1000;
-    });
-
-    if (!isSlotAvailable) {
-      logger.info('❌ [AVAILABILITY CHECK] Requested time slot is no longer available:', {
-        requestedTime: bookingData.startAt,
-        availableSlotsFound: availableSlots.length,
-        sampleSlots: availableSlots.slice(0, 3).map(s => s.startAt),
-        correlationId
-      });
-
+    if (!availabilityResult.isAvailable) {
       throw {
-        message: 'The requested time slot is no longer available. Please select a different time.',
-        code: 'SLOT_UNAVAILABLE',
+        message: availabilityResult.error,
+        code: availabilityResult.code,
         status: 409,
         details: {
-          availableSlots: availableSlots.slice(0, 10).map(s => ({
-            startAt: s.startAt,
-            appointmentSegments: s.appointmentSegments
-          }))
+          availableSlots: availabilityResult.availableSlots
         }
       };
     }
-
-    logger.info('✅ [AVAILABILITY CHECK] Time slot is still available', {
-      requestedTime: bookingData.startAt,
-      correlationId
-    });
   } catch (availabilityError) {
     if (availabilityError.statusCode) {
       // Re-throw HTTP errors (SLOT_UNAVAILABLE)
       throw availabilityError;
     }
     logger.error('⚠️ [AVAILABILITY CHECK] Error checking slot availability:', availabilityError.message);
-    logger.error('⚠️ [AVAILABILITY CHECK] Full error details:', {
-      message: availabilityError.message,
-      stack: availabilityError.stack,
-      correlationId
-    });
     // Continue with booking creation despite availability check error
     // The Square API will reject it if truly unavailable
   }
@@ -192,79 +125,28 @@ async function createBookingCore(tenant, bookingData, correlationId) {
   // ✅ CUSTOMER BOOKING CONFLICT CHECK
   // Check if customer already has a booking at the requested time
   if (bookingData.customerId) {
-    logger.info('🔍 [CONFLICT CHECK] Checking for customer booking conflicts...', {
-      customerId: bookingData.customerId,
-      startAt: bookingData.startAt,
-      correlationId
-    });
-
     try {
-      // Get customer's existing bookings around the requested time (±30 minutes)
-      const bufferMinutes = 30;
-      const requestedStartTime = new Date(bookingData.startAt);
-      const searchStart = new Date(requestedStartTime.getTime() - bufferMinutes * 60 * 1000);
-      const searchEnd = new Date(requestedStartTime.getTime() + bufferMinutes * 60 * 1000);
+      const square = createSquareClient(
+        tenant.accessToken || tenant.squareAccessToken,
+        tenant.squareEnvironment || tenant.environment || 'production'
+      );
 
-      const existingBookingsResponse = await square.bookingsApi.listBookings({
-        customerId: bookingData.customerId,
-        startAtMin: searchStart.toISOString(),
-        startAtMax: searchEnd.toISOString(),
-        limit: 20
-      });
+      const conflictResult = await checkCustomerConflicts(
+        square,
+        bookingData.customerId,
+        bookingData.startAt
+      );
 
-      const existingBookings = existingBookingsResponse.result?.bookings || [];
-
-      logger.info('🔍 [CONFLICT CHECK] Found existing bookings:', {
-        count: existingBookings.length,
-        bookings: existingBookings.map(b => ({
-          id: b.id,
-          startAt: b.startAt,
-          status: b.status
-        })),
-        correlationId
-      });
-
-      // Check for conflicts with ACCEPTED or PENDING bookings
-      const conflictingBookings = existingBookings.filter(booking => {
-        if (booking.status !== 'ACCEPTED' && booking.status !== 'PENDING') {
-          return false; // Skip cancelled/completed bookings
-        }
-
-        const bookingStart = new Date(booking.startAt);
-        const timeDifference = Math.abs(bookingStart.getTime() - requestedStartTime.getTime());
-
-        // Consider it a conflict if within 15 minutes
-        return timeDifference < 15 * 60 * 1000;
-      });
-
-      if (conflictingBookings.length > 0) {
-        logger.info('❌ [CONFLICT CHECK] Customer already has a booking at this time:', {
-          requestedTime: bookingData.startAt,
-          conflictingBookings: conflictingBookings.map(b => ({
-            id: b.id,
-            startAt: b.startAt,
-            status: b.status
-          })),
-          correlationId
-        });
-
+      if (conflictResult.hasConflict) {
         throw {
-          message: 'Customer already has an appointment at this time. Please select a different time slot.',
-          code: 'BOOKING_CONFLICT',
+          message: conflictResult.error,
+          code: conflictResult.code,
           status: 409,
           details: {
-            conflictingBookings: cleanBigIntFromObject(
-              conflictingBookings.map(b => ({
-                id: b.id,
-                startAt: b.startAt,
-                status: b.status
-              }))
-            )
+            conflictingBookings: conflictResult.conflictingBookings
           }
         };
       }
-
-      logger.info('✅ [CONFLICT CHECK] No customer booking conflicts found', { correlationId });
     } catch (conflictError) {
       if (conflictError.statusCode) {
         // Re-throw HTTP errors
@@ -599,7 +481,7 @@ async function updateBooking(req, res, next) {
   });
 
   try {
-    const result = await handleUpdateBooking(req, correlationId);
+    const result = await bookingManagementService.handleUpdateBooking(req, correlationId, updateBookingCore, ensureAgentCanModifyBooking);
 
     // Success - return 200 OK with updated booking data
     res.status(200).json({
@@ -999,100 +881,19 @@ async function getServiceAvailability(req, res) {
  * Main booking management endpoint - EXACT COPY FROM AZURE FUNCTIONS BookingManager
  * ALL /api/booking/{action?}
  * Replaces Azure Functions BookingManager
+ * Delegates to bookingManagementService for request routing and handling
  */
 async function manageBooking(req, res) {
-  const { correlationId, tenant } = req;
-
-  // EXACT AZURE FUNCTIONS LOGIC - Get action from params or determine from method
-  const action = req.params.action || req.body?.action || getActionFromMethod(req.method);
-
-  // 🔍 DETAILED LOGGING FOR RETELL DEBUGGING (MANAGE BOOKING)
-  logger.info('🚀 [MANAGE BOOKING] Request received:', {
-    correlationId,
-    action,
-    method: req.method,
-    url: req.url,
-    params: req.params,
-    query: req.query,
-    headers: {
-      'content-type': req.headers['content-type'],
-      'user-agent': req.headers['user-agent'],
-      'x-correlation-id': req.headers['x-correlation-id']
-    },
-    bodyKeys: Object.keys(req.body || {}),
-    timestamp: new Date().toISOString()
-  });
-
-  logger.info('📅 BookingManager function invoked', {
-    correlationId,
-    action,
-    method: req.method,
-    query: req.query,
-    params: req.params
-  });
+  const { correlationId } = req;
 
   try {
-    let result;
-
-    // EXACT AZURE FUNCTIONS ROUTING LOGIC
-    switch (action) {
-      case 'create':
-        result = await handleCreateBooking(req, correlationId);
-        break;
-      case 'update':
-        result = await handleUpdateBooking(req, correlationId);
-        break;
-      case 'cancel':
-      case 'delete':
-        result = await handleCancelBooking(req, correlationId);
-        break;
-      case 'get':
-        result = await handleGetBooking(req, correlationId);
-        break;
-      case 'list':
-        result = await handleListBookings(req, correlationId);
-        break;
-      default:
-        // Check if action is actually a booking ID
-        if (action && action.length > 10) {
-          // This is a booking ID, determine action from HTTP method
-          const methodAction = getActionFromMethod(req.method);
-
-          // Set bookingId in params for the handlers
-          req.params.bookingId = action;
-          req.query.bookingId = action;
-
-          switch (methodAction) {
-            case 'get':
-              result = await handleGetBooking(req, correlationId);
-              break;
-            case 'cancel':
-            case 'delete':
-              result = await handleCancelBooking(req, correlationId);
-              break;
-            case 'update':
-              result = await handleUpdateBooking(req, correlationId);
-              break;
-            default:
-              return res.status(400).json({
-                success: false,
-                message: `Unsupported method ${req.method} for booking ID`,
-                timestamp: new Date().toISOString(),
-                correlationId
-              });
-          }
-        } else {
-          return res.status(400).json({
-            success: false,
-            message: `Invalid action: ${action}. Valid actions: create, update, cancel, get, list`,
-            timestamp: new Date().toISOString(),
-            correlationId
-          });
-        }
-    }
-
-    // Return the result
-    return res.status(result.statusCode || 200).json(result);
+    // Delegate to management service with all required functions
+    await bookingManagementService.manageBooking(req, res, {
+      createBookingCore,
+      updateBookingCore,
+      listBookings,
+      ensureAgentCanModifyBooking
+    });
   } catch (error) {
     logger.error('Error in manageBooking:', error);
     return res.status(500).json({
@@ -1102,342 +903,6 @@ async function manageBooking(req, res) {
       timestamp: new Date().toISOString(),
       correlationId
     });
-  }
-}
-
-// EXACT AZURE FUNCTIONS HELPER FUNCTIONS
-function getActionFromMethod(method) {
-  switch (method.toUpperCase()) {
-    case 'POST':
-      return 'create';
-    case 'GET':
-      return 'get';
-    case 'PUT':
-    case 'PATCH':
-      return 'update';
-    case 'DELETE':
-      return 'cancel';
-    default:
-      return 'unknown';
-  }
-}
-
-async function handleCancelBooking(req, correlationId) {
-  // EXACT AZURE FUNCTIONS LOGIC
-  const { tenant } = req || {};
-  const query =
-    req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
-  const body = req.body || {};
-  const bookingId =
-    query.bookingId || req.params.bookingId || req.params.action || body.bookingId || body.booking_id;
-
-  if (!bookingId) {
-    return {
-      success: false,
-      message: 'bookingId is required',
-      timestamp: new Date().toISOString(),
-      statusCode: 400,
-      correlationId
-    };
-  }
-
-  try {
-    if (!tenant) {
-      throw new Error('Tenant context is required to cancel a booking');
-    }
-
-    await ensureAgentCanModifyBooking(tenant, bookingId);
-
-    // Create Azure Functions context for compatibility
-    const context = {
-      log: (...args) => logger.info(...args),
-      error: (...args) => logger.error(...args)
-    };
-
-    // EXACT AZURE FUNCTIONS LOGIC - Call the shared helper
-    const result = await cancelBookingHelper(context, tenant, bookingId);
-
-    // IMMEDIATELY clean BigInt values before processing
-    const cleanedResult = cleanBigIntFromObject(result);
-
-    try {
-      await agentBookingService.removeAgentBooking(bookingId);
-    } catch (ledgerError) {
-      logger.warn('Failed to remove agent booking ledger entry', {
-        correlationId,
-        bookingId,
-        message: ledgerError.message
-      });
-    }
-
-    return {
-      success: true,
-      data: { booking: cleanedResult.booking },
-      message: 'Booking cancelled successfully',
-      timestamp: new Date().toISOString(),
-      statusCode: 200,
-      correlationId
-    };
-  } catch (error) {
-    logger.error('Error in handleCancelBooking:', error);
-    return {
-      success: false,
-      message: 'Failed to cancel booking',
-      error: error.message,
-      timestamp: new Date().toISOString(),
-      statusCode: 500,
-      correlationId
-    };
-  }
-}
-
-async function handleGetBooking(req, correlationId) {
-  // EXACT AZURE FUNCTIONS LOGIC
-  const query =
-    req.query instanceof URLSearchParams ? Object.fromEntries(req.query.entries()) : req.query || {};
-  const body = req.body || {};
-  const bookingId =
-    query.bookingId || req.params.bookingId || req.params.action || body.bookingId || body.booking_id;
-
-  if (!bookingId) {
-    return {
-      success: false,
-      message: 'bookingId is required',
-      timestamp: new Date().toISOString(),
-      statusCode: 400,
-      correlationId
-    };
-  }
-
-  try {
-    // Create Azure Functions context for compatibility
-    const context = {
-      log: (...args) => logger.info(...args),
-      error: (...args) => logger.error(...args)
-    };
-
-    // EXACT AZURE FUNCTIONS LOGIC - Call the shared helper
-    const result = await getBookingHelper(context, bookingId);
-
-    // IMMEDIATELY clean BigInt values before processing
-    const cleanedResult = cleanBigIntFromObject(result);
-
-    return {
-      success: true,
-      data: { booking: cleanedResult.booking },
-      message: 'Booking retrieved successfully',
-      timestamp: new Date().toISOString(),
-      statusCode: 200,
-      correlationId
-    };
-  } catch (error) {
-    logger.error('Error in handleGetBooking:', error);
-    return {
-      success: false,
-      message: 'Failed to retrieve booking',
-      error: error.message,
-      timestamp: new Date().toISOString(),
-      statusCode: 500,
-      correlationId
-    };
-  }
-}
-
-// EXACT AZURE FUNCTIONS HANDLERS - Copy the exact same logic
-async function handleCreateBooking(req, correlationId) {
-  const { tenant } = req;
-
-  // 🔍 DETAILED PARAMETER LOGGING FOR RETELL DEBUGGING (HANDLE CREATE)
-  logger.info('🚀 [HANDLE CREATE BOOKING] Raw request received:', {
-    correlationId,
-    tenantId: tenant.id,
-    method: req.method,
-    url: req.url,
-    headers: {
-      'content-type': req.headers['content-type'],
-      'user-agent': req.headers['user-agent'],
-      'x-correlation-id': req.headers['x-correlation-id']
-    },
-    timestamp: new Date().toISOString()
-  });
-
-  const bookingDataRaw = req.body || {};
-  const bookingData = stripRetellMeta(bookingDataRaw);
-  logger.info('📋 [HANDLE CREATE BOOKING] Request body (raw):', JSON.stringify(bookingDataRaw, null, 2));
-  logger.info('📋 [HANDLE CREATE BOOKING] Normalized payload:', JSON.stringify(bookingData, null, 2));
-
-  logger.info('🔍 [HANDLE CREATE BOOKING] Parameter analysis:', {
-    bodyType: typeof bookingDataRaw,
-    bodyKeys: Object.keys(bookingDataRaw || {}),
-    bodyLength: JSON.stringify(bookingDataRaw).length,
-    hasCustomerId: !!bookingData?.customerId,
-    hasAppointmentSegments: !!bookingData?.appointmentSegments,
-    appointmentSegmentsType: typeof bookingData?.appointmentSegments,
-    appointmentSegmentsLength: Array.isArray(bookingData?.appointmentSegments)
-      ? bookingData.appointmentSegments.length
-      : 'not-array',
-    hasStartAt: !!bookingData?.startAt,
-    correlationId
-  });
-
-  try {
-    const result = await createBookingCore(tenant, bookingData, correlationId);
-
-    // Success - convert to Azure Functions format
-    return {
-      success: true,
-      message: 'Booking created successfully',
-      data: result,
-      timestamp: new Date().toISOString(),
-      statusCode: 201,
-      correlationId
-    };
-  } catch (error) {
-    // Convert Express-style errors to Azure Functions format
-    return {
-      success: false,
-      message: error.message,
-      error: error.message,
-      ...(error.validationErrors && { errors: error.validationErrors }),
-      ...(error.code && { code: error.code }),
-      ...(error.conflictingBookings && { conflictingBookings: error.conflictingBookings }),
-      timestamp: new Date().toISOString(),
-      statusCode: error.statusCode || 500,
-      correlationId
-    };
-  }
-}
-
-async function handleUpdateBooking(req, correlationId) {
-  const { tenant } = req;
-
-  try {
-    // Extract bookingId from query params or route params
-    const bookingId = req.query.bookingId || req.params.bookingId || req.params.id || req.params.action;
-    let updateData = stripRetellMeta(req.body || {});
-
-    logger.info('🔍 [HANDLE UPDATE BOOKING] BookingId extraction:', {
-      queryBookingId: req.query.bookingId,
-      paramsBookingId: req.params.bookingId,
-      paramsAction: req.params.action,
-      finalBookingId: bookingId,
-      tenantId: tenant.id,
-      correlationId
-    });
-
-    // Validate bookingId is present
-    if (!bookingId) {
-      logger.info('❌ [HANDLE UPDATE BOOKING] Missing booking ID');
-      throw {
-        message: 'bookingId is required',
-        code: 'MISSING_BOOKING_ID',
-        status: 400
-      };
-    }
-
-    // Handle nested request structure from agents/tools
-    if (updateData.args) {
-      logger.info('🔧 [HANDLE UPDATE BOOKING] Extracting args from nested structure');
-      updateData = stripRetellMeta(updateData.args);
-    }
-
-    // Extract the specific parameters that updateBookingCore expects
-    const { startAt, note, customerId, customerNote, endAt, version, appointmentSegments, bookingSegments } =
-      updateData;
-
-    // Handle both appointmentSegments and bookingSegments (agent might send either)
-    const segments = appointmentSegments || bookingSegments;
-
-    logger.info('🚀 [HANDLE UPDATE BOOKING] Processing request:', {
-      correlationId,
-      bookingId,
-      originalBodyKeys: Object.keys(req.body || {}),
-      updateData: JSON.stringify(updateData, null, 2),
-      extractedParams: { startAt, note, customerId, customerNote, endAt, version },
-      hasAppointmentSegments: !!appointmentSegments,
-      hasBookingSegments: !!bookingSegments,
-      finalSegments: segments
-    });
-
-    await ensureAgentCanModifyBooking(tenant, bookingId);
-
-    const result = await updateBookingCore(
-      tenant,
-      bookingId,
-      startAt,
-      note,
-      customerId,
-      customerNote,
-      endAt,
-      segments
-    );
-
-    if (result?.success) {
-      try {
-        await agentBookingService.upsertAgentBooking({
-          agentId: tenant.agentId || tenant.id,
-          tenantId: tenant.id || tenant.agentId,
-          locationId: tenant.locationId || tenant.squareLocationId || null,
-          merchantId: tenant.squareMerchantId || tenant.merchantId || null,
-          booking: {
-            id: bookingId,
-            startAt: startAt || result?.data?.startAt || result?.data?.start_at || null,
-            status: result?.data?.status || null
-          }
-        });
-      } catch (recordError) {
-        logger.warn('Failed to update agent booking ledger after update', {
-          correlationId,
-          bookingId,
-          message: recordError.message
-        });
-      }
-    }
-
-    // Success - convert to Azure Functions format
-    return {
-      success: true,
-      message: 'Booking updated successfully',
-      data: result,
-      timestamp: new Date().toISOString(),
-      statusCode: 200,
-      correlationId
-    };
-  } catch (error) {
-    logger.error('❌ [HANDLE UPDATE BOOKING] Error:', error);
-    // Convert Express-style errors to Azure Functions format
-    return {
-      success: false,
-      message: error.message,
-      error: error.message,
-      ...(error.validationErrors && { errors: error.validationErrors }),
-      ...(error.code && { code: error.code }),
-      ...(error.serviceError && { serviceError: error.serviceError }),
-      ...(error.details && { details: error.details }),
-      timestamp: new Date().toISOString(),
-      statusCode: error.statusCode || 500,
-      correlationId
-    };
-  }
-}
-
-async function handleListBookings(req, correlationId) {
-  // Call the existing listBookings function - need to handle response differently
-  try {
-    const result = await listBookings(req, {
-      json: data => data,
-      status: code => ({ json: data => ({ ...data, statusCode: code }) })
-    });
-    return result;
-  } catch (error) {
-    return {
-      success: false,
-      message: 'Failed to list bookings',
-      error: error.message,
-      timestamp: new Date().toISOString(),
-      statusCode: 500,
-      correlationId
-    };
   }
 }
 
