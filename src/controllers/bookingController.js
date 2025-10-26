@@ -8,6 +8,7 @@ const { sendSuccess, sendError } = require('../utils/responseBuilder');
 const { logPerformance, logEvent, logError, logger } = require('../utils/logger');
 const bookingService = require('../services/bookingService');
 const agentBookingService = require('../services/agentBookingService');
+const bookingAvailabilityService = require('../services/bookingAvailabilityService');
 const {
   validateBookingData,
   cancelBooking: cancelBookingHelper,
@@ -972,189 +973,24 @@ async function listBookings(req, res) {
  * Get service availability (matches Azure Functions API)
  * GET /api/availability
  */
+/**
+ * Get service availability
+ * Delegates to bookingAvailabilityService for parameter parsing, validation, and availability lookup
+ */
 async function getServiceAvailability(req, res) {
-  const startTime = Date.now();
   const { correlationId, tenant } = req;
 
   try {
-    const rawServiceIds =
-      req.query.serviceVariationIds ??
-      req.query.serviceIds ??
-      req.body?.serviceVariationIds ??
-      req.body?.serviceIds ??
-      req.body?.service_variation_ids ??
-      req.retellPayload?.serviceVariationIds ??
-      req.retellPayload?.service_variation_ids;
+    const result = await bookingAvailabilityService.getServiceAvailability(req, tenant, correlationId);
 
-    const rawStaffId =
-      req.query.staffMemberId ??
-      req.query.staffId ??
-      req.body?.staffMemberId ??
-      req.body?.staffId ??
-      req.body?.staff_member_id ??
-      req.retellPayload?.staffMemberId ??
-      req.retellPayload?.staffId ??
-      req.retellPayload?.staff_member_id;
-
-    const rawDaysAhead =
-      req.query.daysAhead ??
-      req.body?.daysAhead ??
-      req.body?.days_ahead ??
-      req.retellPayload?.daysAhead ??
-      req.retellPayload?.days_ahead;
-
-    let serviceIdArray = [];
-    if (Array.isArray(rawServiceIds)) {
-      serviceIdArray = rawServiceIds.map(id => String(id).trim()).filter(Boolean);
-    } else if (typeof rawServiceIds === 'string') {
-      const parsedIds = parseMaybeJson(rawServiceIds);
-      if (Array.isArray(parsedIds)) {
-        serviceIdArray = parsedIds.map(id => String(id).trim()).filter(Boolean);
-      } else {
-        serviceIdArray = rawServiceIds
-          .split(',')
-          .map(id => id.trim())
-          .filter(Boolean);
-      }
+    if (result.status !== 200) {
+      return res.status(result.status).json(result.data);
     }
-
-    if (!serviceIdArray.length) {
-      return res.status(400).json({
-        success: false,
-        message: 'serviceVariationIds parameter is required',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    let staffMemberId;
-    if (rawStaffId) {
-      const parsedStaff = typeof rawStaffId === 'string' ? parseMaybeJson(rawStaffId) : rawStaffId;
-      staffMemberId = Array.isArray(parsedStaff) ? String(parsedStaff[0]).trim() : String(parsedStaff).trim();
-    }
-
-    const parsedDaysAhead =
-      rawDaysAhead !== undefined && rawDaysAhead !== null ? parseInt(rawDaysAhead, 10) : null;
-    // Default to 14 days
-    const daysAhead = parsedDaysAhead !== null && !Number.isNaN(parsedDaysAhead) ? parsedDaysAhead : 14;
-
-    logger.info(
-      `Getting service availability - Services: ${serviceIdArray.join(',')}, ` +
-        `Staff: ${staffMemberId}, Days: ${daysAhead}`
-    );
-
-    if (daysAhead < 1 || daysAhead > 90) {
-      return res.status(400).json({
-        success: false,
-        message: 'daysAhead parameter must be between 1 and 90 (defaults to 14 if not provided)',
-        timestamp: new Date().toISOString()
-      });
-    }
-
-    // Calculate end date based on daysAhead
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setDate(startDate.getDate() + daysAhead);
-
-    // Debug logging for Retell integration
-    logger.info('🔍 [AVAILABILITY DEBUG] serviceVariationIds parameter:', rawServiceIds);
-    logger.info(
-      '🔍 [AVAILABILITY DEBUG] serviceVariationIds type:',
-      Array.isArray(rawServiceIds) ? 'array' : typeof rawServiceIds
-    );
-    logger.info(
-      '🔍 [AVAILABILITY DEBUG] serviceVariationIds length:',
-      Array.isArray(rawServiceIds) ? rawServiceIds.length : String(rawServiceIds || '').length
-    );
-    logger.info('🔍 [AVAILABILITY DEBUG] serviceIdArray:', serviceIdArray);
-    logger.info(
-      '🔍 [AVAILABILITY DEBUG] serviceIdArray lengths:',
-      serviceIdArray.map(id => ({ id, length: id.length }))
-    );
-
-    // Validate service ID lengths before processing
-    for (const serviceId of serviceIdArray) {
-      if (serviceId.length > 36) {
-        logger.info('🔍 [AVAILABILITY DEBUG] Service ID too long:', {
-          serviceId,
-          length: serviceId.length,
-          first50chars: serviceId.substring(0, 50)
-        });
-        return res.status(400).json({
-          success: false,
-          message: `Service variation ID is too long: ${serviceId.length} characters (max 36)`,
-          details: `Service ID: ${serviceId.substring(0, 50)}...`,
-          timestamp: new Date().toISOString()
-        });
-      }
-    }
-
-    logEvent('service_availability_request', {
-      correlationId,
-      serviceCount: serviceIdArray.length,
-      staffMemberId,
-      daysAhead,
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString()
-    });
-
-    // Use the availability helpers to get slots
-
-    // Create a context object similar to Azure Functions
-    const context = {
-      log: (...args) => logger.info(...args)
-    };
-
-    const availabilityRecord = await availabilityHelpers.loadAvailability(
-      tenant,
-      serviceIdArray,
-      staffMemberId,
-      startDate.toISOString(),
-      endDate.toISOString(),
-      context
-    );
-
-    // Clean BigInt values from the availabilityRecord BEFORE creating response
-    const cleanAvailabilityRecord = cleanBigIntFromObject(availabilityRecord);
-
-    const response = {
-      id: cleanAvailabilityRecord.id,
-      serviceVariationIds: cleanAvailabilityRecord.serviceVariationIds,
-      staffMemberId: cleanAvailabilityRecord.staffMemberId,
-      slots: cleanAvailabilityRecord.slots || [],
-      timestamp: new Date().toISOString()
-    };
-
-    // Clean logging data to avoid BigInt issues
-    const logData = cleanBigIntFromObject({
-      serviceCount: serviceIdArray.length,
-      slotsFound: response.slots?.length || 0
-    });
-
-    logPerformance(correlationId, 'service_availability', startTime, logData);
-
-    // Clean the entire response object to remove any BigInt values
-    const cleanResponse = cleanBigIntFromObject(response);
-
-    // Create final response with cleaned data
-    const responseData = {
-      success: true,
-      message: cleanResponse,
-      data: 'Service availability retrieved successfully',
-      timestamp: new Date().toISOString()
-    };
-
-    // Use custom stringify with bigIntReplacer to be extra safe
-    const jsonString = JSON.stringify(responseData, bigIntReplacer);
 
     res.setHeader('Content-Type', 'application/json');
-    return res.send(jsonString);
+    return res.send(result.jsonString);
   } catch (error) {
     logger.error('Error in getServiceAvailability:', error);
-
-    logPerformance(correlationId, 'service_availability_error', startTime, {
-      error: error.message
-    });
-
     return sendError(res, 'Internal server error', 500, error.message, correlationId);
   }
 }
