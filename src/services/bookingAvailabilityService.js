@@ -96,9 +96,8 @@ function extractDaysAhead(req) {
     req.retellPayload?.daysAhead ??
     req.retellPayload?.days_ahead;
 
-  const parsedDaysAhead = rawDaysAhead !== undefined && rawDaysAhead !== null
-    ? parseInt(rawDaysAhead, 10)
-    : null;
+  const parsedDaysAhead =
+    rawDaysAhead !== undefined && rawDaysAhead !== null ? parseInt(rawDaysAhead, 10) : null;
 
   // Default to 14 days
   return parsedDaysAhead !== null && !Number.isNaN(parsedDaysAhead) ? parsedDaysAhead : 14;

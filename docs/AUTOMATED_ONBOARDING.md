@@ -2,7 +2,8 @@
 
 ## Overview
 
-The automated onboarding API allows you to complete agent onboarding in one API call after OAuth authorization is complete.
+The automated onboarding API allows you to complete agent onboarding in one API call after OAuth authorization
+is complete.
 
 ## What It Does
 
@@ -70,6 +71,7 @@ curl "https://your-api.azurewebsites.net/oauth/authorize?agentId=agent_new_shop&
 ```
 
 Response:
+
 ```json
 {
   "success": true,
@@ -94,6 +96,7 @@ curl -H "Accept: application/json" \
 ```
 
 Response contains OAuth data:
+
 ```json
 {
   "success": true,
@@ -134,6 +137,7 @@ curl -X POST "https://your-api.azurewebsites.net/api/admin/complete-onboarding" 
 ```
 
 Response:
+
 ```json
 {
   "success": true,
@@ -183,6 +187,7 @@ curl "https://your-api.azurewebsites.net/api/admin/agents" \
 ```
 
 Response:
+
 ```json
 {
   "success": true,

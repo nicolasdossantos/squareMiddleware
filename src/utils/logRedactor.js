@@ -20,7 +20,7 @@
 const SENSITIVE_PATTERNS = {
   // Tokens and API keys
   accessToken: /^sq[a-z0-9_-]{100,}/i,
-  bearerToken: /^[A-Za-z0-9\-._~+/]+=*$/,  // Generic bearer token format
+  bearerToken: /^[A-Za-z0-9\-._~+/]+=*$/, // Generic bearer token format
   refreshToken: /^[a-z0-9_-]{50,}/i,
   apiKey: /^[a-z0-9_-]{32,}/i,
   retellApiKey: /^[a-z0-9_-]{40,}/i,

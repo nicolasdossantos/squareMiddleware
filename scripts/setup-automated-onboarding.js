@@ -8,7 +8,7 @@
 const crypto = require('crypto');
 
 console.log('\n🔐 Automated Onboarding Setup\n');
-console.log('=' .repeat(60));
+console.log('='.repeat(60));
 
 console.log('\n📋 Required Environment Variables:\n');
 
@@ -29,7 +29,7 @@ console.log('   Example: square-middleware-prod-api\n');
 console.log('5. PUBLIC_URL (optional):');
 console.log('   Example: https://square-middleware-prod-api.azurewebsites.net\n');
 
-console.log('=' .repeat(60));
+console.log('='.repeat(60));
 
 console.log('\n📝 Azure CLI Commands:\n');
 
@@ -68,6 +68,6 @@ console.log(`az role assignment create \\
   --scope /subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Web/sites/<app-service-name>
 \n`);
 
-console.log('=' .repeat(60));
+console.log('='.repeat(60));
 console.log('\n✅ Setup complete! Deploy your changes and test the API.\n');
 console.log('📚 See docs/AUTOMATED_ONBOARDING.md for usage examples.\n');

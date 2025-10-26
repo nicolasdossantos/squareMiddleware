@@ -15,12 +15,13 @@ const {
 describe('Log Redaction Utility', () => {
   describe('redactValue()', () => {
     test('should redact access tokens', () => {
-      const token = 'sq0atp_1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890';
+      const token =
+        'sq0atp_1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890';
       const redacted = redactValue(token, 'accessToken');
 
       expect(redacted).toContain('[REDACTED]');
-      expect(redacted).toContain('sq0atp');  // First 6 chars
-      expect(redacted).not.toContain('1234567890');  // Middle hidden
+      expect(redacted).toContain('sq0atp'); // First 6 chars
+      expect(redacted).not.toContain('1234567890'); // Middle hidden
     });
 
     test('should redact phone numbers', () => {
@@ -58,13 +59,14 @@ describe('Log Redaction Utility', () => {
         name: 'John Doe',
         email: 'john@example.com',
         phoneNumber: '+1 (555) 123-4567',
-        accessToken: 'sq0atp_1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890',
+        accessToken:
+          'sq0atp_1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890',
         apiKey: 'secret_key_123456789'
       };
 
       const redacted = redactObject(obj);
 
-      expect(redacted.name).toBe('John Doe');  // Not redacted
+      expect(redacted.name).toBe('John Doe'); // Not redacted
       expect(redacted.email).toContain('****@');
       expect(redacted.phoneNumber).toContain('XXX-XXX-');
       expect(redacted.accessToken).toContain('[REDACTED]');
@@ -210,7 +212,7 @@ describe('Log Redaction Utility', () => {
       expect(redacted.squareLocationId).toBe('[REDACTED_ID]');
       expect(redacted.phone_number).toContain('XXX-XXX-');
       expect(redacted.email_address).toContain('****@');
-      expect(redacted.notes).toBe('Customer called about appointment');  // Not sensitive
+      expect(redacted.notes).toBe('Customer called about appointment'); // Not sensitive
     });
 
     test('should handle tenant context with all credential types', () => {
@@ -237,7 +239,7 @@ describe('Log Redaction Utility', () => {
       // squareLocationId is an ID - redacted completely
       expect(redacted.squareLocationId).toBe('[REDACTED_ID]');
       expect(redacted.staffEmail).toContain('****@');
-      expect(redacted.supportsSellerLevelWrites).toBe(true);  // Boolean not redacted
+      expect(redacted.supportsSellerLevelWrites).toBe(true); // Boolean not redacted
     });
   });
 });

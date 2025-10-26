@@ -379,12 +379,11 @@ async function handleListBookings(req, correlationId, listBookings) {
  * Routes requests to appropriate handler based on action
  * Supports both explicit action parameters and implicit HTTP method-based routing
  */
-async function manageBooking(req, res, {
-  createBookingCore,
-  updateBookingCore,
-  listBookings,
-  ensureAgentCanModifyBooking
-}) {
+async function manageBooking(
+  req,
+  res,
+  { createBookingCore, updateBookingCore, listBookings, ensureAgentCanModifyBooking }
+) {
   const { correlationId, tenant } = req;
 
   // Get action from params or determine from method
@@ -423,7 +422,12 @@ async function manageBooking(req, res, {
         result = await handleCreateBooking(req, correlationId, createBookingCore);
         break;
       case 'update':
-        result = await handleUpdateBooking(req, correlationId, updateBookingCore, ensureAgentCanModifyBooking);
+        result = await handleUpdateBooking(
+          req,
+          correlationId,
+          updateBookingCore,
+          ensureAgentCanModifyBooking
+        );
         break;
       case 'cancel':
       case 'delete':
@@ -454,7 +458,12 @@ async function manageBooking(req, res, {
               result = await handleCancelBooking(req, correlationId, ensureAgentCanModifyBooking);
               break;
             case 'update':
-              result = await handleUpdateBooking(req, correlationId, updateBookingCore, ensureAgentCanModifyBooking);
+              result = await handleUpdateBooking(
+                req,
+                correlationId,
+                updateBookingCore,
+                ensureAgentCanModifyBooking
+              );
               break;
             default:
               return res.status(400).json({

@@ -431,7 +431,7 @@ async function checkSquareCredentialIsolation() {
 
     tokenMap.forEach((agentIds, token) => {
       if (agentIds.length > 1) {
-        duplicateGroups.set(token, agentIds.length);  // Store count only, not agent IDs
+        duplicateGroups.set(token, agentIds.length); // Store count only, not agent IDs
       }
     });
 

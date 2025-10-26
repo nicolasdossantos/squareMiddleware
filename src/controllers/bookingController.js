@@ -15,7 +15,10 @@ const {
   cancelBooking: cancelBookingHelper
 } = require('../utils/helpers/bookingHelpers');
 const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
-const { checkSlotAvailability, checkCustomerConflicts } = require('../utils/helpers/bookingValidationHelpers');
+const {
+  checkSlotAvailability,
+  checkCustomerConflicts
+} = require('../utils/helpers/bookingValidationHelpers');
 const { generateCorrelationId } = require('../utils/security');
 const { stripRetellMeta } = require('../utils/retellPayload');
 const { createSquareClient } = require('../utils/squareUtils');

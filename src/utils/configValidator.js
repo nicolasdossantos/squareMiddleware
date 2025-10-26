@@ -14,12 +14,7 @@ const CONFIG_SCHEMA = {
   required: {
     database: {
       connectionString: {
-        env: [
-          'PG_CONNECTION_STRING',
-          'PG_CONN_STRING',
-          'POSTGRES_CONNECTION_STRING',
-          'DATABASE_URL'
-        ],
+        env: ['PG_CONNECTION_STRING', 'PG_CONN_STRING', 'POSTGRES_CONNECTION_STRING', 'DATABASE_URL'],
         description: 'PostgreSQL database connection string',
         validate: value => typeof value === 'string' && value.length > 0
       }
@@ -213,8 +208,7 @@ function formatValidationMessage(result) {
 
   if (result.errors.length > 0) {
     lines.push(
-      '\n❌ CONFIGURATION VALIDATION FAILED\n' +
-      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+      '\n❌ CONFIGURATION VALIDATION FAILED\n' + '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
     );
     lines.push(`Environment: ${result.environment}`);
     lines.push(`Missing/Invalid Settings: ${result.errors.length}\n`);
@@ -223,9 +217,7 @@ function formatValidationMessage(result) {
       lines.push(`${index + 1}. ${error}`);
     });
 
-    lines.push(
-      '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'
-    );
+    lines.push('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   }
 
   if (result.warnings.length > 0) {

@@ -50,10 +50,7 @@ async function squareAuthMiddleware(req, res, next) {
       .digest('base64');
 
     // Compare signatures using constant-time comparison to prevent timing attacks
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(computedSignature),
-      Buffer.from(signatureHeader)
-    );
+    const isValid = crypto.timingSafeEqual(Buffer.from(computedSignature), Buffer.from(signatureHeader));
 
     if (!isValid) {
       logger.warn('[SquareAuth] Signature verification failed', {

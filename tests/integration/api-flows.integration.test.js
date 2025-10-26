@@ -40,9 +40,7 @@ describe('API Integration Tests - Critical Flows', () => {
 
     test('should include correlation ID in responses', async () => {
       const correlationId = 'test-corr-id-' + Date.now();
-      const response = await request(app)
-        .get('/api/health')
-        .set('X-Correlation-ID', correlationId);
+      const response = await request(app).get('/api/health').set('X-Correlation-ID', correlationId);
 
       expect(response.status).toBe(200);
       // Correlation ID should be passed through response
@@ -133,9 +131,7 @@ describe('API Integration Tests - Critical Flows', () => {
 
   describe('CORS Configuration', () => {
     test('should include CORS headers in responses', async () => {
-      const response = await request(app)
-        .options('/api/health')
-        .set('Origin', 'http://localhost:3000');
+      const response = await request(app).options('/api/health').set('Origin', 'http://localhost:3000');
 
       // Should return 200 or 204 for OPTIONS
       expect([200, 204, 404]).toContain(response.status);
@@ -158,9 +154,7 @@ describe('API Integration Tests - Critical Flows', () => {
     test('should apply all middlewares in correct order', async () => {
       // This tests that the middleware chain is properly configured
       // A request should go through: dotenv → CORS → logging → error handling → routing
-      const response = await request(app)
-        .get('/api/health')
-        .set('Content-Type', 'application/json');
+      const response = await request(app).get('/api/health').set('Content-Type', 'application/json');
 
       // Should successfully process through all middlewares
       expect(response.status).toBe(200);
