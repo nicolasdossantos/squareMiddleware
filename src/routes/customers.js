@@ -6,7 +6,7 @@
 const express = require('express');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { validateSchema, validateContentType } = require('../middlewares/validation');
-const { validateCustomerInfo } = require('../utils/inputValidation');
+const { validateCustomerInfo } = require('../utils/validation');
 const customerController = require('../controllers/customerController');
 const agentAuth = require('../middlewares/agentAuth');
 

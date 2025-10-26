@@ -110,8 +110,9 @@ function createApp() {
   // - API endpoints: agentAuth middleware validates Bearer tokens
   // See src/routes/webhooks.js and src/routes/api.js for implementation
 
-  // Square OAuth callback endpoint (not behind agent auth)
-  app.get('/authcallback', asyncHandler(oauthController.handleAuthCallback));
+  // OAuth routes (not behind agent auth - used for onboarding)
+  const oauthRoutes = require('./routes/oauth');
+  app.use('/', oauthRoutes);
 
   // API routes
   app.use('/api', routes);

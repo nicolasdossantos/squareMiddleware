@@ -3,6 +3,7 @@
  * Handles Square OAuth callback exchanges and presents results to the user.
  */
 
+const crypto = require('crypto');
 const { decodeState, exchangeCodeForTokens, fetchSellerMetadata } = require('../services/oauthService');
 const { logger } = require('../utils/logger');
 
@@ -520,6 +521,105 @@ async function handleAuthCallback(req, res) {
   }
 }
 
+/**
+ * Generate Square OAuth authorization URL
+ * GET /oauth/authorize?agentId=xxx&businessName=xxx&environment=sandbox
+ *
+ * @param {import('express').Request} req
+ * @param {import('express').Response} res
+ */
+async function generateAuthorizationUrl(req, res) {
+  const { agentId, businessName, environment } = req.query;
+
+  if (!agentId) {
+    return res.status(400).json({
+      success: false,
+      error: 'missing_agent_id',
+      message: 'agentId is required to generate authorization URL'
+    });
+  }
+
+  const clientId = process.env.SQUARE_APPLICATION_ID;
+  if (!clientId) {
+    return res.status(500).json({
+      success: false,
+      error: 'config_error',
+      message: 'SQUARE_APPLICATION_ID not configured'
+    });
+  }
+
+  const squareEnvironment = environment || process.env.SQUARE_ENVIRONMENT || 'sandbox';
+  const baseUrl =
+    squareEnvironment === 'production'
+      ? 'https://connect.squareup.com'
+      : 'https://connect.squareupsandbox.com';
+
+  // Build redirect URI (where Square sends user after authorization)
+  const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  const redirectUri = `${protocol}://${host}/authcallback`;
+
+  // Create state parameter with metadata
+  const stateData = {
+    agentId,
+    businessName: businessName || null,
+    environment: squareEnvironment,
+    clientId,
+    redirectUri,
+    nonce: crypto.randomBytes(16).toString('hex'),
+    timestamp: new Date().toISOString()
+  };
+
+  // Encode state as base64url
+  const stateJson = JSON.stringify(stateData);
+  const stateBase64 = Buffer.from(stateJson)
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+
+  // Required OAuth scopes for booking operations
+  const scopes = [
+    'APPOINTMENTS_READ',
+    'APPOINTMENTS_WRITE',
+    'APPOINTMENTS_ALL_READ',
+    'APPOINTMENTS_ALL_WRITE',
+    'APPOINTMENTS_BUSINESS_SETTINGS_READ',
+    'CUSTOMERS_READ',
+    'CUSTOMERS_WRITE',
+    'MERCHANT_PROFILE_READ'
+  ];
+
+  // Build authorization URL
+  const authUrl = new URL(`${baseUrl}/oauth2/authorize`);
+  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('scope', scopes.join(' '));
+  authUrl.searchParams.set('state', stateBase64);
+
+  logger.info('Generated Square OAuth authorization URL', {
+    agentId,
+    environment: squareEnvironment,
+    redirectUri,
+    scopes: scopes.length
+  });
+
+  return res.json({
+    success: true,
+    authorizationUrl: authUrl.toString(),
+    agentId,
+    environment: squareEnvironment,
+    redirectUri,
+    expiresIn: 300, // Authorization codes expire in 5 minutes
+    instructions: [
+      'Direct the seller to the authorizationUrl',
+      'Seller will sign in to Square and approve permissions',
+      'Square will redirect to your callback URL with authorization code',
+      'Your callback endpoint will exchange code for access token automatically'
+    ]
+  });
+}
+
 module.exports = {
-  handleAuthCallback
+  handleAuthCallback,
+  generateAuthorizationUrl
 };

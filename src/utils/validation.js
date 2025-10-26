@@ -1,6 +1,6 @@
 /**
  * Centralized validation utilities
- * Consolidates validation patterns from squareUtils.js and inputValidation.js
+ * All validation functions are now consolidated in this single module
  */
 
 /**
@@ -320,6 +320,81 @@ function sanitizeForLogs(text) {
     .replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN]');
 }
 
+/**
+ * Validate customer information for updates
+ */
+function validateCustomerInfo(req) {
+  const errors = [];
+  const body = req.body || {};
+
+  // All fields are optional for updates, but if provided must be valid
+  if (body.givenName !== undefined) {
+    const nameValidation = validateStringField(body.givenName, 'givenName', {
+      required: false,
+      minLength: 1,
+      maxLength: 100,
+      allowEmpty: true
+    });
+    if (!nameValidation.isValid) {
+      errors.push(nameValidation.error);
+    }
+  }
+
+  if (body.familyName !== undefined) {
+    const nameValidation = validateStringField(body.familyName, 'familyName', {
+      required: false,
+      minLength: 1,
+      maxLength: 100,
+      allowEmpty: true
+    });
+    if (!nameValidation.isValid) {
+      errors.push(nameValidation.error);
+    }
+  }
+
+  if (body.emailAddress !== undefined) {
+    const emailValidation = validateStringField(body.emailAddress, 'emailAddress', {
+      required: false,
+      minLength: 3,
+      maxLength: 255,
+      allowEmpty: true
+    });
+    if (!emailValidation.isValid) {
+      errors.push(emailValidation.error);
+    } else if (body.emailAddress && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.emailAddress)) {
+      errors.push('emailAddress must be a valid email format');
+    }
+  }
+
+  if (body.phoneNumber !== undefined) {
+    const phoneValidation = validateStringField(body.phoneNumber, 'phoneNumber', {
+      required: false,
+      minLength: 10,
+      maxLength: 20,
+      allowEmpty: true
+    });
+    if (!phoneValidation.isValid) {
+      errors.push(phoneValidation.error);
+    }
+  }
+
+  if (body.note !== undefined) {
+    const noteValidation = validateStringField(body.note, 'note', {
+      required: false,
+      maxLength: 1000,
+      allowEmpty: true
+    });
+    if (!noteValidation.isValid) {
+      errors.push(noteValidation.error);
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors: errors
+  };
+}
+
 module.exports = {
   // Generic validation
   validateStringField,
@@ -332,6 +407,7 @@ module.exports = {
   validateSquareId,
   validateDaysAhead,
   validatePagination,
+  validateCustomerInfo,
 
   // Formatting utilities
   formatPhoneNumber,
