@@ -14,7 +14,17 @@ jest.mock('../../src/utils/helpers/availabilityHelpers', () => ({
   loadAvailability: mockLoadAvailability
 }));
 jest.mock('../../src/utils/helpers/bigIntUtils');
-jest.mock('../../src/utils/logger');
+jest.mock('../../src/utils/logger', () => ({
+  logEvent: jest.fn(),
+  logError: jest.fn(),
+  logPerformance: jest.fn(),
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn()
+  }
+}));
 jest.mock('../../src/utils/security');
 jest.mock('../../src/utils/responseBuilder', () => ({
   sendSuccess: jest.fn(),
@@ -42,7 +52,13 @@ describe('GetServiceAvailability - Express.js Style', () => {
     mockReq = {
       query: {},
       headers: {},
-      correlationId: 'test-correlation-id'
+      correlationId: 'test-correlation-id',
+      tenant: {
+        id: 'test-tenant',
+        squareAccessToken: 'test_token',
+        squareLocationId: 'test_location',
+        squareEnvironment: 'sandbox'
+      }
     };
 
     // Mock Express.js response with proper chaining

@@ -157,7 +157,6 @@ async function getServiceAvailability(req, tenant, correlationId) {
     endDate.setDate(startDate.getDate() + daysAhead);
 
     // Debug logging
-    logger.info('🔍 [AVAILABILITY DEBUG] serviceVariationIds parameter:', rawServiceIds);
     logger.info('🔍 [AVAILABILITY DEBUG] serviceIdArray:', serviceIdArray);
     logger.info(
       '🔍 [AVAILABILITY DEBUG] serviceIdArray lengths:',
