@@ -21,6 +21,12 @@ async function listTenants(req, res) {
       businessName: agent.businessName,
       squareEnvironment: agent.squareEnvironment,
       timezone: agent.timezone,
+      squareMerchantId: agent.squareMerchantId || agent.merchantId,
+      supportsSellerLevelWrites:
+        typeof agent.supportsSellerLevelWrites === 'boolean' ? agent.supportsSellerLevelWrites : null,
+      hasRefreshToken: Boolean(agent.squareRefreshToken),
+      defaultLocationId: agent.defaultLocationId || agent.squareLocationId,
+      squareScopes: agent.squareScopes,
       contactEmail: agent.contactEmail,
       contactPhone: agent.contactPhone
     }));
@@ -98,6 +104,12 @@ async function onboardTenant(req, res) {
       agentId,
       businessName,
       squareAccessToken,
+      squareRefreshToken,
+      squareTokenExpiresAt,
+      squareScopes,
+      squareMerchantId,
+      supportsSellerLevelWrites,
+      defaultLocationId,
       squareLocationId,
       squareEnvironment,
       contactEmail,
@@ -146,6 +158,38 @@ async function onboardTenant(req, res) {
       });
     }
 
+    // Normalize optional OAuth metadata
+    const normalizedScopes =
+      typeof squareScopes === 'string'
+        ? squareScopes
+            .split(',')
+            .map(scope => scope.trim())
+            .filter(Boolean)
+        : Array.isArray(squareScopes)
+        ? squareScopes
+        : undefined;
+
+    const normalizedSupportsSellerLevelWrites =
+      supportsSellerLevelWrites === true ||
+      supportsSellerLevelWrites === 'true' ||
+      supportsSellerLevelWrites === 1 ||
+      supportsSellerLevelWrites === '1';
+
+    let normalizedExpiresAt;
+    if (squareTokenExpiresAt && squareTokenExpiresAt !== '') {
+      const parsedExpire = new Date(squareTokenExpiresAt);
+      if (!Number.isNaN(parsedExpire.getTime())) {
+        normalizedExpiresAt = parsedExpire.toISOString();
+      } else {
+        logger.warn('Invalid squareTokenExpiresAt provided during onboarding; ignoring value', {
+          agentId,
+          squareTokenExpiresAt
+        });
+      }
+    }
+
+    const merchantId = squareMerchantId || req.body.merchantId;
+
     // Create agent configuration
     const agentConfig = {
       agentId,
@@ -156,7 +200,13 @@ async function onboardTenant(req, res) {
       timezone: timezone || 'America/New_York',
       contactEmail,
       contactPhone,
-      staffEmail: contactEmail
+      staffEmail: contactEmail,
+      squareRefreshToken,
+      squareTokenExpiresAt: normalizedExpiresAt,
+      squareScopes: normalizedScopes,
+      squareMerchantId: merchantId,
+      supportsSellerLevelWrites: normalizedSupportsSellerLevelWrites,
+      defaultLocationId: defaultLocationId || squareLocationId
     };
 
     // Store in Azure Key Vault (if available)
@@ -185,7 +235,9 @@ async function onboardTenant(req, res) {
     res.json({
       success: true,
       message: 'Tenant onboarded successfully',
-      agentId
+      agentId,
+      supportsSellerLevelWrites: normalizedSupportsSellerLevelWrites,
+      squareMerchantId: merchantId
     });
   } catch (error) {
     logger.error('Failed to onboard tenant', { error: error.message });

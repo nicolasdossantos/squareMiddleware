@@ -452,16 +452,29 @@ async function handleCallInbound(payload, context) {
     let tenant;
     try {
       const agentConfig = agentConfigService.getAgentConfig(agent_id);
+      const supportsSellerLevelWrites =
+        typeof agentConfig.supportsSellerLevelWrites === 'boolean'
+          ? agentConfig.supportsSellerLevelWrites
+          : true;
 
       tenant = {
         id: agentConfig.agentId || agent_id,
         accessToken: agentConfig.squareAccessToken,
-        locationId: agentConfig.squareLocationId,
+        locationId: agentConfig.defaultLocationId || agentConfig.squareLocationId,
+        squareLocationId: agentConfig.squareLocationId,
         applicationId: agentConfig.squareApplicationId,
         environment: agentConfig.squareEnvironment,
+        squareEnvironment: agentConfig.squareEnvironment,
         timezone: agentConfig.timezone,
         staffEmail: agentConfig.staffEmail,
-        businessName: agentConfig.businessName
+        businessName: agentConfig.businessName,
+        squareMerchantId: agentConfig.squareMerchantId,
+        merchantId: agentConfig.squareMerchantId,
+        supportsSellerLevelWrites,
+        squareScopes: agentConfig.squareScopes,
+        squareRefreshToken: agentConfig.squareRefreshToken,
+        squareTokenExpiresAt: agentConfig.squareTokenExpiresAt,
+        defaultLocationId: agentConfig.defaultLocationId || agentConfig.squareLocationId
       };
     } catch (configError) {
       return buildMissingAgentConfigResponse(agent_id, correlationId, null, 'call_inbound');
@@ -482,7 +495,13 @@ async function handleCallInbound(payload, context) {
           squareLocationId: tenant.locationId,
           squareEnvironment: tenant.environment,
           timezone: tenant.timezone,
-          businessName: tenant.businessName
+          businessName: tenant.businessName,
+          squareMerchantId: tenant.squareMerchantId,
+          supportsSellerLevelWrites: tenant.supportsSellerLevelWrites,
+          squareRefreshToken: tenant.squareRefreshToken,
+          squareTokenExpiresAt: tenant.squareTokenExpiresAt,
+          squareScopes: tenant.squareScopes,
+          defaultLocationId: tenant.defaultLocationId
         },
         600,
         {

@@ -27,11 +27,21 @@ function tenantContext(req, res, next) {
       // Use agent-specific credentials from Key Vault
       req.tenant = {
         id: req.retellContext.agentId,
+        agentId: req.retellContext.agentId,
+        accessToken: req.retellContext.squareAccessToken,
+        locationId: req.retellContext.squareLocationId,
         squareAccessToken: req.retellContext.squareAccessToken,
         squareLocationId: req.retellContext.squareLocationId,
         squareEnvironment: req.retellContext.squareEnvironment || 'production',
         timezone: req.retellContext.timezone || 'America/New_York',
-        businessName: req.retellContext.businessName || 'Elite Barbershop'
+        businessName: req.retellContext.businessName || 'Elite Barbershop',
+        squareMerchantId: req.retellContext.squareMerchantId,
+        supportsSellerLevelWrites:
+          req.retellContext.supportsSellerLevelWrites === false ? false : true,
+        squareRefreshToken: req.retellContext.squareRefreshToken,
+        squareTokenExpiresAt: req.retellContext.squareTokenExpiresAt,
+        squareScopes: req.retellContext.squareScopes,
+        defaultLocationId: req.retellContext.defaultLocationId || req.retellContext.squareLocationId
       };
 
       logger.info('Tenant context created from agentAuth', {
@@ -42,11 +52,16 @@ function tenantContext(req, res, next) {
       // Fallback to environment variables (development/single-tenant mode)
       req.tenant = {
         id: 'default',
+        agentId: 'default',
+        accessToken: config.square.accessToken,
+        locationId: config.square.locationId,
         squareAccessToken: config.square.accessToken,
         squareLocationId: config.square.locationId,
         squareEnvironment: config.square.environment || 'sandbox',
         timezone: config.server.timezone || 'America/New_York',
-        businessName: config.businessName || 'Elite Barbershop'
+        businessName: config.businessName || 'Elite Barbershop',
+        supportsSellerLevelWrites: true,
+        defaultLocationId: config.square.locationId
       };
 
       if (!req.path.includes('/health') && !req.path.includes('/warmup')) {

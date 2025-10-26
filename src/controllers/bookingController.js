@@ -7,6 +7,7 @@
 const { sendSuccess, sendError } = require('../utils/responseBuilder');
 const { logPerformance, logEvent, logError, logger } = require('../utils/logger');
 const bookingService = require('../services/bookingService');
+const agentBookingService = require('../services/agentBookingService');
 const {
   validateBookingData,
   cancelBooking: cancelBookingHelper,
@@ -17,6 +18,40 @@ const { cleanBigIntFromObject, bigIntReplacer } = require('../utils/helpers/bigI
 const { generateCorrelationId } = require('../utils/security');
 const { stripRetellMeta, parseMaybeJson } = require('../utils/retellPayload');
 const { createSquareClient } = require('../utils/squareUtils');
+
+/**
+ * Enforce booking ownership constraints for tenants without seller-level writes.
+ * Throws an error if the booking was not created by the current agent.
+ * @param {Object} tenant - Tenant context.
+ * @param {string} bookingId - Square booking ID.
+ */
+async function ensureAgentCanModifyBooking(tenant, bookingId) {
+  if (!tenant || tenant.supportsSellerLevelWrites !== false) {
+    return;
+  }
+
+  const agentId = tenant.agentId || tenant.id;
+  if (!agentId) {
+    throw {
+      message: 'Agent context missing. Unable to verify booking ownership.',
+      code: 'AGENT_CONTEXT_MISSING',
+      status: 500,
+      statusCode: 500
+    };
+  }
+
+  const isOwned = await agentBookingService.isAgentBooking(agentId, bookingId);
+
+  if (!isOwned) {
+    throw {
+      message:
+        'This Square account is on the free Appointments plan. Agents can only modify bookings they created. Please upgrade to Appointments Plus or Premium for full calendar management.',
+      code: 'SELLER_LEVEL_WRITES_REQUIRED',
+      status: 403,
+      statusCode: 403
+    };
+  }
+}
 
 /**
  * Core booking creation logic - pure business logic
@@ -256,21 +291,41 @@ async function createBookingCore(tenant, bookingData, correlationId) {
     };
   }
 
+  const createdBooking = result.data.booking || {};
+  const createdBookingId = createdBooking.id || result.data.id || bookingData?.id || null;
+
   logEvent('booking_create_success', {
     correlationId,
-    bookingId: result.data.id,
+    bookingId: createdBookingId,
     customerId: bookingData.customerId
   });
 
   logEvent('booking_create_complete', {
     correlationId,
-    bookingId: result.data.id,
+    bookingId: createdBookingId,
     customerId: bookingData.customerId
   });
 
+  // Persist agent ownership record for free-tier enforcement and analytics
+  try {
+    await agentBookingService.upsertAgentBooking({
+      agentId: tenant.agentId || tenant.id,
+      tenantId: tenant.id || tenant.agentId,
+      locationId: (tenant.locationId || tenant.squareLocationId || bookingData.locationId || null) ?? null,
+      merchantId: tenant.squareMerchantId || tenant.merchantId || null,
+      booking: createdBooking
+    });
+  } catch (recordError) {
+    logger.warn('Failed to persist agent booking record', {
+      correlationId,
+      bookingId: createdBookingId,
+      message: recordError.message
+    });
+  }
+
   // Return the booking data
   return {
-    booking: result.data.booking
+    booking: createdBooking
   };
 }
 
@@ -643,6 +698,8 @@ async function cancelBooking(req, res) {
       bookingId
     });
 
+    await ensureAgentCanModifyBooking(tenant, bookingId);
+
     // Create Azure Functions context for compatibility
     const context = {
       log: (...args) => logger.info(...args),
@@ -679,6 +736,16 @@ async function cancelBooking(req, res) {
       cleanedBookingKeys: cleanedBooking ? Object.keys(cleanedBooking) : [],
       correlationId
     });
+
+    try {
+      await agentBookingService.removeAgentBooking(bookingId);
+    } catch (ledgerError) {
+      logger.warn('Failed to remove agent booking ledger entry (direct handler)', {
+        correlationId,
+        bookingId,
+        message: ledgerError.message
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -1243,6 +1310,8 @@ async function handleCancelBooking(req, correlationId) {
       throw new Error('Tenant context is required to cancel a booking');
     }
 
+    await ensureAgentCanModifyBooking(tenant, bookingId);
+
     // Create Azure Functions context for compatibility
     const context = {
       log: (...args) => logger.info(...args),
@@ -1254,6 +1323,16 @@ async function handleCancelBooking(req, correlationId) {
 
     // IMMEDIATELY clean BigInt values before processing
     const cleanedResult = cleanBigIntFromObject(result);
+
+    try {
+      await agentBookingService.removeAgentBooking(bookingId);
+    } catch (ledgerError) {
+      logger.warn('Failed to remove agent booking ledger entry', {
+        correlationId,
+        bookingId,
+        message: ledgerError.message
+      });
+    }
 
     return {
       success: true,
@@ -1444,6 +1523,8 @@ async function handleUpdateBooking(req, correlationId) {
       finalSegments: segments
     });
 
+    await ensureAgentCanModifyBooking(tenant, bookingId);
+
     const result = await updateBookingCore(
       tenant,
       bookingId,
@@ -1454,6 +1535,28 @@ async function handleUpdateBooking(req, correlationId) {
       endAt,
       segments
     );
+
+    if (result?.success) {
+      try {
+        await agentBookingService.upsertAgentBooking({
+          agentId: tenant.agentId || tenant.id,
+          tenantId: tenant.id || tenant.agentId,
+          locationId: tenant.locationId || tenant.squareLocationId || null,
+          merchantId: tenant.squareMerchantId || tenant.merchantId || null,
+          booking: {
+            id: bookingId,
+            startAt: startAt || result?.data?.startAt || result?.data?.start_at || null,
+            status: result?.data?.status || null
+          }
+        });
+      } catch (recordError) {
+        logger.warn('Failed to update agent booking ledger after update', {
+          correlationId,
+          bookingId,
+          message: recordError.message
+        });
+      }
+    }
 
     // Success - convert to Azure Functions format
     return {

@@ -7,29 +7,7 @@
  * Configuration is stored as JSON in AGENT_CONFIGS environment variable.
  */
 
-const crypto = require('crypto');
-const { logError, logger } = require('../utils/logger');
-
-function resolveEncryptionKey() {
-  const rawKey = process.env.AGENT_CONFIG_ENCRYPTION_KEY;
-  if (!rawKey) {
-    throw new Error('AGENT_CONFIG_ENCRYPTION_KEY is required to decrypt agent configurations');
-  }
-
-  const trimmed = rawKey.trim();
-  let buffer;
-  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
-    buffer = Buffer.from(trimmed, 'hex');
-  } else {
-    buffer = Buffer.from(trimmed, 'base64');
-  }
-
-  if (buffer.length !== 32) {
-    throw new Error('AGENT_CONFIG_ENCRYPTION_KEY must resolve to 32 bytes for AES-256-GCM');
-  }
-
-  return buffer;
-}
+const { logger } = require('../utils/logger');
 
 function tryParseJson(value) {
   try {
@@ -37,26 +15,6 @@ function tryParseJson(value) {
   } catch (error) {
     throw new Error(`Unable to parse AGENT_CONFIGS JSON: ${error.message}`);
   }
-}
-
-function decryptAgentConfigs(payload) {
-  const key = resolveEncryptionKey();
-
-  if (!payload.iv || !payload.ciphertext || !payload.authTag) {
-    throw new Error('Encrypted AGENT_CONFIGS payload is missing iv/ciphertext/authTag');
-  }
-
-  const iv = Buffer.from(payload.iv, 'base64');
-  const ciphertext = Buffer.from(payload.ciphertext, 'base64');
-  const authTag = Buffer.from(payload.authTag, 'base64');
-
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-  decipher.setAuthTag(authTag);
-
-  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  const jsonString = decrypted.toString('utf8');
-
-  return tryParseJson(jsonString);
 }
 
 class AgentConfigService {
@@ -76,21 +34,14 @@ class AgentConfigService {
       const raw = process.env.AGENT_CONFIGS;
       let configs = [];
 
-      if (raw) {
+      if (raw && raw.trim() !== '') {
         const parsed = tryParseJson(raw);
 
-        if (Array.isArray(parsed)) {
-          configs = parsed;
-        } else if (parsed && typeof parsed === 'object' && parsed.algorithm === 'AES-256-GCM') {
-          logger.info('[AgentConfig] Decrypting agent configurations payload');
-          configs = decryptAgentConfigs(parsed);
-
-          if (!Array.isArray(configs)) {
-            throw new Error('Decrypted AGENT_CONFIGS payload is not an array');
-          }
-        } else {
-          throw new Error('AGENT_CONFIGS must be a JSON array or an encrypted payload');
+        if (!Array.isArray(parsed)) {
+          throw new Error('AGENT_CONFIGS must be a JSON array');
         }
+
+        configs = parsed;
       }
 
       // Validate and store each agent config
@@ -131,6 +82,30 @@ class AgentConfigService {
     if (config.squareAccessToken.length < 20) {
       throw new Error(`Invalid Square access token for agent ${config.agentId}`);
     }
+
+    // Normalize scopes (allow comma-separated string)
+    if (typeof config.squareScopes === 'string') {
+      config.squareScopes = config.squareScopes
+        .split(',')
+        .map(scope => scope.trim())
+        .filter(Boolean);
+    }
+
+    if (config.squareScopes && !Array.isArray(config.squareScopes)) {
+      throw new Error('squareScopes must be an array of strings or a comma-separated string');
+    }
+
+    if (typeof config.supportsSellerLevelWrites !== 'undefined') {
+      config.supportsSellerLevelWrites = Boolean(config.supportsSellerLevelWrites);
+    }
+
+    if (config.squareTokenExpiresAt && isNaN(Date.parse(config.squareTokenExpiresAt))) {
+      logger.warn('Invalid squareTokenExpiresAt detected; ignoring value', {
+        agentId: config.agentId,
+        squareTokenExpiresAt: config.squareTokenExpiresAt
+      });
+      delete config.squareTokenExpiresAt;
+    }
   }
 
   /**
@@ -152,12 +127,23 @@ class AgentConfigService {
       agentId: config.agentId,
       bearerToken: config.bearerToken,
       squareAccessToken: config.squareAccessToken,
+      squareRefreshToken: config.squareRefreshToken,
+      squareTokenExpiresAt: config.squareTokenExpiresAt,
+      squareScopes: config.squareScopes,
+      squareMerchantId: config.squareMerchantId || config.merchantId,
+      supportsSellerLevelWrites:
+        typeof config.supportsSellerLevelWrites === 'boolean'
+          ? config.supportsSellerLevelWrites
+          : null,
       squareLocationId: config.squareLocationId,
+      defaultLocationId: config.defaultLocationId || config.squareLocationId,
       squareApplicationId: config.squareApplicationId,
-      squareEnvironment: this._getSquareEnvironment(),
+      squareEnvironment: config.squareEnvironment || this._getSquareEnvironment(),
       timezone: config.timezone,
       staffEmail: config.staffEmail,
-      businessName: config.businessName
+      businessName: config.businessName,
+      locations: config.locations,
+      metadata: config.metadata
     };
   }
 
@@ -226,7 +212,14 @@ class AgentConfigService {
       throw new Error('agentId is required');
     }
 
-    this.agents.set(agentConfig.agentId, agentConfig);
+    this._validateAgentConfig(agentConfig);
+
+    const normalizedConfig = {
+      ...agentConfig,
+      squareEnvironment: agentConfig.squareEnvironment || this._getSquareEnvironment()
+    };
+
+    this.agents.set(agentConfig.agentId, normalizedConfig);
     logger.info('Agent config added', { agentId: agentConfig.agentId });
   }
 

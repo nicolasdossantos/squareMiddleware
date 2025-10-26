@@ -62,6 +62,13 @@ async function agentAuthMiddleware(req, res, next) {
       squareLocationId: session.credentials.squareLocationId,
       squareEnvironment: session.credentials.squareEnvironment || 'production',
       timezone: session.credentials.timezone || 'America/New_York',
+      squareMerchantId: session.credentials.squareMerchantId,
+      supportsSellerLevelWrites:
+        session.credentials.supportsSellerLevelWrites === false ? false : true,
+      squareRefreshToken: session.credentials.squareRefreshToken,
+      squareTokenExpiresAt: session.credentials.squareTokenExpiresAt,
+      squareScopes: session.credentials.squareScopes,
+      defaultLocationId: session.credentials.defaultLocationId || session.credentials.squareLocationId,
       authenticated: true,
       isRetellAgent: true,
       isToolCall: true
@@ -128,6 +135,9 @@ async function agentAuthMiddleware(req, res, next) {
       squareLocationId: squareLocationId,
       squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'production',
       timezone: process.env.TZ || 'America/New_York',
+      squareMerchantId: process.env.SQUARE_MERCHANT_ID,
+      defaultLocationId: squareLocationId,
+      supportsSellerLevelWrites: true,
       authenticated: true,
       isRetellAgent: false,
       isToolCall: false

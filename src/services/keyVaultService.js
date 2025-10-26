@@ -122,8 +122,20 @@ class KeyVaultService {
         bearerToken: process.env.MOCK_BEARER_TOKEN || 'test-bearer-token',
         squareAccessToken: process.env.SQUARE_ACCESS_TOKEN || 'test-square-token',
         squareLocationId: process.env.SQUARE_LOCATION_ID || 'test-location',
+        defaultLocationId: process.env.SQUARE_LOCATION_ID || 'test-location',
         squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'sandbox',
-        timezone: process.env.TIMEZONE || 'America/New_York'
+        squareRefreshToken: process.env.SQUARE_REFRESH_TOKEN || 'test-refresh-token',
+        squareTokenExpiresAt:
+          process.env.SQUARE_TOKEN_EXPIRES_AT ||
+          new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(), // +25 days
+        squareScopes: (process.env.SQUARE_SCOPES || 'APPOINTMENTS_READ,APPOINTMENTS_WRITE')
+          .split(',')
+          .map(scope => scope.trim())
+          .filter(Boolean),
+        squareMerchantId: process.env.SQUARE_MERCHANT_ID || 'test-merchant-id',
+        supportsSellerLevelWrites: process.env.SUPPORTS_SELLER_LEVEL_WRITES === 'true',
+        timezone: process.env.TIMEZONE || 'America/New_York',
+        businessName: process.env.BUSINESS_NAME || 'Test Business'
       });
     }
 

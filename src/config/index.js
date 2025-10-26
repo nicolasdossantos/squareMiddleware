@@ -24,6 +24,7 @@ const config = {
   square: {
     accessToken: process.env.SQUARE_ACCESS_TOKEN,
     applicationId: process.env.SQUARE_APPLICATION_ID,
+    applicationSecret: process.env.SQUARE_APPLICATION_SECRET,
     locationId: process.env.SQUARE_LOCATION_ID,
     environment: process.env.SQUARE_ENVIRONMENT || 'sandbox',
     webhookSignatureKey: process.env.SQUARE_WEBHOOK_SIGNATURE_KEY

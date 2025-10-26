@@ -13,12 +13,13 @@ const rateLimit = require('express-rate-limit');
 const routes = require('./routes');
 
 // Import middlewares
-const { errorHandler } = require('./middlewares/errorHandler');
+const { errorHandler, asyncHandler } = require('./middlewares/errorHandler');
 const requestLogger = require('./middlewares/requestLogger');
 const { securityValidation, sanitizeInputs } = require('./middlewares/validation');
 const correlationId = require('./middlewares/correlationId');
 const tenantContext = require('./middlewares/tenantContext');
 const retellPayloadMiddleware = require('./middlewares/retellPayload');
+const oauthController = require('./controllers/oauthController');
 
 // Import configuration
 
@@ -106,6 +107,9 @@ function createApp() {
   // - Retell webhooks: retellAuth middleware validates HMAC signatures
   // - API endpoints: agentAuth middleware validates Bearer tokens
   // See src/routes/webhooks.js and src/routes/api.js for implementation
+
+  // Square OAuth callback endpoint (not behind agent auth)
+  app.get('/authcallback', asyncHandler(oauthController.handleAuthCallback));
 
   // Admin routes (with basic auth)
   const adminRoutes = require('./routes/admin');

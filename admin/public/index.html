@@ -91,7 +91,7 @@
               </div>
 
               <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
                   Square Environment <span class="text-red-500">*</span>
                 </label>
                 <select
@@ -102,6 +102,76 @@
                 >
                   <option value="production">Production</option>
                   <option value="sandbox">Sandbox</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Square Merchant ID</label>
+                <input
+                  type="text"
+                  name="squareMerchantId"
+                  id="squareMerchantId"
+                  placeholder="MERCHANT_ID"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Default Location ID</label>
+                <input
+                  type="text"
+                  name="defaultLocationId"
+                  id="defaultLocationId"
+                  placeholder="Optional override if different from Square Location ID"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Square Refresh Token</label>
+                <textarea
+                  name="squareRefreshToken"
+                  id="squareRefreshToken"
+                  rows="2"
+                  placeholder="Paste refresh token from OAuth callback (optional)"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                ></textarea>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Token Expires At</label>
+                <input
+                  type="text"
+                  name="squareTokenExpiresAt"
+                  id="squareTokenExpiresAt"
+                  placeholder="2025-01-01T00:00:00Z"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">OAuth Scopes</label>
+                <input
+                  type="text"
+                  name="squareScopes"
+                  id="squareScopes"
+                  placeholder="APPOINTMENTS_READ,APPOINTMENTS_WRITE,CUSTOMERS_READ,CUSTOMERS_WRITE"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                  Supports Seller-Level Writes?
+                </label>
+                <select
+                  name="supportsSellerLevelWrites"
+                  id="supportsSellerLevelWrites"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select plan</option>
+                  <option value="true">Yes – Appointments Plus/Premium</option>
+                  <option value="false">No – Free plan (agent-created bookings only)</option>
                 </select>
               </div>
             </div>
@@ -194,18 +264,42 @@
 
           if (data.tenants && data.tenants.length > 0) {
             list.innerHTML = data.tenants
-              .map(
-                tenant => `
-              <div class="p-3 bg-gray-50 rounded border border-gray-200 flex justify-between items-center">
-                <div>
-                  <span class="font-medium">${tenant.businessName}</span>
-                  <span class="text-gray-500 text-sm ml-2">(${tenant.agentId})</span>
-                  <span class="text-gray-400 text-xs ml-2">${tenant.squareEnvironment}</span>
-                </div>
-                <span class="text-xs text-gray-500">${tenant.timezone}</span>
-              </div>
-            `
-              )
+              .map(tenant => {
+                const planLabel =
+                  tenant.supportsSellerLevelWrites === true
+                    ? 'Full access (seller-level writes)'
+                    : tenant.supportsSellerLevelWrites === false
+                    ? 'Agent-created bookings only (free plan)'
+                    : 'Plan status unknown';
+                const merchantLine = tenant.squareMerchantId
+                  ? `<div class="mt-1 text-xs text-gray-400">Merchant ${tenant.squareMerchantId}</div>`
+                  : '';
+                const locationLine = tenant.defaultLocationId
+                  ? `<div class="mt-1 text-xs text-gray-400">Location ${tenant.defaultLocationId}</div>`
+                  : '';
+                const oauthBadge = tenant.hasRefreshToken
+                  ? '<div class="mt-1 inline-flex items-center px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[11px]">OAuth connected</div>'
+                  : '';
+
+                return `
+                  <div class="p-4 bg-gray-50 rounded border border-gray-200 flex justify-between gap-4">
+                    <div>
+                      <div class="flex items-center flex-wrap gap-2">
+                        <span class="font-medium text-gray-800">${tenant.businessName}</span>
+                        <span class="text-gray-500 text-xs">(${tenant.agentId})</span>
+                      </div>
+                      <div class="mt-1 text-xs text-gray-600">${planLabel}</div>
+                      ${merchantLine}
+                      ${locationLine}
+                    </div>
+                    <div class="text-right text-xs text-gray-500">
+                      <div class="font-medium text-gray-600">${tenant.squareEnvironment}</div>
+                      <div>${tenant.timezone}</div>
+                      ${oauthBadge}
+                    </div>
+                  </div>
+                `;
+              })
               .join('');
           } else {
             list.innerHTML = '<div class="text-gray-500 italic">No tenants configured yet</div>';

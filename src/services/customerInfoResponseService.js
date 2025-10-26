@@ -5,6 +5,7 @@
 const logger = require('../utils/logger');
 const { logPerformance, logEvent } = logger;
 const customerService = require('./customerService');
+const agentBookingService = require('./agentBookingService');
 const { createSquareClient, loadServiceVariations, loadStaffMembers, formatPhoneNumber } = require('../utils/squareUtils');
 const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
 const { getRelativeTimeframe } = require('../utils/helpers/dateHelpers');
@@ -216,10 +217,56 @@ async function buildConversationInitiationData({ tenant, phoneNumber, correlatio
     });
 
     // Filter for future bookings - ACCEPTED and PENDING (matches Azure Functions)
-    const nextBookings = cleanedFutureBookings
+    let nextBookings = cleanedFutureBookings
       .filter(booking => booking.status === 'ACCEPTED' || booking.status === 'PENDING')
       .sort((a, b) => new Date(a.startAt) - new Date(b.startAt)) // ASC order
       .slice(0, 10);
+
+    if (tenant?.supportsSellerLevelWrites === false) {
+      try {
+        const ledgerEntries = await agentBookingService.listUpcomingAgentBookings(tenant.agentId || tenant.id, 10);
+        if (ledgerEntries.length > 0) {
+          const ledgerBookings = ledgerEntries
+            .map(entry => {
+              const payload = entry.booking && typeof entry.booking === 'object' ? entry.booking : null;
+              if (payload?.id) {
+                if (!payload.startAt && entry.startAt) {
+                  payload.startAt = entry.startAt;
+                }
+                if (!payload.status && entry.status) {
+                  payload.status = entry.status;
+                }
+                return payload;
+              }
+              return {
+                id: entry.bookingId,
+                startAt: entry.startAt,
+                status: entry.status || 'PENDING'
+              };
+            })
+            .filter(booking => booking && booking.id && booking.startAt);
+
+          if (ledgerBookings.length > 0) {
+            const merged = new Map(nextBookings.map(booking => [booking.id, booking]));
+            ledgerBookings.forEach(booking => {
+              if (!merged.has(booking.id)) {
+                merged.set(booking.id, booking);
+              }
+            });
+
+            nextBookings = Array.from(merged.values())
+              .filter(booking => booking.startAt)
+              .sort((a, b) => new Date(a.startAt) - new Date(b.startAt))
+              .slice(0, 10);
+          }
+        }
+      } catch (ledgerError) {
+        logger.warn('Failed to merge agent ledger bookings into upcoming_bookings_json', {
+          correlationId,
+          message: ledgerError.message
+        });
+      }
+    }
 
     // Filter for past bookings - only ACCEPTED status (matches Azure Functions)
     const filteredPastBookings = cleanedPastBookings

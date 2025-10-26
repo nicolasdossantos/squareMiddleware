@@ -13,7 +13,7 @@ deploy/
 
 # Sensitive files
 agents.json
-Elite Barbershop_UPGRADED.json
+# Elite Barbershop_UPGRADED.json
 
 # Test coverage
 coverage/
@@ -63,3 +63,6 @@ PERFORMANCE_SCALABILITY_ANALYSIS.md
 onboard-elite-barbershop.sh
 scripts/decrypt-agent-configs.js
 .DS_Store
+Elite Barbershop_UPGRADED.json
+Retell AI Multi-Prompt Agents.md
+Optimizing AI Voice Receptionist Syste.md
