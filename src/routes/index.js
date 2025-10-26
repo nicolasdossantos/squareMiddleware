@@ -10,6 +10,7 @@ const webhookRoutes = require('./webhooks');
 const smsRoutes = require('./sms'); // Changed from whatsapp to sms
 const healthRoutes = require('./health');
 const apiRoutes = require('./api');
+const adminRoutes = require('./admin');
 
 const router = express.Router();
 
@@ -29,6 +30,7 @@ router.use('/bookings', bookingRoutes);
 router.use('/webhooks', webhookRoutes);
 router.use('/sms', smsRoutes); // Changed from whatsapp to sms
 router.use('/health', healthRoutes);
+router.use('/admin', adminRoutes); // Admin endpoints (protected)
 
 // Main API routes (replacement for Azure Functions)
 router.use('/', apiRoutes);

@@ -481,7 +481,12 @@ async function updateBooking(req, res, next) {
   });
 
   try {
-    const result = await bookingManagementService.handleUpdateBooking(req, correlationId, updateBookingCore, ensureAgentCanModifyBooking);
+    const result = await bookingManagementService.handleUpdateBooking(
+      req,
+      correlationId,
+      updateBookingCore,
+      ensureAgentCanModifyBooking
+    );
 
     // Success - return 200 OK with updated booking data
     res.status(200).json({

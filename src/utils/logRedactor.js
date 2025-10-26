@@ -32,7 +32,7 @@ const SENSITIVE_PATTERNS = {
   phoneNumber: /(\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})/,
 
   // Email addresses
-  emailAddress: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/,
+  emailAddress: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
 };
 
 /**
@@ -166,7 +166,7 @@ const SENSITIVE_FIELD_NAMES = new Set([
   'squareLocationId',
   'square_location_id',
   'squareMerchantId',
-  'square_merchant_id',
+  'square_merchant_id'
 ]);
 
 /**
@@ -265,7 +265,7 @@ function redactWebhookPayload(webhookPayload) {
 
   const redacted = {
     event: webhookPayload.event,
-    data: webhookPayload.data ? redactObject(webhookPayload.data) : undefined,
+    data: webhookPayload.data ? redactObject(webhookPayload.data) : undefined
   };
 
   return redacted;
@@ -286,8 +286,8 @@ function redactRequest(req) {
     headers: redactObject({
       authorization: req.headers.authorization,
       'x-api-key': req.headers['x-api-key'],
-      'x-retell-signature': req.headers['x-retell-signature'],
-    }),
+      'x-retell-signature': req.headers['x-retell-signature']
+    })
   };
 }
 
@@ -312,5 +312,5 @@ module.exports = {
   redactRequest,
   detectSensitiveType,
   captureRawBody,
-  SENSITIVE_FIELD_NAMES,
+  SENSITIVE_FIELD_NAMES
 };
