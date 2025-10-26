@@ -175,7 +175,8 @@ async function sendCustomerMessage(req, res) {
 
   try {
     const { customerFirstName, customerLastName, message, messageTo } = req.body;
-    const customerPhoneNumber = formatPhoneNumber(req.body.customerPhoneNumber)?.formatted || req.body.customerPhoneNumber;
+    const customerPhoneNumber =
+      formatPhoneNumber(req.body.customerPhoneNumber)?.formatted || req.body.customerPhoneNumber;
 
     logEvent('customer_message_to_barbershop_request', {
       customerFirstName,

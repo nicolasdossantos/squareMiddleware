@@ -7,6 +7,7 @@ const express = require('express');
 const { asyncHandler } = require('../middlewares/errorHandler');
 const { validateContentType } = require('../middlewares/validation');
 const retellAuth = require('../middlewares/retellAuth');
+const squareAuth = require('../middlewares/squareAuth');
 const webhookController = require('../controllers/webhookController');
 const retellWebhookController = require('../controllers/retellWebhookController');
 const { sendError } = require('../utils/responseBuilder');
@@ -21,13 +22,17 @@ function methodNotAllowed(req, res) {
 }
 
 /**
- * Square booking webhook handler that checks method
+ * Square booking webhook handler that checks method and verifies signature
  */
 function handleSquareBookingRequest(req, res, next) {
   if (req.method === 'POST') {
-    validateContentType(['application/json'])(req, res, err => {
+    // First verify signature, then validate content type, then process
+    squareAuth(req, res, err => {
       if (err) return next(err);
-      return asyncHandler(webhookController.handleSquareBooking)(req, res, next);
+      validateContentType(['application/json'])(req, res, err => {
+        if (err) return next(err);
+        return asyncHandler(webhookController.handleSquareBooking)(req, res, next);
+      });
     });
   } else {
     return methodNotAllowed(req, res);

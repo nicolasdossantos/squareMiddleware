@@ -6,6 +6,7 @@
 const { logPerformance, logEvent, logError, logger } = require('../utils/logger');
 const customerService = require('./customerService');
 const retellEmailService = require('./retellEmailService');
+const { redactValue } = require('../utils/logRedactor');
 
 /**
  * Process call analysis from Retell AI (similar to PostCallWebhook)
@@ -51,20 +52,21 @@ async function processCallAnalysis({
     if (callData) {
       try {
         const emailTo = process.env.EMAIL_TO || tenant?.staffEmail;
-        logger.info(`📧 [RETELL EMAIL] Sending post-call email to ${emailTo}`);
+        const redactedEmail = redactValue(emailTo, 'email');
+        logger.info(`📧 [RETELL EMAIL] Sending post-call email to ${redactedEmail}`);
 
         await retellEmailService.sendRetellPostCallEmail(callData, correlationId);
 
         emailResult = {
           type: 'email_sent',
-          target: emailTo,
+          target: redactedEmail,
           success: true
         };
 
         logEvent('retell_email_sent', {
           correlationId,
           callId,
-          recipient: emailTo
+          recipient: redactedEmail
         });
       } catch (emailError) {
         logger.error('❌ [RETELL EMAIL] Failed to send email:', emailError);
@@ -75,9 +77,10 @@ async function processCallAnalysis({
           correlationId
         });
 
+        const failedEmailTo = process.env.EMAIL_TO || tenant?.staffEmail;
         emailResult = {
           type: 'email_failed',
-          target: process.env.EMAIL_TO || tenant?.staffEmail,
+          target: redactValue(failedEmailTo, 'email'),
           error: emailError.message
         };
       }

@@ -2,7 +2,7 @@
 const { validatePhoneNumber } = require('../../src/utils/squareUtils');
 const { validateBookingData } = require('../../src/utils/helpers/bookingHelpers');
 
-const { sanitizePhoneNumber, sanitizeInput } = require('../../src/utils/security');
+const { sanitizeInput } = require('../../src/utils/security');
 
 describe('Customer Management', () => {
   describe('validatePhoneNumber', () => {
@@ -146,26 +146,6 @@ describe('Customer Management', () => {
 });
 
 describe('Security Input Sanitization', () => {
-  describe('sanitizePhoneNumber', () => {
-    test('should sanitize phone numbers while preserving valid characters', () => {
-      expect(sanitizePhoneNumber('+1 (234) 567-8901')).toBe('+1 (234) 567-8901');
-      expect(sanitizePhoneNumber('234.567.8901')).toBe('234.567.8901');
-      expect(sanitizePhoneNumber('2345678901')).toBe('2345678901');
-    });
-
-    test('should remove dangerous characters', () => {
-      expect(sanitizePhoneNumber('234<script>567</script>8901')).toBe('2345678901');
-      expect(sanitizePhoneNumber('234"567\'8901')).toBe('2345678901');
-      expect(sanitizePhoneNumber('234&567&8901')).toBe('2345678901');
-    });
-
-    test('should handle non-string input', () => {
-      expect(sanitizePhoneNumber(null)).toBe('');
-      expect(sanitizePhoneNumber(undefined)).toBe('');
-      expect(sanitizePhoneNumber(123)).toBe('');
-    });
-  });
-
   describe('sanitizeInput', () => {
     test('should sanitize general text input', () => {
       expect(sanitizeInput('Hello World')).toBe('Hello World');

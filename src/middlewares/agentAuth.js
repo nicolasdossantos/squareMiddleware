@@ -63,8 +63,7 @@ async function agentAuthMiddleware(req, res, next) {
       squareEnvironment: session.credentials.squareEnvironment || 'production',
       timezone: session.credentials.timezone || 'America/New_York',
       squareMerchantId: session.credentials.squareMerchantId,
-      supportsSellerLevelWrites:
-        session.credentials.supportsSellerLevelWrites === false ? false : true,
+      supportsSellerLevelWrites: session.credentials.supportsSellerLevelWrites === false ? false : true,
       squareRefreshToken: session.credentials.squareRefreshToken,
       squareTokenExpiresAt: session.credentials.squareTokenExpiresAt,
       squareScopes: session.credentials.squareScopes,
@@ -118,36 +117,25 @@ async function agentAuthMiddleware(req, res, next) {
     }
   }
 
-  // FLOW 3: REGULAR REST CALLS (no Retell headers)
-  // Use default environment credentials
-  logger.debug('No Retell headers - treating as regular REST API call');
+  // FLOW 3: UNAUTHORIZED - REJECT EVERYTHING ELSE
+  // All legitimate API calls must come from Retell with either:
+  // - x-retell-call-id (tool invocations during active calls)
+  // - x-retell-signature (webhook events)
+  // Direct API calls without Retell context are not allowed.
 
-  const squareAccessToken = process.env.SQUARE_ACCESS_TOKEN;
-  const squareLocationId = process.env.SQUARE_LOCATION_ID;
+  logger.warn('Unauthorized API call attempt - missing Retell context', {
+    path: req.path,
+    method: req.method,
+    ip: req.ip,
+    correlationId: req.correlationId,
+    headers: Object.keys(req.headers).filter(h => h.startsWith('x-'))
+  });
 
-  if (squareAccessToken && squareLocationId) {
-    const tenantContext = {
-      id: 'default',
-      agentId: 'default',
-      accessToken: squareAccessToken,
-      locationId: squareLocationId,
-      squareAccessToken: squareAccessToken,
-      squareLocationId: squareLocationId,
-      squareEnvironment: process.env.SQUARE_ENVIRONMENT || 'production',
-      timezone: process.env.TZ || 'America/New_York',
-      squareMerchantId: process.env.SQUARE_MERCHANT_ID,
-      defaultLocationId: squareLocationId,
-      supportsSellerLevelWrites: true,
-      authenticated: true,
-      isRetellAgent: false,
-      isToolCall: false
-    };
-
-    req.retellContext = tenantContext;
-    req.tenant = tenantContext;
-  }
-
-  return next();
+  return res.status(401).json({
+    error: 'Unauthorized',
+    message: 'API calls must originate from Retell with x-retell-call-id or x-retell-signature',
+    correlationId: req.correlationId
+  });
 }
 
 module.exports = agentAuthMiddleware;

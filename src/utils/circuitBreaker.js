@@ -180,7 +180,7 @@ class CircuitBreaker {
   }
 
   /**
-   * Reset circuit for tenant (for testing/admin)
+   * Reset circuit for tenant (for testing)
    */
   reset(tenantId) {
     if (tenantId) {

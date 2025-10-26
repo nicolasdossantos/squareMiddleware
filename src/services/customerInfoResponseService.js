@@ -6,7 +6,12 @@ const logger = require('../utils/logger');
 const { logPerformance, logEvent } = logger;
 const customerService = require('./customerService');
 const agentBookingService = require('./agentBookingService');
-const { createSquareClient, loadServiceVariations, loadStaffMembers, formatPhoneNumber } = require('../utils/squareUtils');
+const {
+  createSquareClient,
+  loadServiceVariations,
+  loadStaffMembers,
+  formatPhoneNumber
+} = require('../utils/squareUtils');
 const { cleanBigIntFromObject } = require('../utils/helpers/bigIntUtils');
 const { getRelativeTimeframe } = require('../utils/helpers/dateHelpers');
 
@@ -224,7 +229,10 @@ async function buildConversationInitiationData({ tenant, phoneNumber, correlatio
 
     if (tenant?.supportsSellerLevelWrites === false) {
       try {
-        const ledgerEntries = await agentBookingService.listUpcomingAgentBookings(tenant.agentId || tenant.id, 10);
+        const ledgerEntries = await agentBookingService.listUpcomingAgentBookings(
+          tenant.agentId || tenant.id,
+          10
+        );
         if (ledgerEntries.length > 0) {
           const ledgerBookings = ledgerEntries
             .map(entry => {

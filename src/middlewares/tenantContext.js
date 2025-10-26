@@ -36,8 +36,7 @@ function tenantContext(req, res, next) {
         timezone: req.retellContext.timezone || 'America/New_York',
         businessName: req.retellContext.businessName || 'Elite Barbershop',
         squareMerchantId: req.retellContext.squareMerchantId,
-        supportsSellerLevelWrites:
-          req.retellContext.supportsSellerLevelWrites === false ? false : true,
+        supportsSellerLevelWrites: req.retellContext.supportsSellerLevelWrites === false ? false : true,
         squareRefreshToken: req.retellContext.squareRefreshToken,
         squareTokenExpiresAt: req.retellContext.squareTokenExpiresAt,
         squareScopes: req.retellContext.squareScopes,

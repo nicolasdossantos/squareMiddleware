@@ -6,6 +6,7 @@
 const createApp = require('./express-app');
 const { logger } = require('./utils/logger');
 const sessionStore = require('./services/sessionStore');
+const { validateStartup, isConfigurationCritical } = require('./utils/configValidator');
 
 // Load environment variables - prioritize .env.local (with secrets) over .env (template)
 require('dotenv').config({ path: '.env.local' });
@@ -26,6 +27,16 @@ if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
     .start();
 }
 
+/**
+ * Validate configuration before starting the application
+ * Fails fast if critical configuration is missing
+ */
+const configValidation = validateStartup(logger);
+if (isConfigurationCritical(configValidation)) {
+  console.error('\n❌ FATAL: Application cannot start with invalid configuration.\n');
+  process.exit(1);
+}
+
 const app = createApp();
 const port = process.env.PORT || 3000;
 const environment = process.env.NODE_ENV || 'development';
@@ -42,7 +53,9 @@ function startServer() {
       timestamp: new Date().toISOString(),
       nodeVersion: process.version,
       memoryUsageMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-      uptime: process.uptime()
+      uptime: process.uptime(),
+      configurationStatus: configValidation.valid ? '✅ Valid' : '⚠️ Warnings',
+      configurationWarnings: configValidation.warnings.length
     });
 
     if (environment === 'development') {

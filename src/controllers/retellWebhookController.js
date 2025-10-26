@@ -5,6 +5,7 @@
 
 const { sendError } = require('../utils/responseBuilder');
 const { logPerformance, logEvent } = require('../utils/logger');
+const { redactWebhookPayload } = require('../utils/logRedactor');
 const {
   handleCallStarted,
   handleCallAnalyzed,
@@ -134,9 +135,11 @@ async function handleRetellWebhook(req, res) {
 
   try {
     if (webhookData.event === 'call_analyzed') {
+      // Log with redacted payload to protect sensitive call data
+      const redactedPayload = redactWebhookPayload(webhookData);
       logEvent('retell_call_analyzed_payload', {
         correlationId,
-        payload: webhookData
+        payload: redactedPayload
       });
     }
 

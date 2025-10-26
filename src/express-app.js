@@ -41,9 +41,11 @@ function createApp() {
   );
 
   // CORS configuration
+  // Allows same-origin requests by default
+  // For cross-origin requests, explicitly set ALLOWED_ORIGINS env var (comma-separated)
   app.use(
     cors({
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || false,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID']
@@ -110,10 +112,6 @@ function createApp() {
 
   // Square OAuth callback endpoint (not behind agent auth)
   app.get('/authcallback', asyncHandler(oauthController.handleAuthCallback));
-
-  // Admin routes (with basic auth)
-  const adminRoutes = require('./routes/admin');
-  app.use('/admin', adminRoutes);
 
   // API routes
   app.use('/api', routes);

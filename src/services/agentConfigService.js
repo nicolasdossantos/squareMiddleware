@@ -132,9 +132,7 @@ class AgentConfigService {
       squareScopes: config.squareScopes,
       squareMerchantId: config.squareMerchantId || config.merchantId,
       supportsSellerLevelWrites:
-        typeof config.supportsSellerLevelWrites === 'boolean'
-          ? config.supportsSellerLevelWrites
-          : null,
+        typeof config.supportsSellerLevelWrites === 'boolean' ? config.supportsSellerLevelWrites : null,
       squareLocationId: config.squareLocationId,
       defaultLocationId: config.defaultLocationId || config.squareLocationId,
       squareApplicationId: config.squareApplicationId,

@@ -10,7 +10,6 @@ const webhookRoutes = require('./webhooks');
 const smsRoutes = require('./sms'); // Changed from whatsapp to sms
 const healthRoutes = require('./health');
 const apiRoutes = require('./api');
-const adminRoutes = require('./admin');
 
 const router = express.Router();
 
@@ -35,6 +34,3 @@ router.use('/health', healthRoutes);
 router.use('/', apiRoutes);
 
 module.exports = router;
-
-// Admin routes are mounted separately in express-app.js
-module.exports.adminRoutes = adminRoutes;

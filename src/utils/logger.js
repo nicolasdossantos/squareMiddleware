@@ -1,9 +1,11 @@
 /**
  * Enhanced Logging Utility
  * Winston-based structured logging with correlation IDs and performance tracking
+ * Includes automatic redaction of sensitive data (tokens, PII, API keys, etc.)
  */
 const winston = require('winston');
 const { getConfig } = require('./config');
+const { redactObject } = require('./logRedactor');
 
 // Get configuration
 const config = getConfig();
@@ -46,7 +48,7 @@ function shouldLog(level) {
 }
 
 /**
- * Create a structured log entry
+ * Create a structured log entry with automatic sensitive data redaction
  */
 function createLogEntry(level, message, metadata = {}) {
   const timestamp = new Date().toISOString();
@@ -55,19 +57,22 @@ function createLogEntry(level, message, metadata = {}) {
   const correlationId = metadata.correlation_id || 'unknown';
   const functionName = metadata.function_name || 'unknown';
 
+  // Redact sensitive data from metadata before logging
+  const redactedMetadata = redactObject(metadata);
+
   const logEntry = {
     timestamp,
     level,
     message,
     correlation_id: correlationId,
     function_name: functionName,
-    ...metadata
+    ...redactedMetadata
   };
   return JSON.stringify(logEntry);
 }
 
 /**
- * Custom log format for Winston
+ * Custom log format for Winston with sensitive data redaction
  */
 const logFormat = winston.format.combine(
   winston.format.timestamp({
@@ -77,13 +82,17 @@ const logFormat = winston.format.combine(
   winston.format.json(),
   winston.format.printf(info => {
     const { timestamp, level, message, correlationId, duration, stack, ...meta } = info;
+
+    // Redact sensitive data from metadata
+    const redactedMeta = redactObject(meta);
+
     const logEntry = {
       timestamp,
       level,
       message,
       ...(correlationId && { correlationId }),
       ...(duration && { duration }),
-      ...(Object.keys(meta).length > 0 && { meta }),
+      ...(Object.keys(redactedMeta).length > 0 && { meta: redactedMeta }),
       ...(stack && { stack })
     };
     return JSON.stringify(logEntry);
@@ -343,13 +352,14 @@ function logRequest(req, res, startTime) {
 }
 
 /**
- * Business event logging
+ * Business event logging with sensitive data redaction
  */
 function logEvent(eventName, data = {}, correlationId = null) {
+  const redactedData = redactObject(data);
   logger.info(`Event: ${eventName}`, {
     event: eventName,
     correlationId,
-    ...data
+    ...redactedData
   });
 }
 

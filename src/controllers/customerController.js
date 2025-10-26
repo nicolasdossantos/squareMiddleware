@@ -10,6 +10,7 @@ const customerService = require('../services/customerService');
 const { buildConversationInitiationData } = require('../services/customerInfoResponseService');
 const { getRelativeTimeframe } = require('../utils/helpers/dateHelpers');
 const { stripRetellMeta } = require('../utils/retellPayload');
+const { redactObject } = require('../utils/logRedactor');
 
 /**
  * Get customer by ID
@@ -111,7 +112,7 @@ async function updateCustomerInfo(req, res) {
   const startTime = Date.now();
   const { tenant, correlationId } = req;
 
-  // 🔍 COMPREHENSIVE PARAMETER LOGGING FOR UPDATE CUSTOMER INFO
+  // 🔍 PARAMETER LOGGING FOR UPDATE CUSTOMER INFO (WITH REDACTION)
   logger.info('🚀 [UPDATE CUSTOMER] Raw request received:', {
     method: req.method,
     url: req.url,
@@ -124,12 +125,18 @@ async function updateCustomerInfo(req, res) {
     timestamp: new Date().toISOString()
   });
 
-  logger.info('📋 [UPDATE CUSTOMER] Query parameters:', JSON.stringify(req.query, null, 2));
-  logger.info('📋 [UPDATE CUSTOMER] Route parameters:', JSON.stringify(req.params, null, 2));
+  // Log redacted versions of query and params
+  const redactedQuery = redactObject(req.query || {});
+  const redactedParams = redactObject(req.params || {});
+  logger.info('📋 [UPDATE CUSTOMER] Query parameters:', redactedQuery);
+  logger.info('📋 [UPDATE CUSTOMER] Route parameters:', redactedParams);
+
+  // Log body analysis with redacted body
+  const redactedBody = redactObject(req.body || {});
   logger.info('📋 [UPDATE CUSTOMER] Request body analysis:', {
     bodyKeys: Object.keys(req.body || {}),
     bodySize: JSON.stringify(req.body || {}).length,
-    rawBody: JSON.stringify(req.body, null, 2)
+    redactedBody: redactedBody
   });
 
   // Support both Express.js (customerId) and Azure Functions (customer_id) formats
@@ -286,7 +293,7 @@ async function updateCustomerInfoCompatibility(req, res) {
   const { tenant } = req;
 
   logger.info('🔍 COMPATIBILITY FUNCTION CALLED');
-  logger.info('req.body:', req.body);
+  logger.info('req.body:', redactObject(req.body));
 
   try {
     // Support both Express.js (customerId) and Azure Functions (customer_id) formats

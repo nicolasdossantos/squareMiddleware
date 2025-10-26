@@ -87,9 +87,14 @@ async function getDetailedHealth() {
       {
         name: 'Agent Configuration',
         status:
-          agentConfigHealth.status === 'fulfilled' && agentConfigHealth.value.healthy ? 'healthy' : 'unhealthy',
+          agentConfigHealth.status === 'fulfilled' && agentConfigHealth.value.healthy
+            ? 'healthy'
+            : 'unhealthy',
         details: agentConfigHealth.value?.details,
-        error: agentConfigHealth.status === 'rejected' ? agentConfigHealth.reason.message : agentConfigHealth.value?.error
+        error:
+          agentConfigHealth.status === 'rejected'
+            ? agentConfigHealth.reason.message
+            : agentConfigHealth.value?.error
       },
       {
         name: 'Square Credential Isolation',
@@ -358,21 +363,21 @@ async function checkAgentConfigurations() {
       };
     }
 
-    const invalidAgents = [];
+    let invalidAgentCount = 0;
 
     agents.forEach(agent => {
       if (!agent.squareAccessToken || !agent.squareLocationId || !agent.bearerToken) {
-        invalidAgents.push(agent.agentId || 'unknown');
+        invalidAgentCount++;
       }
     });
 
-    if (invalidAgents.length > 0) {
+    if (invalidAgentCount > 0) {
       return {
         healthy: false,
         error: 'One or more agents missing required credentials',
         details: {
           agentCount: totalAgents,
-          invalidAgents
+          invalidAgentCount
         }
       };
     }
@@ -408,7 +413,7 @@ async function checkSquareCredentialIsolation() {
 
     const tokenMap = new Map();
     const duplicateGroups = new Map();
-    const defaultTokenMatches = [];
+    let defaultTokenMatchCount = 0;
 
     agents.forEach(agent => {
       if (!agent.squareAccessToken) {
@@ -416,7 +421,7 @@ async function checkSquareCredentialIsolation() {
       }
 
       if (agent.squareAccessToken === config.square.accessToken) {
-        defaultTokenMatches.push(agent.agentId || 'unknown');
+        defaultTokenMatchCount++;
       }
 
       const existing = tokenMap.get(agent.squareAccessToken) || [];
@@ -426,21 +431,18 @@ async function checkSquareCredentialIsolation() {
 
     tokenMap.forEach((agentIds, token) => {
       if (agentIds.length > 1) {
-        duplicateGroups.set(token, agentIds);
+        duplicateGroups.set(token, agentIds.length);  // Store count only, not agent IDs
       }
     });
 
-    const healthy = defaultTokenMatches.length === 0 && duplicateGroups.size === 0;
+    const healthy = defaultTokenMatchCount === 0 && duplicateGroups.size === 0;
 
     return {
       healthy,
       details: {
         agentCount: agents.size,
-        defaultTokenMatches,
-        duplicateTokens: Array.from(duplicateGroups.entries()).map(([token, agentIds]) => ({
-          tokenSuffix: `${token.substring(0, 6)}...${token.substring(token.length - 4)}`,
-          agents: agentIds
-        }))
+        defaultTokenMatchCount,
+        duplicateTokenCount: duplicateGroups.size
       },
       message: healthy
         ? 'Square access tokens are isolated per tenant'

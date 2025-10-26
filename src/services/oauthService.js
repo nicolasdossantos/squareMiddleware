@@ -224,7 +224,8 @@ async function fetchSellerMetadata({ accessToken, environment = 'sandbox' }) {
     locations: locationSummaries,
     defaultLocationId,
     supportsSellerLevelWrites: Boolean(bookingProfile?.supportSellerLevelWrites),
-    timezone: bookingProfile?.timezone || locations.find(loc => loc.id === defaultLocationId)?.timezone || null,
+    timezone:
+      bookingProfile?.timezone || locations.find(loc => loc.id === defaultLocationId)?.timezone || null,
     displayName:
       bookingProfile?.businessName ||
       bookingProfile?.displayName ||
