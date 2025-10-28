@@ -587,6 +587,7 @@ async function generateAuthorizationUrl(req, res) {
     'APPOINTMENTS_BUSINESS_SETTINGS_READ',
     'CUSTOMERS_READ',
     'CUSTOMERS_WRITE',
+    'ITEMS_READ',
     'MERCHANT_PROFILE_READ'
   ];
 
