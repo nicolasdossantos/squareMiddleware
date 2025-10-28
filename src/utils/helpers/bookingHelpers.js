@@ -160,7 +160,7 @@ async function createBooking(context, tenant, bookingData) {
 
       context.log('No customerId provided, attempting to create new customer');
       context.log('Customer data:', { firstName, lastName, email, phoneNumber });
-      
+
       customerEmail = email;
       customerPhone = phoneNumber;
 
@@ -199,17 +199,17 @@ async function createBooking(context, tenant, bookingData) {
         tenant.accessToken || tenant.squareAccessToken,
         tenant.squareEnvironment || tenant.environment || 'production'
       );
-      
+
       try {
         const customerResponse = await square.customersApi.retrieveCustomer(customerId);
         const customer = customerResponse.result?.customer;
-        
+
         if (customer) {
           customerEmail = customer.emailAddress || customerEmail;
           customerPhone = customer.phoneNumber || customerPhone;
-          context.log('📧 Retrieved customer contact:', { 
-            email: customerEmail ? '✓' : '✗', 
-            phone: customerPhone ? '✓' : '✗' 
+          context.log('📧 Retrieved customer contact:', {
+            email: customerEmail ? '✓' : '✗',
+            phone: customerPhone ? '✓' : '✗'
           });
         }
       } catch (error) {

@@ -598,9 +598,7 @@ async function generateAuthorizationUrl(req, res) {
   ];
 
   // Add seller-level WRITE scope for paid tier (Appointments Plus/Premium)
-  const scopes = tier === 'paid'
-    ? [...baseScopes, 'APPOINTMENTS_ALL_WRITE']
-    : baseScopes;
+  const scopes = tier === 'paid' ? [...baseScopes, 'APPOINTMENTS_ALL_WRITE'] : baseScopes;
 
   // Build authorization URL
   const authUrl = new URL(`${baseUrl}/oauth2/authorize`);
