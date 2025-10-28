@@ -579,11 +579,11 @@ async function generateAuthorizationUrl(req, res) {
     .replace(/=/g, '');
 
   // Required OAuth scopes for booking operations
+  // Using buyer-level scopes (APPOINTMENTS_WRITE) which work on Free plan
+  // APPOINTMENTS_ALL_WRITE requires paid Appointments Plus/Premium subscription
   const scopes = [
     'APPOINTMENTS_READ',
     'APPOINTMENTS_WRITE',
-    'APPOINTMENTS_ALL_READ',
-    'APPOINTMENTS_ALL_WRITE',
     'APPOINTMENTS_BUSINESS_SETTINGS_READ',
     'CUSTOMERS_READ',
     'CUSTOMERS_WRITE',
