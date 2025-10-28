@@ -3,16 +3,12 @@
  * World-class Express.js server with graceful shutdown and monitoring
  */
 
-const createApp = require('./express-app');
-const { logger } = require('./utils/logger');
-const sessionStore = require('./services/sessionStore');
-const { validateStartup, isConfigurationCritical } = require('./utils/configValidator');
-
-// Load environment variables - prioritize .env.local (with secrets) over .env (template)
+// Load environment variables FIRST - prioritize .env.local (with secrets) over .env (template)
 require('dotenv').config({ path: '.env.local' });
 require('dotenv').config({ path: '.env' });
 
-// Initialize Application Insights if configured
+// Initialize Application Insights BEFORE any other imports if configured
+// This MUST be first to properly instrument dependencies
 if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
   require('applicationinsights')
     .setup()
@@ -26,6 +22,12 @@ if (process.env.APPLICATIONINSIGHTS_CONNECTION_STRING) {
     .setSendLiveMetrics(true)
     .start();
 }
+
+// Now load application modules
+const createApp = require('./express-app');
+const { logger } = require('./utils/logger');
+const sessionStore = require('./services/sessionStore');
+const { validateStartup, isConfigurationCritical } = require('./utils/configValidator');
 
 /**
  * Validate configuration before starting the application
