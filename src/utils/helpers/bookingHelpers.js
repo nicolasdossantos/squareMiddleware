@@ -151,6 +151,8 @@ async function createBooking(context, tenant, bookingData) {
     logApiCall(context, 'bookings.createBooking', startTime);
 
     let customerId = bookingData.customerId;
+    let customerEmail = bookingData.email;
+    let customerPhone = bookingData.phoneNumber;
 
     // If no customerId provided, create a new customer
     if (!customerId) {
@@ -158,6 +160,9 @@ async function createBooking(context, tenant, bookingData) {
 
       context.log('No customerId provided, attempting to create new customer');
       context.log('Customer data:', { firstName, lastName, email, phoneNumber });
+      
+      customerEmail = email;
+      customerPhone = phoneNumber;
 
       // Check if customer already exists by phone number first (if provided)
       if (phoneNumber) {
@@ -186,6 +191,29 @@ async function createBooking(context, tenant, bookingData) {
 
         customerId = newCustomer.id;
         context.log(`✅ Successfully created new customer: ${customerId}`);
+      }
+    } else {
+      // If customerId is provided, fetch customer details to get email/phone for buyer-level booking
+      context.log('📧 Fetching customer details for buyer-level booking requirements');
+      const square = createSquareClient(
+        tenant.accessToken || tenant.squareAccessToken,
+        tenant.squareEnvironment || tenant.environment || 'production'
+      );
+      
+      try {
+        const customerResponse = await square.customersApi.retrieveCustomer(customerId);
+        const customer = customerResponse.result?.customer;
+        
+        if (customer) {
+          customerEmail = customer.emailAddress || customerEmail;
+          customerPhone = customer.phoneNumber || customerPhone;
+          context.log('📧 Retrieved customer contact:', { 
+            email: customerEmail ? '✓' : '✗', 
+            phone: customerPhone ? '✓' : '✗' 
+          });
+        }
+      } catch (error) {
+        context.warn('⚠️ Could not fetch customer details:', error.message);
       }
     }
 

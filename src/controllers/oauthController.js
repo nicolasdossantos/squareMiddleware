@@ -579,11 +579,16 @@ async function generateAuthorizationUrl(req, res) {
     .replace(/=/g, '');
 
   // Required OAuth scopes for booking operations
-  // Using buyer-level scopes (APPOINTMENTS_WRITE) which work on Free plan
-  // APPOINTMENTS_ALL_WRITE requires paid Appointments Plus/Premium subscription
-  const scopes = [
+  // Two tier options:
+  // - FREE TIER: Uses buyer-level scopes (APPOINTMENTS_WRITE) - can only manage bookings created by your app
+  // - PAID TIER: Uses seller-level scopes (APPOINTMENTS_ALL_WRITE) - can manage all bookings
+  // Default to free tier for compatibility
+  const tier = req.query.tier || 'free';
+
+  const baseScopes = [
     'APPOINTMENTS_READ',
     'APPOINTMENTS_WRITE',
+    'APPOINTMENTS_ALL_READ', // READ is allowed on free tier, only WRITE requires paid
     'APPOINTMENTS_BUSINESS_SETTINGS_READ',
     'CUSTOMERS_READ',
     'CUSTOMERS_WRITE',
@@ -591,6 +596,11 @@ async function generateAuthorizationUrl(req, res) {
     'ITEMS_READ',
     'MERCHANT_PROFILE_READ'
   ];
+
+  // Add seller-level WRITE scope for paid tier (Appointments Plus/Premium)
+  const scopes = tier === 'paid'
+    ? [...baseScopes, 'APPOINTMENTS_ALL_WRITE']
+    : baseScopes;
 
   // Build authorization URL
   const authUrl = new URL(`${baseUrl}/oauth2/authorize`);
