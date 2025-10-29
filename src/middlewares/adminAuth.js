@@ -3,6 +3,7 @@
  * Protects admin endpoints with API key authentication
  */
 
+const crypto = require('crypto');
 const { logger } = require('../utils/logger');
 
 /**
@@ -39,12 +40,25 @@ function adminAuth(req, res, next) {
   }
 
   // Use timing-safe comparison to prevent timing attacks
-  const providedKey = Buffer.from(apiKey);
-  const expectedKey = Buffer.from(configuredKey);
+  const providedKey = Buffer.from(apiKey, 'utf8');
+  const expectedKey = Buffer.from(configuredKey, 'utf8');
 
   let isValid = false;
   if (providedKey.length === expectedKey.length) {
-    isValid = providedKey.equals(expectedKey);
+    try {
+      isValid = crypto.timingSafeEqual(providedKey, expectedKey);
+    } catch (error) {
+      logger.error('Failed to compare admin API keys securely', {
+        error: error.message,
+        path: req.path,
+        correlationId: req.correlationId
+      });
+
+      return res.status(500).json({
+        error: 'Server configuration error',
+        message: 'Admin authentication failed'
+      });
+    }
   }
 
   if (!isValid) {

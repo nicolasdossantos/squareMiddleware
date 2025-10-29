@@ -67,7 +67,10 @@ describe('API Integration Tests - Critical Flows', () => {
 
   describe('Request Validation', () => {
     test('should validate unsupported HTTP methods', async () => {
-      const response = await request(app).post('/api/health').set('Content-Type', 'application/json').send({});
+      const response = await request(app)
+        .post('/api/health')
+        .set('Content-Type', 'application/json')
+        .send({});
 
       // Health endpoint only supports GET, so POST should fail
       // Could be 404 (no route), 405 (method not allowed), or 401 (if auth is required)

@@ -11,6 +11,7 @@ const { buildConversationInitiationData } = require('../services/customerInfoRes
 const { getRelativeTimeframe } = require('../utils/helpers/dateHelpers');
 const { stripRetellMeta } = require('../utils/retellPayload');
 const { redactObject } = require('../utils/logRedactor');
+const { createError } = require('../utils/errorCodes');
 
 /**
  * Get customer by ID
@@ -22,12 +23,11 @@ async function getCustomerById(tenant, customerId) {
   try {
     return await customerService.getCustomerInfo(tenant, customerId);
   } catch (error) {
-    logger.error('Error getting customer by ID:', error.message || error);
-    throw {
-      message: error.message || 'Failed to get customer',
-      code: error.code || 'GET_CUSTOMER_ERROR',
-      status: error.status || error.statusCode || 500
-    };
+    logger.error('Error getting customer by ID:', error);
+    if (error.code) {
+      throw error;
+    }
+    throw createError('CUSTOMER_SEARCH_FAILED', { customerId }, null, 'Failed to get customer');
   }
 }
 
@@ -41,12 +41,11 @@ async function getCustomerByPhone(tenant, phone) {
   try {
     return await customerService.getCustomerInfo(tenant, phone);
   } catch (error) {
-    logger.error('Error getting customer by phone:', error.message || error);
-    throw {
-      message: error.message || 'Failed to get customer by phone',
-      code: error.code || 'GET_CUSTOMER_ERROR',
-      status: error.status || error.statusCode || 500
-    };
+    logger.error('Error getting customer by phone:', error);
+    if (error.code) {
+      throw error;
+    }
+    throw createError('CUSTOMER_SEARCH_FAILED', { phone }, null, 'Failed to get customer by phone');
   }
 }
 
@@ -59,12 +58,11 @@ async function createCustomer(tenant, customerData) {
   try {
     return await customerService.createCustomer(tenant, customerData);
   } catch (error) {
-    logger.error('Error creating customer:', error.message || error);
-    throw {
-      message: error.message || 'Failed to create customer',
-      code: error.code || 'CREATE_CUSTOMER_ERROR',
-      status: error.status || error.statusCode || 500
-    };
+    logger.error('Error creating customer:', error);
+    if (error.code) {
+      throw error;
+    }
+    throw createError('CUSTOMER_CREATION_FAILED', { customerData }, null, 'Failed to create customer');
   }
 }
 
@@ -78,12 +76,16 @@ async function updateCustomer(tenant, customerId, updateData) {
   try {
     return await customerService.updateCustomerInfo(tenant, customerId, updateData);
   } catch (error) {
-    logger.error('Error updating customer:', error.message || error);
-    throw {
-      message: error.message || 'Failed to update customer',
-      code: error.code || 'UPDATE_CUSTOMER_ERROR',
-      status: error.status || error.statusCode || 500
-    };
+    logger.error('Error updating customer:', error);
+    if (error.code) {
+      throw error;
+    }
+    throw createError(
+      'CUSTOMER_UPDATE_FAILED',
+      { customerId, updateData },
+      null,
+      'Failed to update customer'
+    );
   }
 }
 
@@ -96,12 +98,11 @@ async function listCustomers(tenant, filters = {}) {
   try {
     return await customerService.listCustomers(tenant, filters);
   } catch (error) {
-    logger.error('Error listing customers:', error.message || error);
-    throw {
-      message: error.message || 'Failed to list customers',
-      code: error.code || 'LIST_CUSTOMERS_ERROR',
-      status: error.status || error.statusCode || 500
-    };
+    logger.error('Error listing customers:', error);
+    if (error.code) {
+      throw error;
+    }
+    throw createError('CUSTOMER_SEARCH_FAILED', { filters }, null, 'Failed to list customers');
   }
 }
 
@@ -113,7 +114,7 @@ async function updateCustomerInfo(req, res) {
   const { tenant, correlationId } = req;
 
   // 🔍 PARAMETER LOGGING FOR UPDATE CUSTOMER INFO (WITH REDACTION)
-  logger.info('🚀 [UPDATE CUSTOMER] Raw request received:', {
+  logger.debug('🚀 [UPDATE CUSTOMER] Raw request received:', {
     method: req.method,
     url: req.url,
     tenantId: tenant.id,
@@ -128,12 +129,12 @@ async function updateCustomerInfo(req, res) {
   // Log redacted versions of query and params
   const redactedQuery = redactObject(req.query || {});
   const redactedParams = redactObject(req.params || {});
-  logger.info('📋 [UPDATE CUSTOMER] Query parameters:', redactedQuery);
-  logger.info('📋 [UPDATE CUSTOMER] Route parameters:', redactedParams);
+  logger.debug('📋 [UPDATE CUSTOMER] Query parameters:', redactedQuery);
+  logger.debug('📋 [UPDATE CUSTOMER] Route parameters:', redactedParams);
 
   // Log body analysis with redacted body
   const redactedBody = redactObject(req.body || {});
-  logger.info('📋 [UPDATE CUSTOMER] Request body analysis:', {
+  logger.debug('📋 [UPDATE CUSTOMER] Request body analysis:', {
     bodyKeys: Object.keys(req.body || {}),
     bodySize: JSON.stringify(req.body || {}).length,
     redactedBody: redactedBody
@@ -143,7 +144,7 @@ async function updateCustomerInfo(req, res) {
   const customerId =
     req.query.customerId || req.params.customerId || req.body.customerId || req.body.customer_id;
 
-  logger.info('🔍 [UPDATE CUSTOMER] Customer ID extraction:', {
+  logger.debug('🔍 [UPDATE CUSTOMER] Customer ID extraction:', {
     queryCustomerId: req.query.customerId,
     paramsCustomerId: req.params.customerId,
     bodyCustomerId: req.body.customerId,
@@ -157,7 +158,7 @@ async function updateCustomerInfo(req, res) {
   delete updateData.customerId;
   delete updateData.customer_id;
 
-  logger.info('📝 [UPDATE CUSTOMER] Update data analysis:', {
+  logger.debug('📝 [UPDATE CUSTOMER] Update data analysis:', {
     originalBodyKeys: Object.keys(req.body || {}),
     cleanedUpdateDataKeys: Object.keys(updateData),
     updateDataPresent: !!Object.keys(updateData).length,
@@ -165,7 +166,7 @@ async function updateCustomerInfo(req, res) {
   });
 
   if (!customerId) {
-    logger.info('❌ [UPDATE CUSTOMER] Missing customer ID');
+    logger.warn('❌ [UPDATE CUSTOMER] Missing customer ID');
     return res.status(400).json({
       success: false,
       message: 'Customer ID is required',
@@ -173,7 +174,7 @@ async function updateCustomerInfo(req, res) {
     });
   }
 
-  logger.info('👤 [UPDATE CUSTOMER] Starting update process for customer:', customerId);
+  logger.debug('👤 [UPDATE CUSTOMER] Starting update process for customer:', customerId);
 
   try {
     logEvent('update_customer_info_request', {

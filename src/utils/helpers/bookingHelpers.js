@@ -14,6 +14,7 @@ const {
   formatPhoneNumber
 } = require('../squareUtils');
 const { logger } = require('../logger');
+const { redactObject } = require('../logRedactor');
 const { toBigInt, formatPrice, durationToMinutes } = require('./bigIntUtils');
 
 // const ACTIVE_BOOKINGS = new Set(['ACCEPTED', 'PENDING']);
@@ -40,13 +41,23 @@ async function getBookingsByCustomer(context, tenant, customerId, phoneNumber) {
 function validateBookingData(bookingData, isPartialUpdate = false) {
   const errors = [];
 
-  // 🔍 CRITICAL DEBUG: Log the exact data being validated
-  logger.info('🔍 [VALIDATION DEBUG] validateBookingData called with:', {
+  const redactedContact = bookingData
+    ? redactObject({
+        email: bookingData.email,
+        phoneNumber: bookingData.phoneNumber,
+        customerId: bookingData.customerId
+      })
+    : {};
+
+  logger.debug('[VALIDATION DEBUG] Booking payload summary', {
     bookingDataType: typeof bookingData,
-    bookingDataKeys: bookingData ? Object.keys(bookingData) : 'null/undefined',
-    bookingDataRaw: JSON.stringify(bookingData, null, 2),
+    bookingFieldCount: bookingData ? Object.keys(bookingData).length : 0,
+    hasAppointmentSegments: Array.isArray(bookingData?.appointmentSegments),
+    appointmentSegmentCount: Array.isArray(bookingData?.appointmentSegments)
+      ? bookingData.appointmentSegments.length
+      : 0,
     isPartialUpdate,
-    timestamp: new Date().toISOString()
+    ...redactedContact
   });
 
   if (!bookingData || typeof bookingData !== 'object') {

@@ -22,6 +22,7 @@ const {
 const { generateCorrelationId } = require('../utils/security');
 const { stripRetellMeta } = require('../utils/retellPayload');
 const { createSquareClient } = require('../utils/squareUtils');
+const { createError } = require('../utils/errorCodes');
 
 /**
  * Enforce booking ownership constraints for tenants without seller-level writes.
@@ -29,31 +30,37 @@ const { createSquareClient } = require('../utils/squareUtils');
  * @param {Object} tenant - Tenant context.
  * @param {string} bookingId - Square booking ID.
  */
-async function ensureAgentCanModifyBooking(tenant, bookingId) {
+async function ensureAgentCanModifyBooking(tenant, bookingId, correlationId = null) {
   if (!tenant || tenant.supportsSellerLevelWrites !== false) {
     return;
   }
 
   const agentId = tenant.agentId || tenant.id;
   if (!agentId) {
-    throw {
-      message: 'Agent context missing. Unable to verify booking ownership.',
-      code: 'AGENT_CONTEXT_MISSING',
-      status: 500,
-      statusCode: 500
-    };
+    throw createError(
+      'SYSTEM_CONFIGURATION_ERROR',
+      {
+        tenantId: tenant.id || tenant.agentId || 'unknown',
+        bookingId
+      },
+      correlationId,
+      'Agent context missing. Unable to verify booking ownership.'
+    );
   }
 
   const isOwned = await agentBookingService.isAgentBooking(agentId, bookingId);
 
   if (!isOwned) {
-    throw {
-      message:
-        'This Square account is on the free Appointments plan. Agents can only modify bookings they created. Please upgrade to Appointments Plus or Premium for full calendar management.',
-      code: 'SELLER_LEVEL_WRITES_REQUIRED',
-      status: 403,
-      statusCode: 403
-    };
+    throw createError(
+      'AUTH_INSUFFICIENT_PERMISSIONS',
+      {
+        tenantId: tenant.id || tenant.agentId || agentId,
+        bookingId,
+        reason: 'SELLER_LEVEL_WRITES_REQUIRED'
+      },
+      correlationId,
+      'This Square account is on the free Appointments plan. Agents can only modify bookings they created. Please upgrade to Appointments Plus or Premium for full calendar management.'
+    );
   }
 }
 
@@ -81,12 +88,14 @@ async function createBookingCore(tenant, bookingData, correlationId) {
       correlationId,
       errors: validationResult.errors
     });
-    throw {
-      message: 'Invalid booking data',
-      code: 'VALIDATION_ERROR',
-      status: 400,
-      details: validationResult.errors
-    };
+    throw createError(
+      'VALIDATION_INVALID_FORMAT',
+      {
+        errors: validationResult.errors
+      },
+      correlationId,
+      'Invalid booking data'
+    );
   }
 
   // ✅ SLOT AVAILABILITY CHECK
@@ -106,14 +115,15 @@ async function createBookingCore(tenant, bookingData, correlationId) {
     );
 
     if (!availabilityResult.isAvailable) {
-      throw {
-        message: availabilityResult.error,
-        code: availabilityResult.code,
-        status: 409,
-        details: {
-          availableSlots: availabilityResult.availableSlots
-        }
-      };
+      throw createError(
+        'BOOKING_SLOT_UNAVAILABLE',
+        {
+          availableSlots: availabilityResult.availableSlots,
+          requestedStartAt: bookingData.startAt
+        },
+        correlationId,
+        availabilityResult.error
+      );
     }
   } catch (availabilityError) {
     if (availabilityError.statusCode) {
@@ -141,14 +151,15 @@ async function createBookingCore(tenant, bookingData, correlationId) {
       );
 
       if (conflictResult.hasConflict) {
-        throw {
-          message: conflictResult.error,
-          code: conflictResult.code,
-          status: 409,
-          details: {
-            conflictingBookings: conflictResult.conflictingBookings
-          }
-        };
+        throw createError(
+          'BOOKING_CONFLICT',
+          {
+            conflictingBookings: conflictResult.conflictingBookings,
+            requestedStartAt: bookingData.startAt
+          },
+          correlationId,
+          conflictResult.error
+        );
       }
     } catch (conflictError) {
       if (conflictError.statusCode) {
@@ -169,12 +180,15 @@ async function createBookingCore(tenant, bookingData, correlationId) {
       result
     });
 
-    throw {
-      message: 'Failed to create booking',
-      code: 'BOOKING_CREATION_FAILED',
-      status: 500,
-      details: result.error || 'Booking creation failed'
-    };
+    throw createError(
+      'BOOKING_CREATION_FAILED',
+      {
+        result,
+        requestedStartAt: bookingData.startAt
+      },
+      correlationId,
+      'Failed to create booking'
+    );
   }
 
   const createdBooking = result.data.booking || {};
@@ -357,7 +371,7 @@ async function updateBookingCore(
   };
 
   // 🔍 COMPREHENSIVE PARAMETER LOGGING FOR UPDATE BOOKING CORE
-  logger.info('🚀 [UPDATE BOOKING CORE] Function called with parameters:', {
+  logger.debug('🚀 [UPDATE BOOKING CORE] Function called with parameters:', {
     correlationId,
     bookingId,
     startAt,
@@ -377,37 +391,31 @@ async function updateBookingCore(
 
   // Validate required parameters
   if (!bookingId) {
-    logger.info('❌ [UPDATE BOOKING CORE] Missing required parameter: bookingId');
-    throw {
-      message: 'bookingId is required',
-      code: 'MISSING_BOOKING_ID',
-      status: 400
-    };
+    logger.warn('❌ [UPDATE BOOKING CORE] Missing required parameter: bookingId');
+    throw new ValidationError('bookingId is required', {
+      code: 'MISSING_BOOKING_ID'
+    });
   }
 
   // Validate startAt if provided
   if (startAt && safeDateToISO(startAt) === 'Invalid Date') {
-    logger.info('❌ [UPDATE BOOKING CORE] Invalid startAt date:', startAt);
-    throw {
-      message: 'Invalid time value for startAt',
+    logger.warn('❌ [UPDATE BOOKING CORE] Invalid startAt date:', startAt);
+    throw new ValidationError('Invalid time value for startAt', {
       code: 'INVALID_START_TIME',
-      status: 400,
       details: { provided: startAt }
-    };
+    });
   }
 
   // Validate endAt if provided
   if (endAt && safeDateToISO(endAt) === 'Invalid Date') {
-    logger.info('❌ [UPDATE BOOKING CORE] Invalid endAt date:', endAt);
-    throw {
-      message: 'Invalid time value for endAt',
+    logger.warn('❌ [UPDATE BOOKING CORE] Invalid endAt date:', endAt);
+    throw new ValidationError('Invalid time value for endAt', {
       code: 'INVALID_END_TIME',
-      status: 400,
       details: { provided: endAt }
-    };
+    });
   }
 
-  logger.info('📅 [UPDATE BOOKING CORE] Starting update process for booking:', bookingId);
+  logger.debug('📅 [UPDATE BOOKING CORE] Starting update process for booking:', bookingId);
 
   logEvent('booking_update_core_attempt', {
     correlationId,
@@ -429,19 +437,26 @@ async function updateBookingCore(
     if (customerId) updateData.customerId = customerId;
     if (appointmentSegments) updateData.appointmentSegments = appointmentSegments;
 
-    logger.info('🚀 [UPDATE BOOKING CORE] Calling booking service with:', updateData);
+    logger.debug('🚀 [UPDATE BOOKING CORE] Calling booking service with:', updateData);
     // Call the booking service with tenant context
     const result = await bookingService.updateBooking(tenant, bookingId, updateData, correlationId);
-    logger.info('✅ [UPDATE BOOKING CORE] Booking service response:', result);
+    logger.debug('✅ [UPDATE BOOKING CORE] Booking service response:', result);
     return result;
   } catch (error) {
     logger.error('❌ [UPDATE BOOKING CORE] Error calling booking service:', error.message || error);
-    throw {
-      message: error.message || 'Failed to update booking',
-      code: error.code || 'UPDATE_FAILED',
-      status: error.status || error.statusCode || 500,
-      details: error.details
-    };
+    if (error.code) {
+      throw error;
+    }
+    throw createError(
+      'BOOKING_UPDATE_FAILED',
+      {
+        bookingId,
+        correlationId,
+        originalError: error.message
+      },
+      correlationId,
+      'Failed to update booking'
+    );
   }
 }
 
@@ -455,7 +470,7 @@ async function updateBooking(req, res, next) {
   const updateData = req.body;
 
   // 🔍 COMPREHENSIVE PARAMETER LOGGING FOR UPDATE BOOKING
-  logger.info('🚀 [UPDATE BOOKING] Raw request received:', {
+  logger.debug('🚀 [UPDATE BOOKING] Raw request received:', {
     correlationId,
     method: req.method,
     url: req.url,
@@ -467,15 +482,15 @@ async function updateBooking(req, res, next) {
     timestamp: new Date().toISOString()
   });
 
-  logger.info('📋 [UPDATE BOOKING] Route parameters:', JSON.stringify(req.params, null, 2));
-  logger.info('📋 [UPDATE BOOKING] Request body analysis:', {
+  logger.debug('📋 [UPDATE BOOKING] Route parameters:', JSON.stringify(req.params, null, 2));
+  logger.debug('📋 [UPDATE BOOKING] Request body analysis:', {
     bodyKeys: Object.keys(updateData || {}),
     bodySize: JSON.stringify(updateData || {}).length,
     rawBody: JSON.stringify(updateData, null, 2),
     correlationId
   });
 
-  logger.info('🔍 [UPDATE BOOKING] Parameter extraction:', {
+  logger.debug('🔍 [UPDATE BOOKING] Parameter extraction:', {
     bookingIdFromParams: req.params.id,
     finalBookingId: bookingId,
     updateDataPresent: !!updateData,
@@ -589,7 +604,7 @@ async function cancelBooking(req, res) {
       bookingId
     });
 
-    await ensureAgentCanModifyBooking(tenant, bookingId);
+    await ensureAgentCanModifyBooking(tenant, bookingId, correlationId);
 
     // Create Azure Functions context for compatibility
     const context = {

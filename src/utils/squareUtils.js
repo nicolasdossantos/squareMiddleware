@@ -23,6 +23,15 @@ const catalogCaches = new Map();
 const staffCaches = new Map(); // Renamed from barberCache
 const clientCache = new Map(); // Keyed by accessToken + environment
 
+function resolveTenantKey(tenant = {}) {
+  return tenant.id || tenant.agentId || tenant.agent_id || 'default';
+}
+
+async function executeSquareRequest(tenant, operationName, fn) {
+  const tenantKey = resolveTenantKey(tenant);
+  return circuitBreaker.execute(tenantKey, fn, operationName);
+}
+
 function pruneClientCache() {
   const now = Date.now();
   for (const [key, entry] of clientCache) {
@@ -183,11 +192,13 @@ async function loadServiceVariations(context, tenant) {
 
     do {
       const apiStartTime = Date.now();
-      const resp = await square.catalogApi.searchCatalogObjects({
-        objectTypes: ['ITEM'],
-        includeRelatedObjects: true,
-        cursor: cursor
-      });
+      const resp = await executeSquareRequest(tenant, 'catalog_search', () =>
+        square.catalogApi.searchCatalogObjects({
+          objectTypes: ['ITEM'],
+          includeRelatedObjects: true,
+          cursor: cursor
+        })
+      );
 
       const apiDuration = Date.now() - apiStartTime;
 
@@ -302,7 +313,9 @@ async function loadStaffMembers(context, tenant) {
 
       try {
         const apiStartTime = Date.now();
-        const resp = await square.employeesApi.listEmployees(locationId, 'ACTIVE');
+        const resp = await executeSquareRequest(tenant, 'list_employees', () =>
+          square.employeesApi.listEmployees(locationId, 'ACTIVE')
+        );
         const apiDuration = Date.now() - apiStartTime;
 
         const employees = resp.result?.employees || [];
@@ -744,7 +757,9 @@ async function createCustomer(context, tenant, customerData) {
     );
 
     const apiStartTime = Date.now();
-    const response = await square.customersApi.createCustomer(createRequest);
+    const response = await executeSquareRequest(tenant, 'customers_create', () =>
+      square.customersApi.createCustomer(createRequest)
+    );
     const apiDuration = Date.now() - apiStartTime;
 
     logApiCall(context, 'customers_create', true, apiDuration, {
@@ -909,7 +924,9 @@ async function updateCustomer(context, tenant, customerId, updateData) {
 
     const apiStartTime = Date.now();
     // ⚠️ Square SDK v42+: Pass customerId and body as separate parameters
-    const response = await square.customersApi.updateCustomer(customerId.trim(), customerBody);
+    const response = await executeSquareRequest(tenant, 'customers_update', () =>
+      square.customersApi.updateCustomer(customerId.trim(), customerBody)
+    );
     const apiDuration = Date.now() - apiStartTime;
 
     logApiCall(context, 'customers_update', true, apiDuration, {
@@ -1000,15 +1017,17 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
 
     // First try exact search with E164 formatted phone number
     const apiStartTime = Date.now();
-    let searchResponse = await square.customersApi.searchCustomers({
-      query: {
-        filter: {
-          phoneNumber: {
-            exact: formattedPhone
+    let searchResponse = await executeSquareRequest(tenant, 'customers_search_exact', () =>
+      square.customersApi.searchCustomers({
+        query: {
+          filter: {
+            phoneNumber: {
+              exact: formattedPhone
+            }
           }
         }
-      }
-    });
+      })
+    );
     const apiDuration = Date.now() - apiStartTime;
 
     const customers = searchResponse.result?.customers || [];
@@ -1045,15 +1064,17 @@ async function searchCustomerByPhone(context, tenant, phoneNumber) {
     context.log(`🔍 Trying fuzzy search with normalized digits: ${normalizedPhone}`);
 
     const fuzzyApiStartTime = Date.now();
-    searchResponse = await square.customersApi.searchCustomers({
-      query: {
-        filter: {
-          phoneNumber: {
-            fuzzy: normalizedPhone
+    searchResponse = await executeSquareRequest(tenant, 'customers_search_fuzzy', () =>
+      square.customersApi.searchCustomers({
+        query: {
+          filter: {
+            phoneNumber: {
+              fuzzy: normalizedPhone
+            }
           }
         }
-      }
-    });
+      })
+    );
     const fuzzyApiDuration = Date.now() - fuzzyApiStartTime;
 
     const fuzzyCustomers = searchResponse.result?.customers || [];
@@ -1175,8 +1196,12 @@ module.exports = {
   setTenantCache,
 
   // Circuit breaker
-  withCircuitBreaker: (tenantId, apiCall, operationName) =>
-    circuitBreaker.execute(tenantId, apiCall, operationName),
+  withCircuitBreaker: (tenantOrId, apiCall, operationName) =>
+    circuitBreaker.execute(
+      typeof tenantOrId === 'string' ? tenantOrId : resolveTenantKey(tenantOrId),
+      apiCall,
+      operationName
+    ),
   getCircuitState: tenantId => circuitBreaker.getState(tenantId),
   getAllCircuitStates: () => circuitBreaker.getAllStates(),
 

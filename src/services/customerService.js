@@ -5,6 +5,7 @@
  */
 
 const { logger, logPerformance, logEvent, logError } = require('../utils/logger');
+const { redactObject } = require('../utils/logRedactor');
 const { cleanBigIntFromObject, bigIntReplacer } = require('../utils/helpers/bigIntUtils');
 const {
   createSquareClient,
@@ -15,6 +16,7 @@ const {
   updateCustomer
 } = require('../utils/squareUtils');
 const bookingService = require('./bookingService');
+const { AppError, ValidationError } = require('../utils/errors');
 
 /**
  * Get customer information with integrated booking data
@@ -26,7 +28,12 @@ async function getCustomerInfo(tenant, phoneNumber) {
   const startTime = Date.now();
 
   try {
-    logger.info('🔍 Searching for customer by phone', { phoneNumber, type: typeof phoneNumber });
+    const redactedPhone = redactObject({ phoneNumber }).phoneNumber;
+
+    logger.debug('Searching for customer by phone', {
+      phoneNumber: redactedPhone,
+      type: typeof phoneNumber
+    });
 
     // Validate phone number before calling shared function
     if (!phoneNumber || typeof phoneNumber !== 'string') {
@@ -39,13 +46,13 @@ async function getCustomerInfo(tenant, phoneNumber) {
 
     if (formatResult.isValid) {
       searchPhone = formatResult.formatted;
-      logger.info('📞 Phone number formatted', {
-        original: formatResult.original,
-        formatted: formatResult.formatted
+      logger.debug('Phone number formatted', {
+        original: redactedPhone,
+        formatted: redactObject({ phoneNumber: formatResult.formatted }).phoneNumber
       });
     } else {
-      logger.warn('⚠️ Phone number formatting failed, using original', {
-        phoneNumber,
+      logger.warn('Phone number formatting failed, using original', {
+        phoneNumber: redactedPhone,
         error: formatResult.error
       });
     }
@@ -58,11 +65,10 @@ async function getCustomerInfo(tenant, phoneNumber) {
     );
 
     if (!customer) {
-      logger.info('No customer found for phone number', { phoneNumber });
+      logger.debug('No customer found for phone number', { phoneNumber: redactedPhone });
     } else {
-      logger.info('Customer found', {
-        customerId: customer.id,
-        name: `${customer.givenName || ''} ${customer.familyName || ''}`.trim()
+      logger.debug('Customer found', {
+        customerId: redactObject({ customerId: customer.id }).customerId
       });
     }
 
@@ -151,11 +157,11 @@ async function getCustomerInfo(tenant, phoneNumber) {
       duration
     });
 
-    throw {
-      message: error.message || 'Failed to get customer info',
-      code: error.code || 'GET_CUSTOMER_ERROR',
-      status: error.status || error.statusCode || 500
-    };
+    throw AppError.from(error, {
+      message: 'Failed to get customer info',
+      code: 'GET_CUSTOMER_ERROR',
+      statusCode: 500
+    });
   }
 }
 
@@ -212,7 +218,9 @@ async function updateCustomerInfo(tenant, customerId, updateData) {
     }
 
     if (Object.keys(sanitizedData).length === 0) {
-      throw new Error('No valid fields provided for update');
+      throw new ValidationError('No valid fields provided for update', {
+        code: 'NO_VALID_FIELDS'
+      });
     }
 
     logger.debug('Updating customer with data:', {
@@ -246,18 +254,18 @@ async function updateCustomerInfo(tenant, customerId, updateData) {
     });
 
     if (error.message && error.message.includes('NOT_FOUND')) {
-      throw {
-        message: 'Customer not found',
+      throw new AppError('Customer not found', {
+        statusCode: 404,
         code: 'NOT_FOUND',
-        status: 404
-      };
+        cause: error
+      });
     }
 
-    throw {
+    throw AppError.from(error, {
       message: `Failed to update customer information: ${error.message || 'Unknown error'}`,
-      code: error.code || 'UPDATE_ERROR',
-      status: error.status || error.statusCode || 500
-    };
+      code: 'UPDATE_ERROR',
+      statusCode: 500
+    });
   }
 }
 
@@ -294,11 +302,11 @@ async function getCustomerBookings(tenant, customerId, options = {}) {
       duration: Date.now() - startTime,
       tenantId: tenant.id
     });
-    throw {
+    throw AppError.from(error, {
       message: `Failed to retrieve customer bookings: ${error.message || 'Unknown error'}`,
-      code: error.code || 'GET_BOOKINGS_ERROR',
-      status: error.status || error.statusCode || 500
-    };
+      code: 'GET_BOOKINGS_ERROR',
+      statusCode: 500
+    });
   }
 }
 

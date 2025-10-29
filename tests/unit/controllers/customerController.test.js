@@ -67,10 +67,10 @@ describe('Customer Controller', () => {
         await customerController.getCustomerById(mockTenant, 'cust123');
         fail('Should have thrown an error');
       } catch (thrownError) {
-        expect(thrownError.message).toContain('Database error');
-        expect(thrownError.code).toBe('GET_CUSTOMER_ERROR');
+        expect(thrownError.message).toBe('Failed to get customer');
+        expect(thrownError.code).toBe('CUSTOMER_SEARCH_FAILED');
       }
-      expect(logger.error).toHaveBeenCalledWith('Error getting customer by ID:', error.message || error);
+      expect(logger.error).toHaveBeenCalledWith('Error getting customer by ID:', error);
     });
   });
 
@@ -93,10 +93,10 @@ describe('Customer Controller', () => {
         await customerController.getCustomerByPhone(mockTenant, 'invalid');
         fail('Should have thrown an error');
       } catch (thrownError) {
-        expect(thrownError.message).toContain('Phone validation error');
-        expect(thrownError.code).toBe('GET_CUSTOMER_ERROR');
+        expect(thrownError.message).toBe('Failed to get customer by phone');
+        expect(thrownError.code).toBe('CUSTOMER_SEARCH_FAILED');
       }
-      expect(logger.error).toHaveBeenCalledWith('Error getting customer by phone:', error.message || error);
+      expect(logger.error).toHaveBeenCalledWith('Error getting customer by phone:', error);
     });
   });
 
@@ -120,10 +120,10 @@ describe('Customer Controller', () => {
         await customerController.createCustomer(mockTenant, {});
         fail('Should have thrown an error');
       } catch (thrownError) {
-        expect(thrownError.message).toContain('Creation failed');
-        expect(thrownError.code).toBe('CREATE_CUSTOMER_ERROR');
+        expect(thrownError.message).toBe('Failed to create customer');
+        expect(thrownError.code).toBe('CUSTOMER_CREATION_FAILED');
       }
-      expect(logger.error).toHaveBeenCalledWith('Error creating customer:', error.message || error);
+      expect(logger.error).toHaveBeenCalledWith('Error creating customer:', error);
     });
   });
 
@@ -147,10 +147,10 @@ describe('Customer Controller', () => {
         await customerController.updateCustomer(mockTenant, 'cust123', {});
         fail('Should have thrown an error');
       } catch (thrownError) {
-        expect(thrownError.message).toContain('Update failed');
-        expect(thrownError.code).toBe('UPDATE_CUSTOMER_ERROR');
+        expect(thrownError.message).toBe('Failed to update customer');
+        expect(thrownError.code).toBe('CUSTOMER_UPDATE_FAILED');
       }
-      expect(logger.error).toHaveBeenCalledWith('Error updating customer:', error.message || error);
+      expect(logger.error).toHaveBeenCalledWith('Error updating customer:', error);
     });
   });
 
@@ -184,10 +184,10 @@ describe('Customer Controller', () => {
         await customerController.listCustomers(mockTenant);
         fail('Should have thrown an error');
       } catch (thrownError) {
-        expect(thrownError.message).toContain('List failed');
-        expect(thrownError.code).toBe('LIST_CUSTOMERS_ERROR');
+        expect(thrownError.message).toBe('Failed to list customers');
+        expect(thrownError.code).toBe('CUSTOMER_SEARCH_FAILED');
       }
-      expect(logger.error).toHaveBeenCalledWith('Error listing customers:', error.message || error);
+      expect(logger.error).toHaveBeenCalledWith('Error listing customers:', error);
     });
   });
 
@@ -426,7 +426,7 @@ describe('Customer Controller', () => {
       expect(mockRes.json).toHaveBeenCalledWith({
         success: false,
         message: 'Internal server error',
-        error: 'Service error',
+        error: 'Failed to get customer by phone',
         timestamp: expect.any(String)
       });
     });

@@ -141,15 +141,6 @@ async function exchangeCodeForTokens({ code, clientId, clientSecret, environment
 }
 
 /**
- * Generate a secure nonce for OAuth state payloads.
- * @param {number} size - Buffer size (bytes)
- * @returns {string} Hex encoded nonce
- */
-function generateNonce(size = 16) {
-  return crypto.randomBytes(size).toString('hex');
-}
-
-/**
  * Fetch seller booking profile and location metadata using the new OAuth token.
  * Gracefully handles missing scopes by returning partial data.
  * @param {object} params
@@ -237,6 +228,5 @@ async function fetchSellerMetadata({ accessToken, environment = 'sandbox' }) {
 module.exports = {
   decodeState,
   exchangeCodeForTokens,
-  generateNonce,
   fetchSellerMetadata
 };

@@ -58,21 +58,28 @@ jest.mock('../../src/utils/squareUtils', () => {
     ...actual,
     createSquareClient: jest.fn(() => ({
       bookingsApi: {
-        searchAvailability: jest.fn().mockResolvedValue({
-          result: {
-            availabilities: [
-              {
-                startAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-                appointmentSegments: [
-                  {
-                    serviceVariationId: 'sv1',
-                    teamMemberId: 'tm1',
-                    durationMinutes: 30
-                  }
-                ]
-              }
-            ]
-          }
+        searchAvailability: jest.fn().mockImplementation(({ query }) => {
+          const startRange = query?.filter?.startAtRange;
+          const requestedStart = startRange
+            ? new Date(new Date(startRange.startAt).getTime() + 30 * 60 * 1000).toISOString()
+            : new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+
+          return Promise.resolve({
+            result: {
+              availabilities: [
+                {
+                  startAt: requestedStart,
+                  appointmentSegments: [
+                    {
+                      serviceVariationId: 'sv1',
+                      teamMemberId: 'tm1',
+                      durationMinutes: 30
+                    }
+                  ]
+                }
+              ]
+            }
+          });
         }),
         listBookings: jest.fn().mockResolvedValue({
           result: {

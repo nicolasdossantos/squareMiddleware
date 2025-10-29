@@ -18,6 +18,7 @@ const {
 } = require('../utils/helpers/bookingHelpers');
 const agentBookingService = require('./agentBookingService');
 const { stripRetellMeta } = require('../utils/retellPayload');
+const { createError } = require('../utils/errorCodes');
 
 /**
  * Determine action from HTTP method
@@ -66,7 +67,7 @@ async function handleCancelBooking(req, correlationId, ensureAgentCanModifyBooki
       throw new Error('Tenant context is required to cancel a booking');
     }
 
-    await ensureAgentCanModifyBooking(tenant, bookingId);
+    await ensureAgentCanModifyBooking(tenant, bookingId, correlationId);
 
     // Create Azure Functions context for compatibility
     const context = {
@@ -258,11 +259,14 @@ async function handleUpdateBooking(req, correlationId, updateBookingCore, ensure
     // Validate bookingId is present
     if (!bookingId) {
       logger.info('❌ [HANDLE UPDATE BOOKING] Missing booking ID');
-      throw {
-        message: 'bookingId is required',
-        code: 'MISSING_BOOKING_ID',
-        status: 400
-      };
+      throw createError(
+        'VALIDATION_MISSING_FIELD',
+        {
+          field: 'bookingId'
+        },
+        correlationId,
+        'bookingId is required'
+      );
     }
 
     // Handle nested request structure from agents/tools
@@ -289,7 +293,7 @@ async function handleUpdateBooking(req, correlationId, updateBookingCore, ensure
       finalSegments: segments
     });
 
-    await ensureAgentCanModifyBooking(tenant, bookingId);
+    await ensureAgentCanModifyBooking(tenant, bookingId, correlationId);
 
     const result = await updateBookingCore(
       tenant,
