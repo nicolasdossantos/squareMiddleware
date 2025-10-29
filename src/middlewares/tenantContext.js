@@ -14,13 +14,14 @@
  */
 
 const { config } = require('../config');
+const tenantService = require('../services/tenantService');
 const { logger } = require('../utils/logger');
 
 /**
  * Tenant context middleware
  * Attaches tenant information to request object
  */
-function tenantContext(req, res, next) {
+async function tenantContext(req, res, next) {
   try {
     // Check if agentAuth middleware already set retellContext
     if (req.retellContext) {
@@ -47,7 +48,34 @@ function tenantContext(req, res, next) {
         tenantId: req.tenant.id,
         correlationId: req.correlationId
       });
-    } else {
+      return next();
+    }
+
+    // If authenticated via dashboard, load tenant from database
+    if (req.auth?.tenantId) {
+      const tenant = await tenantService.getTenantContext(req.auth.tenantId);
+
+      if (tenant) {
+        req.tenant = {
+          id: tenant.id,
+          slug: tenant.slug,
+          businessName: tenant.businessName,
+          timezone: tenant.timezone || config.server.timezone || 'America/New_York',
+          squareAccessToken: tenant.squareAccessToken,
+          squareLocationId: tenant.squareLocationId,
+          squareEnvironment: tenant.squareEnvironment || config.square.environment || 'sandbox',
+          supportsSellerLevelWrites:
+            typeof tenant.supportsSellerLevelWrites === 'boolean' ? tenant.supportsSellerLevelWrites : true,
+          defaultLocationId: tenant.defaultLocationId,
+          qaStatus: tenant.qaStatus,
+          trialEndsAt: tenant.trialEndsAt
+        };
+
+        return next();
+      }
+    }
+
+    {
       // Fallback to environment variables (development/single-tenant mode)
       req.tenant = {
         id: 'default',

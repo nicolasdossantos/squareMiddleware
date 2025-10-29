@@ -12,6 +12,8 @@ const healthRoutes = require('./health');
 const apiRoutes = require('./api');
 const adminRoutes = require('./admin');
 const oauthRoutes = require('./oauth');
+const authRoutes = require('./auth');
+const onboardingRoutes = require('./onboarding');
 
 const router = express.Router();
 
@@ -33,6 +35,8 @@ router.use('/sms', smsRoutes); // Changed from whatsapp to sms
 router.use('/health', healthRoutes);
 router.use('/oauth', oauthRoutes); // OAuth authorization flow
 router.use('/admin', adminRoutes); // Admin endpoints (protected)
+router.use('/auth', authRoutes); // Tenant authentication
+router.use('/onboarding', onboardingRoutes); // Customer onboarding actions
 
 // Main API routes (replacement for Azure Functions)
 router.use('/', apiRoutes);

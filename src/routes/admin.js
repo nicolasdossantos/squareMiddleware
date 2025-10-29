@@ -40,5 +40,6 @@ router.post('/complete-onboarding', asyncHandler(adminController.completeOnboard
  * List all configured agents (safe data only, no tokens)
  */
 router.get('/agents', asyncHandler(adminController.listAgents));
+router.get('/pending-agents', asyncHandler(adminController.listPendingQaAgents));
 
 module.exports = router;

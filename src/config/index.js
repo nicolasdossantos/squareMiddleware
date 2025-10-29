@@ -117,6 +117,15 @@ const config = {
   logging: {
     level: process.env.LOG_LEVEL || 'info',
     format: process.env.LOG_FORMAT || 'json'
+  },
+
+  // Authentication configuration
+  auth: {
+    accessTokenSecret: process.env.JWT_ACCESS_SECRET,
+    refreshTokenSecret: process.env.JWT_REFRESH_SECRET,
+    accessTokenTtl: process.env.JWT_ACCESS_TTL || '15m',
+    refreshTokenTtl: process.env.JWT_REFRESH_TTL || '30d',
+    passwordSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
   }
 };
 
@@ -133,8 +142,9 @@ function validateConfig() {
   }
 
   const required = ['SQUARE_ACCESS_TOKEN', 'SQUARE_LOCATION_ID'];
+  const authRequired = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'DB_ENCRYPTION_KEY'];
 
-  const missing = required.filter(key => !process.env[key]);
+  const missing = [...required, ...authRequired].filter(key => !process.env[key]);
 
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(', ')}`);

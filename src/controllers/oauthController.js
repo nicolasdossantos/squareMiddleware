@@ -5,6 +5,7 @@
 
 const crypto = require('crypto');
 const { decodeState, exchangeCodeForTokens, fetchSellerMetadata } = require('../services/oauthService');
+const onboardingService = require('../services/onboardingService');
 const { logger } = require('../utils/logger');
 
 /**
@@ -249,6 +250,15 @@ function renderSuccessPage({ agentId, environment, tokens, stateDebug, metadata 
           : ''
       }
       ${tokenRows}
+      ${
+        metadata?.bearerToken
+          ? `<div class="token-row" style="background:#f1f5f9;border-color:#cbd5f5;">
+              <div class="label">API Bearer Token (Retell ↔️ Middleware)</div>
+              <div class="value">${escapeHtml(metadata.bearerToken)}</div>
+              <div class="hint">Configure this token in the Retell agent for authenticated tool calls.</div>
+            </div>`
+          : ''
+      }
       <div class="note">
         <strong>Security reminder:</strong> Copy these credentials into your vault or encrypted configuration
         immediately. Treat them as secrets – refresh tokens never expire unless revoked. Rotate the access
@@ -456,6 +466,42 @@ async function handleAuthCallback(req, res) {
       timezone: metadata?.timezone || null
     };
 
+    let onboardingResult = null;
+
+    if (stateData.tenantId && stateData.agentId) {
+      try {
+        onboardingResult = await onboardingService.confirmSquareAuthorization({
+          tenantId: stateData.tenantId,
+          retellAgentId: stateData.agentId,
+          tokens: {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            scope: tokens.scope,
+            expiresAt: tokens.expiresAt,
+            merchantId,
+            environment
+          },
+          metadata: {
+            merchantId,
+            defaultLocationId,
+            displayName: businessName,
+            supportsSellerLevelWrites,
+            environment,
+            timezone: metadata?.timezone
+          },
+          voicePreferences: stateData.voicePreferences || null,
+          submittedBy: stateData.submittedBy || null,
+          configuration: stateData.configuration || null
+        });
+      } catch (storageError) {
+        logger.error('Square OAuth onboarding persistence failed', {
+          message: storageError.message,
+          tenantId: stateData.tenantId,
+          agentId: stateData.agentId
+        });
+      }
+    }
+
     if (wantsJson(req)) {
       return res.json({
         success: true,
@@ -472,7 +518,15 @@ async function handleAuthCallback(req, res) {
         bookingProfile: metadata?.bookingProfile,
         locations: metadata?.locations,
         timezone: metadata?.timezone,
-        state: state
+        state: state,
+        onboarding: onboardingResult
+          ? {
+              tenantId: stateData.tenantId,
+              retellAgentUuid: onboardingResult.agent?.id,
+              pendingQaId: onboardingResult.pendingQa?.id,
+              bearerToken: onboardingResult.bearerToken
+            }
+          : null
       });
     }
 
@@ -481,7 +535,11 @@ async function handleAuthCallback(req, res) {
         agentId: stateData.agentId,
         environment,
         tokens,
-        metadata: metadataForView,
+        metadata: {
+          ...metadataForView,
+          bearerToken: onboardingResult?.bearerToken || null,
+          tenantId: stateData.tenantId || null
+        },
         stateDebug: stateInfo.isDecoded ? stateData : null
       })
     );
