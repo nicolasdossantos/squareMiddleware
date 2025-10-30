@@ -24,6 +24,20 @@ const STORAGE_KEY = 'fluentfront.auth';
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+function sanitizeState(state: AuthState | null): AuthState | null {
+  if (!state) {
+    return null;
+  }
+
+  return {
+    ...state,
+    tokens: {
+      ...state.tokens,
+      refreshToken: null
+    }
+  };
+}
+
 function loadInitialState(): AuthState | null {
   if (typeof window === 'undefined') {
     return null;
@@ -50,19 +64,67 @@ function persistState(state: AuthState | null) {
     return;
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  const sanitized = sanitizeState(state);
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authState, setAuthStateInternal] = useState<AuthState | null>(() => loadInitialState());
+  const [authState, setAuthStateInternal] = useState<AuthState | null>(() => {
+    const initial = sanitizeState(loadInitialState());
+    if (initial) {
+      persistState(initial);
+    }
+    return initial;
+  });
 
   useEffect(() => {
-    configureApiClient(() => authState?.tokens?.accessToken || null);
-  }, [authState]);
+    const handleTokensChanged = ({
+      tokens,
+      tenant,
+      user
+    }: {
+      tokens: AuthTokens;
+      tenant?: TenantSummary;
+      user?: UserSummary;
+    }) => {
+      setAuthStateInternal(prev => {
+        const fallback = prev
+          ? { tenant: prev.tenant, user: prev.user }
+          : tenant && user
+            ? { tenant, user }
+            : null;
+
+        if (!fallback) {
+          return prev;
+        }
+
+        const nextState = sanitizeState({
+          tokens,
+          tenant: tenant || fallback.tenant,
+          user: user || fallback.user
+        });
+
+        persistState(nextState);
+        return nextState;
+      });
+    };
+
+    const handleUnauthorized = () => {
+      persistState(null);
+      setAuthStateInternal(null);
+    };
+
+    configureApiClient({
+      getAccessToken: () => authState?.tokens?.accessToken || null,
+      onTokensChanged: handleTokensChanged,
+      onUnauthorized: handleUnauthorized
+    });
+  }, [authState, setAuthStateInternal]);
 
   const setAuthState = useCallback((state: AuthState) => {
-    persistState(state);
-    setAuthStateInternal(state);
+    const sanitized = sanitizeState(state);
+    persistState(sanitized);
+    setAuthStateInternal(sanitized);
   }, []);
 
   const clearAuthState = useCallback(() => {
@@ -92,9 +154,15 @@ export function useAuth(): AuthContextValue {
 }
 
 export function mapSignupResponseToAuthState(payload: SignupResponse): AuthState {
-  return {
+  const sanitized = sanitizeState({
     tokens: payload.tokens,
     tenant: payload.tenant,
     user: payload.user
-  };
+  });
+
+  if (!sanitized) {
+    throw new Error('Unable to map signup response to auth state');
+  }
+
+  return sanitized;
 }

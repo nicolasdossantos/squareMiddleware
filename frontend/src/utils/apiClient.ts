@@ -1,36 +1,60 @@
 type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
+export interface AuthTokens {
+  accessToken: string;
+  refreshToken?: string | null;
+  refreshTokenExpiresAt?: string;
+}
+
 type AccessTokenProvider = () => string | null;
+type AuthUpdateHandler = (payload: {
+  tokens: AuthTokens;
+  tenant?: TenantSummary;
+  user?: UserSummary;
+}) => void;
+type AuthResetHandler = () => void;
 
-let accessTokenProvider: AccessTokenProvider = () => {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  try {
-    const raw = window.localStorage.getItem('fluentfront.auth');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as {
-      tokens?: {
-        accessToken?: string;
-      };
-    };
-    return parsed?.tokens?.accessToken || null;
-  } catch {
-    return null;
-  }
-};
-
-export function configureApiClient(provider: AccessTokenProvider) {
-  accessTokenProvider = provider;
+interface AuthHandlers {
+  getAccessToken: AccessTokenProvider;
+  onTokensChanged?: AuthUpdateHandler;
+  onUnauthorized?: AuthResetHandler;
 }
 
 interface ApiFetchOptions extends RequestInit {
   method?: HttpMethod;
 }
 
-async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise<T> {
-  const init: RequestInit = { ...options };
+let authHandlers: AuthHandlers = {
+  getAccessToken: () => null
+};
+
+let refreshPromise: Promise<AuthTokens | null> | null = null;
+
+export function configureApiClient(handlersOrProvider: AuthHandlers | AccessTokenProvider) {
+  if (typeof handlersOrProvider === 'function') {
+    authHandlers = {
+      getAccessToken: handlersOrProvider
+    };
+    return;
+  }
+
+  authHandlers = { ...handlersOrProvider };
+}
+
+function getAccessToken() {
+  try {
+    return authHandlers.getAccessToken?.() || null;
+  } catch {
+    return null;
+  }
+}
+
+function buildRequestInit(options: ApiFetchOptions = {}): RequestInit {
+  const init: RequestInit = {
+    ...options,
+    credentials: options.credentials ?? 'include'
+  };
+
   const headers = new Headers(init.headers || {});
 
   const hasBody = init.body !== undefined && init.body !== null;
@@ -38,14 +62,16 @@ async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise
     headers.set('Content-Type', 'application/json');
   }
 
-  const token = accessTokenProvider();
+  const token = getAccessToken();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
   init.headers = headers;
+  return init;
+}
 
-  const response = await fetch(path, init);
+async function parseResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get('content-type') || '';
   let data: unknown = null;
 
@@ -67,6 +93,62 @@ async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): Promise
   return data as T;
 }
 
+async function callRefreshEndpoint(): Promise<AuthTokens | null> {
+  try {
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+
+    const payload = await parseResponse<SignupResponse>(response);
+    if (payload?.success && payload.tokens?.accessToken) {
+      authHandlers.onTokensChanged?.({
+        tokens: payload.tokens,
+        tenant: payload.tenant,
+        user: payload.user
+      });
+      return payload.tokens;
+    }
+  } catch (error) {
+    // Swallow – caller handles unauthorized flow
+  }
+
+  return null;
+}
+
+async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = callRefreshEndpoint().finally(() => {
+      refreshPromise = null;
+    });
+  }
+
+  return refreshPromise;
+}
+
+async function apiFetch<T>(path: string, options: ApiFetchOptions = {}, retryOn401 = true): Promise<T> {
+  try {
+    const response = await fetch(path, buildRequestInit(options));
+    return await parseResponse<T>(response);
+  } catch (error) {
+    const status = (error as any)?.status;
+
+    if (status === 401 && retryOn401) {
+      const refreshed = await refreshAccessToken();
+
+      if (refreshed && refreshed.accessToken) {
+        return apiFetch<T>(path, options, false);
+      }
+
+      authHandlers.onUnauthorized?.();
+    }
+
+    throw error;
+  }
+}
+
 export interface SignupRequest {
   businessName: string;
   email: string;
@@ -74,12 +156,6 @@ export interface SignupRequest {
   timezone?: string;
   industry?: string;
   name?: string;
-}
-
-export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-  refreshTokenExpiresAt?: string;
 }
 
 export interface TenantSummary {
@@ -268,5 +344,14 @@ export async function savePhonePreference(payload: PhonePreferencePayload): Prom
   return apiFetch<PhonePreferenceResponse>('/api/onboarding/phone-preference', {
     method: 'POST',
     body: JSON.stringify(payload)
+  });
+}
+
+export async function logout(options: { revokeAll?: boolean } = {}): Promise<void> {
+  const body = options.revokeAll === false ? {} : { all: true };
+
+  await apiFetch('/api/auth/logout', {
+    method: 'POST',
+    body: JSON.stringify(body)
   });
 }

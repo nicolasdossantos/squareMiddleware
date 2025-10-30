@@ -92,8 +92,9 @@ function extractDaysAhead(req) {
   const rawDaysAhead =
     req.query.daysAhead ??
     req.body?.daysAhead ??
-    // Retell AI Custom Tools format support
+    req.body?.days_ahead ??
     req.retellPayload?.daysAhead ??
+    req.retellPayload?.days_ahead ??
     14;
 
   const parsedDaysAhead =

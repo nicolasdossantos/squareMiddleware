@@ -56,7 +56,12 @@ class KeyVaultService {
 
     // Use mock in development
     if (this.useMock) {
-      return this._getMockSecret(secretName);
+      const mockValue = this._getMockSecret(secretName);
+      this.cache.set(secretName, {
+        value: mockValue,
+        timestamp: Date.now()
+      });
+      return mockValue;
     }
 
     // Initialize Key Vault client if needed

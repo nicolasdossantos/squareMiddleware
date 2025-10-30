@@ -147,18 +147,23 @@ const config = {
  * Only validate in development/local environments.
  */
 function validateConfig() {
-  // Skip validation in production - credentials come from Key Vault per agent
+  const authRequired = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'DB_ENCRYPTION_KEY'];
+  const authMissing = authRequired.filter(key => !process.env[key]);
+
+  if (authMissing.length > 0) {
+    throw new Error(`Missing required authentication environment variables: ${authMissing.join(', ')}`);
+  }
+
+  // Skip Square credential validation in production - credentials come from Key Vault per agent
   if (process.env.NODE_ENV === 'production') {
     return true;
   }
 
-  const required = ['SQUARE_ACCESS_TOKEN', 'SQUARE_LOCATION_ID'];
-  const authRequired = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'DB_ENCRYPTION_KEY'];
+  const squareRequired = ['SQUARE_ACCESS_TOKEN', 'SQUARE_LOCATION_ID'];
+  const squareMissing = squareRequired.filter(key => !process.env[key]);
 
-  const missing = [...required, ...authRequired].filter(key => !process.env[key]);
-
-  if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  if (squareMissing.length > 0) {
+    throw new Error(`Missing required Square environment variables: ${squareMissing.join(', ')}`);
   }
 
   return true;

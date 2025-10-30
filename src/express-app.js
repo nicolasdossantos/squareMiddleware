@@ -8,6 +8,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
+const cookieParser = require('cookie-parser');
 
 // Import route modules
 const routes = require('./routes');
@@ -54,6 +56,9 @@ function createApp() {
 
   // Compression middleware
   app.use(compression());
+
+  // Cookie parsing (required for refresh token cookies)
+  app.use(cookieParser());
 
   // Body parsing middleware
   app.use(
@@ -116,6 +121,20 @@ function createApp() {
 
   // API routes
   app.use('/api', routes);
+
+  if (process.env.NODE_ENV === 'production') {
+    const staticDir = path.resolve(__dirname, '../frontend/dist');
+
+    app.use(express.static(staticDir));
+
+    app.get('*', (req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/authcallback')) {
+        return next();
+      }
+
+      return res.sendFile(path.join(staticDir, 'index.html'));
+    });
+  }
 
   // Global error handler (must be last)
   app.use(errorHandler);

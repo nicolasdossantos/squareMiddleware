@@ -186,6 +186,8 @@ async function registerTenant({ businessName, email, password, timezone, industr
     throw new Error('An account with this email already exists');
   }
 
+  validatePasswordStrength(password);
+
   const passwordHash = await hashPassword(password);
   const { tenant, user } = await tenantService.createTenantWithOwner({
     businessName,
@@ -378,3 +380,21 @@ module.exports = {
   hashPassword,
   verifyPassword
 };
+const PASSWORD_RULES = {
+  minLength: 8,
+  pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$/
+};
+
+function validatePasswordStrength(password) {
+  if (typeof password !== 'string') {
+    throw new Error('Password is required');
+  }
+
+  const trimmed = password.trim();
+
+  if (trimmed.length < PASSWORD_RULES.minLength || !PASSWORD_RULES.pattern.test(trimmed)) {
+    throw new Error(
+      'Password must be at least 8 characters long and include uppercase, lowercase, number, and special character'
+    );
+  }
+}

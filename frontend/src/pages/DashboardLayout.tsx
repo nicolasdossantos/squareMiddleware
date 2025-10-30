@@ -13,6 +13,8 @@ import {
   ChevronDown,
   User
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { logout as apiLogout } from '@/utils/apiClient';
 
 interface DashboardLayoutProps {
   theme: 'light' | 'dark';
@@ -24,11 +26,12 @@ export default function DashboardLayout({ theme, onToggleTheme }: DashboardLayou
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const { authState, clearAuthState } = useAuth();
 
   // Mock user data - replace with actual auth context
   const user = {
-    businessName: 'Elite Barbershop',
-    email: 'owner@elitebarbershop.com',
+    businessName: authState?.tenant?.businessName || 'Fluent Front AI',
+    email: authState?.user?.email || 'owner@fluentfront.ai',
     plan: 'Professional'
   };
 
@@ -41,11 +44,16 @@ export default function DashboardLayout({ theme, onToggleTheme }: DashboardLayou
     { name: 'Settings', href: '/dashboard/settings', icon: Settings }
   ];
 
-  const handleLogout = () => {
-    // Clear auth tokens
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    navigate('/signin');
+  const handleLogout = async () => {
+    try {
+      await apiLogout();
+    } catch (error) {
+      console.error('Failed to revoke session', error);
+    }
+
+    clearAuthState();
+    setUserMenuOpen(false);
+    navigate('/');
   };
 
   return (

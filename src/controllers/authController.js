@@ -2,6 +2,55 @@ const authService = require('../services/authService');
 const tenantService = require('../services/tenantService');
 const { logger } = require('../utils/logger');
 
+const REFRESH_COOKIE_NAME = 'refreshToken';
+
+function getCookieBaseOptions() {
+  const secure = process.env.NODE_ENV === 'production';
+  const sameSite = 'strict';
+  const domain = process.env.AUTH_COOKIE_DOMAIN || undefined;
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite,
+    path: '/api/auth',
+    domain
+  };
+}
+
+function setRefreshTokenCookie(res, refreshToken, expiresAt) {
+  if (!refreshToken) {
+    return;
+  }
+
+  if (typeof res.cookie !== 'function') {
+    return;
+  }
+
+  const ttlMs = expiresAt instanceof Date ? Math.max(expiresAt.getTime() - Date.now(), 0) : undefined;
+  const defaultTtl = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+  const options = {
+    ...getCookieBaseOptions(),
+    maxAge: ttlMs && ttlMs > 0 ? ttlMs : defaultTtl
+  };
+
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, options);
+}
+
+function clearRefreshTokenCookie(res) {
+  if (typeof res.clearCookie !== 'function') {
+    return;
+  }
+
+  const options = {
+    ...getCookieBaseOptions(),
+    maxAge: 0
+  };
+
+  res.clearCookie(REFRESH_COOKIE_NAME, options);
+}
+
 function extractRequestMeta(req) {
   return {
     userAgent: req.get('user-agent') || null,
@@ -57,13 +106,15 @@ async function signup(req, res) {
       requestMeta: extractRequestMeta(req)
     });
 
+    setRefreshTokenCookie(res, result.tokens.refreshToken, result.tokens.refreshTokenExpiresAt);
+
     return res.status(201).json({
       success: true,
       tenant: sanitizeTenant(result.tenant),
       user: sanitizeUser(result.user),
       tokens: {
         accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken,
+        refreshToken: null,
         refreshTokenExpiresAt: result.tokens.refreshTokenExpiresAt
       }
     });
@@ -95,13 +146,15 @@ async function login(req, res) {
       requestMeta: extractRequestMeta(req)
     });
 
+    setRefreshTokenCookie(res, result.tokens.refreshToken, result.tokens.refreshTokenExpiresAt);
+
     return res.json({
       success: true,
       tenant: sanitizeTenant(result.tenant),
       user: sanitizeUser(result.user),
       tokens: {
         accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken,
+        refreshToken: null,
         refreshTokenExpiresAt: result.tokens.refreshTokenExpiresAt
       }
     });
@@ -117,17 +170,19 @@ async function login(req, res) {
 
 async function refresh(req, res) {
   try {
-    const { refreshToken } = req.body || {};
+    const providedToken = req.body?.refreshToken || req.cookies?.[REFRESH_COOKIE_NAME];
 
-    if (!refreshToken) {
+    if (!providedToken) {
       return res.status(400).json({
         success: false,
         error: 'missing_refresh_token',
-        message: 'refreshToken is required'
+        message: 'refresh token not provided'
       });
     }
 
-    const result = await authService.refreshSession(refreshToken, extractRequestMeta(req));
+    const result = await authService.refreshSession(providedToken, extractRequestMeta(req));
+
+    setRefreshTokenCookie(res, result.tokens.refreshToken, result.tokens.refreshTokenExpiresAt);
 
     return res.json({
       success: true,
@@ -135,7 +190,7 @@ async function refresh(req, res) {
       user: sanitizeUser(result.user),
       tokens: {
         accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken,
+        refreshToken: null,
         refreshTokenExpiresAt: result.tokens.refreshTokenExpiresAt
       }
     });
@@ -151,7 +206,9 @@ async function refresh(req, res) {
 
 async function logout(req, res) {
   try {
-    const { refreshToken, all } = req.body || {};
+    const bodyRefreshToken = req.body?.refreshToken;
+    const cookieRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+    const { all } = req.body || {};
     const userId = req.user?.id;
 
     if (!userId) {
@@ -164,11 +221,13 @@ async function logout(req, res) {
 
     if (all === true) {
       await authService.revokeAllSessions(userId);
-    } else if (refreshToken) {
-      await authService.revokeRefreshToken(refreshToken);
+    } else if (bodyRefreshToken || cookieRefreshToken) {
+      await authService.revokeRefreshToken(bodyRefreshToken || cookieRefreshToken);
     } else {
       await authService.revokeAllSessions(userId);
     }
+
+    clearRefreshTokenCookie(res);
 
     return res.json({ success: true });
   } catch (error) {

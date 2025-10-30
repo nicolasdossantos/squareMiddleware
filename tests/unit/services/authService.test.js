@@ -54,7 +54,7 @@ describe('authService', () => {
   });
 
   describe('registerTenant', () => {
-    it('creates tenant and returns tokens for new email', async () => {
+    it('creates tenant and returns tokens for strong password', async () => {
       db.query
         .mockResolvedValueOnce({ rows: [] }) // loadUserByEmail
         .mockResolvedValueOnce({ rows: [] }); // insert session
@@ -73,7 +73,7 @@ describe('authService', () => {
       const result = await authService.registerTenant({
         businessName: 'Biz',
         email: 'Owner@Example.com',
-        password: 'secret',
+        password: 'StrongPassw0rd!',
         timezone: 'UTC',
         industry: 'spa',
         name: 'Owner Name',
@@ -107,9 +107,26 @@ describe('authService', () => {
         authService.registerTenant({
           businessName: 'Biz',
           email: 'existing@example.com',
-          password: 'secret'
+          password: 'StrongPassw0rd!'
         })
       ).rejects.toThrow('An account with this email already exists');
+    });
+
+    it('throws when password does not meet complexity requirements', async () => {
+      db.query.mockResolvedValueOnce({ rows: [] });
+
+      await expect(
+        authService.registerTenant({
+          businessName: 'Biz',
+          email: 'new@example.com',
+          password: 'weakpass'
+        })
+      ).rejects.toThrow(
+        'Password must be at least 12 characters long and include uppercase, lowercase, number, and special character'
+      );
+
+      expect(tenantService.createTenantWithOwner).not.toHaveBeenCalled();
+      expect(bcrypt.hash).not.toHaveBeenCalled();
     });
   });
 

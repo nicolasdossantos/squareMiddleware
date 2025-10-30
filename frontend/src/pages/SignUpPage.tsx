@@ -34,6 +34,9 @@ interface SignUpPageProps {
 }
 
 const SIGNUP_CONTEXT_KEY = 'fluentfront.onboarding.signup';
+const PASSWORD_COMPLEXITY_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$/;
+const PASSWORD_REQUIREMENT_MESSAGE =
+  'Password must be at least 8 characters and include uppercase, lowercase, number, and special character';
 
 export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
   const navigate = useNavigate();
@@ -90,20 +93,50 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
     }
   };
 
-  const getPasswordStrength = (password: string): { strength: string; score: number; color: string } => {
-    let score = 0;
-    if (password.length >= 8) score++;
-    if (password.length >= 12) score++;
-    if (/[a-z]/.test(password)) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[0-9]/.test(password)) score++;
-    if (/[^a-zA-Z0-9]/.test(password)) score++;
+  const getPasswordStrength = (
+    password: string
+  ): { strength: string; score: number; color: string; percentage: number; meetsRequirements: boolean } => {
+    const checks = {
+      length: password.length >= 8,
+      lower: /[a-z]/.test(password),
+      upper: /[A-Z]/.test(password),
+      number: /\d/.test(password),
+      symbol: /[^a-zA-Z0-9]/.test(password)
+    };
 
-    if (score === 0) return { strength: 'Very Weak', score: 0, color: 'bg-red-500' };
-    if (score <= 2) return { strength: 'Weak', score: 1, color: 'bg-orange-500' };
-    if (score <= 4) return { strength: 'Medium', score: 2, color: 'bg-yellow-500' };
-    return { strength: 'Strong', score: 3, color: 'bg-green-500' };
+    const totalChecks = Object.keys(checks).length;
+    const metChecks = Object.values(checks).filter(Boolean).length;
+    const meetsRequirements = PASSWORD_COMPLEXITY_REGEX.test(password);
+
+    let strength = 'Very Weak';
+    let color = 'bg-red-500';
+
+    if (metChecks <= 2) {
+      strength = 'Weak';
+      color = 'bg-orange-500';
+    } else if (metChecks >= 3 && metChecks < totalChecks) {
+      strength = 'Medium';
+      color = 'bg-yellow-500';
+    } else if (metChecks === totalChecks) {
+      strength = 'Strong';
+      color = 'bg-green-500';
+    }
+
+    if (!password) {
+      strength = 'Very Weak';
+      color = 'bg-red-500';
+    }
+
+    return {
+      strength,
+      score: metChecks,
+      color,
+      percentage: totalChecks === 0 ? 0 : (metChecks / totalChecks) * 100,
+      meetsRequirements
+    };
   };
+
+  const passwordStrength = getPasswordStrength(formData.password);
 
   const validateEmail = (email: string): boolean => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -128,8 +161,8 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
     }
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
+    } else if (!PASSWORD_COMPLEXITY_REGEX.test(formData.password)) {
+      newErrors.password = PASSWORD_REQUIREMENT_MESSAGE;
     }
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
@@ -145,24 +178,44 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     const checked = (e.target as HTMLInputElement).checked;
+    const nextValue = type === 'checkbox' ? checked : value;
 
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    const nextFormState = {
+      ...formData,
+      [name]: nextValue
+    } as SignUpFormData;
 
-    // Real-time email validation
+    setFormData(nextFormState);
+
     if (name === 'email') {
-      setEmailValid(validateEmail(value));
+      setEmailValid(validateEmail(String(nextValue)));
     }
 
-    if (errors[name]) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors[name];
-        return newErrors;
-      });
-    }
+    setErrors(prev => {
+      const updatedErrors = { ...prev };
+
+      if (prev[name]) {
+        delete updatedErrors[name];
+      }
+
+      if (name === 'password') {
+        if (!PASSWORD_COMPLEXITY_REGEX.test(nextFormState.password)) {
+          updatedErrors.password = PASSWORD_REQUIREMENT_MESSAGE;
+        } else {
+          delete updatedErrors.password;
+        }
+      }
+
+      if (name === 'confirmPassword' || name === 'password') {
+        if (nextFormState.confirmPassword && nextFormState.password !== nextFormState.confirmPassword) {
+          updatedErrors.confirmPassword = 'Passwords do not match';
+        } else {
+          delete updatedErrors.confirmPassword;
+        }
+      }
+
+      return updatedErrors;
+    });
 
     if (apiError) {
       setApiError(null);
@@ -410,8 +463,14 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
                           name="password"
                           value={formData.password}
                           onChange={handleChange}
-                          placeholder="At least 8 characters"
-                          className="w-full pl-10 pr-12 py-2 rounded-button border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:outline-none focus:border-primary-light dark:focus:border-primary-dark transition-colors"
+                          placeholder="At least 8 chars with uppercase, lowercase, number & symbol"
+                          className={`w-full pl-10 pr-12 py-2 rounded-button border bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary placeholder-light-text-secondary dark:placeholder-dark-text-secondary focus:outline-none transition-colors ${
+                            errors.password
+                              ? 'border-red-500 focus:border-red-500'
+                              : passwordStrength.meetsRequirements
+                                ? 'border-green-500 focus:border-green-500'
+                                : 'border-light-border dark:border-dark-border focus:border-primary-light dark:focus:border-primary-dark'
+                          }`}
                         />
                         <button
                           type="button"
@@ -425,17 +484,21 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
                         <div className="space-y-1">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                              Strength: {getPasswordStrength(formData.password).strength}
+                              Strength: {passwordStrength.strength}
                             </span>
+                            {passwordStrength.meetsRequirements && (
+                              <span className="text-xs font-medium text-green-500">Meets requirements</span>
+                            )}
                           </div>
                           <div className="w-full h-2 bg-light-border dark:bg-dark-border rounded-full overflow-hidden">
                             <div
-                              className={`h-full transition-all duration-300 ${getPasswordStrength(formData.password).color}`}
-                              style={{
-                                width: `${((getPasswordStrength(formData.password).score + 1) / 4) * 100}%`
-                              }}
+                              className={`h-full transition-all duration-300 ${passwordStrength.color}`}
+                              style={{ width: `${passwordStrength.percentage}%` }}
                             />
                           </div>
+                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                            {PASSWORD_REQUIREMENT_MESSAGE}
+                          </p>
                         </div>
                       )}
                       {errors.password && (
