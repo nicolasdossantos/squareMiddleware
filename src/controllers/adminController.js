@@ -6,6 +6,7 @@
 const { logger } = require('../utils/logger');
 const { query } = require('../services/database');
 const onboardingService = require('../services/onboardingService');
+const adminPhoneNumberController = require('./adminPhoneNumberController');
 
 /**
  * Complete agent onboarding
@@ -196,8 +197,69 @@ async function listPendingQaAgents(req, res) {
   }
 }
 
+async function listSupportTickets(req, res) {
+  try {
+    const { status, severity, tenantId, limit } = req.query || {};
+    const conditions = [];
+    const values = [];
+
+    if (tenantId) {
+      conditions.push(`st.tenant_id = $${values.length + 1}`);
+      values.push(tenantId);
+    }
+
+    if (status) {
+      conditions.push(`st.status = $${values.length + 1}`);
+      values.push(String(status).toLowerCase());
+    }
+
+    if (severity) {
+      conditions.push(`st.severity = $${values.length + 1}`);
+      values.push(String(severity).toLowerCase());
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limitValue = Math.min(parseInt(limit, 10) || 50, 200);
+    values.push(limitValue);
+
+    const { rows } = await query(
+      `
+        SELECT
+          st.*,
+          t.business_name,
+          t.slug AS tenant_slug
+        FROM support_tickets st
+        INNER JOIN tenants t ON t.id = st.tenant_id
+        ${whereClause}
+        ORDER BY st.created_at DESC
+        LIMIT $${values.length}
+      `,
+      values
+    );
+
+    return res.json({
+      success: true,
+      tickets: rows,
+      count: rows.length
+    });
+  } catch (error) {
+    logger.error('Failed to list support tickets', {
+      message: error.message
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'list_failed',
+      message: error.message
+    });
+  }
+}
+
 module.exports = {
   completeOnboarding,
   listAgents,
-  listPendingQaAgents
+  listPendingQaAgents,
+  listSupportTickets,
+  listPhoneNumberAssignments: adminPhoneNumberController.listAll,
+  updatePhoneNumberAssignment: adminPhoneNumberController.updateAssignment
 };

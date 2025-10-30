@@ -49,6 +49,17 @@ const config = {
       url: process.env.AZURE_SMS_FUNCTION_URL || process.env.AZURE_FUNCTION_SMS_URL,
       key: process.env.AZURE_SMS_FUNCTION_KEY || process.env.AZURE_FUNCTION_SMS_KEY,
       timeout: parseInt(process.env.AZURE_SMS_FUNCTION_TIMEOUT_MS, 10) || 5000
+    },
+    phoneNumbers: {
+      url: process.env.AZURE_PHONE_FUNCTION_URL || process.env.PHONE_NUMBER_FUNCTION_URL,
+      key: process.env.AZURE_PHONE_FUNCTION_KEY || process.env.PHONE_NUMBER_FUNCTION_KEY,
+      timeout: parseInt(process.env.AZURE_PHONE_FUNCTION_TIMEOUT_MS, 10) || 10000
+    },
+    issueDetection: {
+      url: process.env.AZURE_ISSUE_FUNCTION_URL || process.env.ISSUE_DIAGNOSTICS_FUNCTION_URL,
+      key: process.env.AZURE_ISSUE_FUNCTION_KEY || process.env.ISSUE_DIAGNOSTICS_FUNCTION_KEY,
+      timeout: parseInt(process.env.AZURE_ISSUE_FUNCTION_TIMEOUT_MS, 10) || 8000,
+      retries: parseInt(process.env.AZURE_ISSUE_FUNCTION_RETRIES, 10) || 1
     }
   },
 

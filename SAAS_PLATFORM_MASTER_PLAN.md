@@ -2151,9 +2151,15 @@ CREATE INDEX idx_call_analytics_expires ON call_analytics_cache(expires_at);
   database.
 - Tooling confirmations: `npm run format`, `npm run lint`, and `npm test` all pass on the new codebase (see
   testing notes below).
+- Added targeted Jest coverage for auth/onboarding/tenant services and analytics, keeping the SaaS
+  foundations regression-safe.
 - Required env vars confirmed in App Service: `PG_CONNECTION_STRING`, `DB_ENCRYPTION_KEY`,
   `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (optional overrides: `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL`,
   `BCRYPT_SALT_ROUNDS`).
+- **Front-end deliverables (pending dashboard repo)**
+  - Tenant onboarding UI (signup, voice selection, OAuth progress, phone-number selection, QA status).
+  - Dashboard shell (auth screens, navigation, layout) to host usage, billing, analytics, memory modules.
+  - Admin console panels for agent onboarding/QA, support tickets, phone numbers, and analytics.
 
 **Week 1: Database & Authentication**
 
@@ -2163,6 +2169,7 @@ CREATE INDEX idx_call_analytics_expires ON call_analytics_cache(expires_at);
 - [ ] Implement JWT authentication for customer dashboard
 - [ ] Create admin authentication system
 - [ ] Configure Application Insights + backup policy on existing App Service/DB
+- **Front-end**: none; back-end groundwork only.
 
 **Week 2: Customer Onboarding Flow**
 
@@ -2174,6 +2181,7 @@ CREATE INDEX idx_call_analytics_expires ON call_analytics_cache(expires_at);
 - [ ] Redesign OAuth callback (auto-store tokens, clean success page)
 - [ ] Create pending_activations workflow
 - [ ] Build admin QA dashboard (view pending agents, test call button)
+- **Front-end**: onboarding wizard, admin QA dashboard UI, confirmation screens.
 
 **Week 3: Billing & Subscription Management**
 
@@ -2183,6 +2191,7 @@ CREATE INDEX idx_call_analytics_expires ON call_analytics_cache(expires_at);
 - [ ] Build invoice generation and email delivery
 - [ ] Implement 14-day trial logic with auto-conversion
 - [ ] Create billing dashboard for customers
+- **Front-end**: billing settings page, usage meter widget, payment method forms.
 
 **Week 4: Core Dashboard Features**
 
@@ -2192,6 +2201,7 @@ CREATE INDEX idx_call_analytics_expires ON call_analytics_cache(expires_at);
 - [ ] Add call recordings playback (Mid tier+)
 - [ ] Implement pause/resume agent toggle
 - [ ] Build account settings page
+- **Front-end**: call log table with recordings, usage dashboard, pause/resume control, settings UI.
 
 ---
 
@@ -2205,6 +2215,7 @@ CREATE INDEX idx_call_analytics_expires ON call_analytics_cache(expires_at);
 - [ ] Build email + SMS notification system for admins
 - [ ] Enhance post-call email with diagnostic info
 - [ ] Create admin ticket dashboard
+- **Front-end**: admin ticket queue and detail view, alert settings UI.
 
 **Week 6: Analytics & Insights**
 
@@ -2214,6 +2225,7 @@ CREATE INDEX idx_call_analytics_expires ON call_analytics_cache(expires_at);
 - [ ] Add language breakdown chart
 - [ ] Implement call outcome distribution
 - [ ] Build analytics caching system
+- **Front-end**: charts (peak times, conversion, language, outcomes) with filters and tier gating.
 
 **Week 7: Agent Template Management**
 
@@ -2226,23 +2238,68 @@ CREATE INDEX idx_call_analytics_expires ON call_analytics_cache(expires_at);
 
 **Week 8: Phone Number Management**
 
-- [ ] Integrate Retell phone number purchase API
-- [ ] Build call forwarding instruction generator
-- [ ] Create phone number assignment workflow
-- [ ] Implement porting coordination system
-- [ ] Add phone number status to admin dashboard
+- ✅ Integrate Retell phone number purchase API via Azure Function `phone-number-manager`
+- ✅ Create phone number assignment workflow with `phone_number_assignments` records and tenant dashboard
+  endpoints
+- ✅ Add admin + tenant tooling to list, link, and update forwarding for numbers
+- ⚠️ Porting coordination system stubbed (table + admin update route); full carrier automation deferred until
+  demand warrants
+- 📄 Added `docs/phone-number-forwarding.md` with carrier-specific forwarding and porting guidance for manual
+  ops
+- **Front-end**: tenant phone-number management page (purchase, link, forwarding, porting status) and admin
+  overview table with edit controls.
+
+##### 🔧 Environment Variables Checklist (Phase 1-2)
+
+**Core Platform**
+
+- `PG_CONNECTION_STRING`, `DB_ENCRYPTION_KEY`
+- `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (optional: `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL`,
+  `BCRYPT_SALT_ROUNDS`)
+- `EMAIL_SMTP_HOST`, `EMAIL_SMTP_PORT`, `EMAIL_SMTP_USER`, `EMAIL_SMTP_PASS`, `EMAIL_FROM`
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_SMS_FROM`
+
+**Azure Functions**
+
+- Email: `AZURE_EMAIL_FUNCTION_URL`, `AZURE_EMAIL_FUNCTION_KEY`
+- SMS: `AZURE_SMS_FUNCTION_URL`, `AZURE_SMS_FUNCTION_KEY`
+- Issue diagnostics: `AZURE_ISSUE_FUNCTION_URL`, `AZURE_ISSUE_FUNCTION_KEY`, optional
+  `AZURE_ISSUE_FUNCTION_TIMEOUT_MS`, `AZURE_ISSUE_FUNCTION_RETRIES`
+- Phone numbers: `AZURE_PHONE_FUNCTION_URL`, `AZURE_PHONE_FUNCTION_KEY`, optional
+  `AZURE_PHONE_FUNCTION_TIMEOUT_MS`
+
+**Issue Detection Pipeline**
+
+- Function app: `OPENAI_API_KEY`, `PG_CONNECTION_STRING` (function scope), optional `OPENAI_ISSUE_MODEL`,
+  `OPENAI_ISSUE_PROMPT_VERSION`, `OPENAI_ISSUE_COST_PER_1K`
+- Express app: `ISSUE_ALERT_EMAIL_TO`, optional `ISSUE_DIAGNOSTICS_TIMEOUT_MS`
+
+**Analytics (optional tuning)**
+
+- `ANALYTICS_CACHE_TTL_MINUTES`, `ANALYTICS_PEAK_CALL_DAYS`, `ANALYTICS_CONVERSION_DAYS`,
+  `ANALYTICS_LANGUAGE_DAYS`, `ANALYTICS_OUTCOME_DAYS`
+
+**Phone Number Management**
+
+- Function app: `RETELL_API_KEY`, `PG_CONNECTION_STRING` (function scope), optional `RETELL_PHONE_COUNTRY`
+- Express app: `RETELL_PHONE_VOICE_PROVIDER`, optional `PHONE_NUMBER_FUNCTION_TIMEOUT_MS`
+
+Keep `DASHBOARD_URL`, `ISSUE_ALERT_EMAIL_TO`, and other dashboard URLs consistent so alert links resolve
+correctly.
 
 ---
 
 ### **Phase 3: Scale & Optimize (Weeks 9-12)**
 
-**Week 9: Premium Features**
+**Week 9: Premium Enhancements**
 
-- [ ] Implement customer memory system (Mid tier+)
-- [ ] Build sentiment analysis (Premium)
-- [ ] Create AI performance scoring (Premium)
-- [ ] Add warm handoff functionality (Mid tier+)
-- [ ] Implement multi-person SMS notifications (Premium)
+- [ ] Launch customer memory management UI (surface/edit conversation context in dashboard) — **pending new
+      front-end repo setup**
+- [ ] Build sentiment trend insights + alerting (aggregate existing Retell sentiment data)
+- [ ] Develop AI performance health score (blend issue-diagnostics, failed calls, QA results)
+- [ ] Implement multi-person SMS notifications (Premium tier)
+- **Front-end**: memory management pages with edit dialogs/change log, sentiment dashboards/alert settings,
+  AI health score cards, premium notification recipient settings.
 
 **Week 10: Support Infrastructure**
 

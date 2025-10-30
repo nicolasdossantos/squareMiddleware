@@ -8,6 +8,9 @@
   },
   "dependencies": {
     "nodemailer": "^6.9.7",
+    "openai": "^4.53.0",
+    "pg": "^8.16.3",
+    "retell-sdk": "^4.50.0",
     "twilio": "^5.8.2"
   },
   "devDependencies": {
