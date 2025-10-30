@@ -122,7 +122,7 @@ describe('authService', () => {
           password: 'weakpass'
         })
       ).rejects.toThrow(
-        'Password must be at least 12 characters long and include uppercase, lowercase, number, and special character'
+        'Password must be at least 8 characters long and include uppercase, lowercase, number, and special character'
       );
 
       expect(tenantService.createTenantWithOwner).not.toHaveBeenCalled();

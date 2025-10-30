@@ -9,7 +9,6 @@ const customerContextService = require('../../services/customerContextService');
 const { config } = require('../../config');
 const { buildConversationInitiationData } = require('../../services/customerInfoResponseService');
 const { buildInboundResponse, buildDefaultDynamicVariables } = require('./inboundResponseBuilder');
-const issueDetectionService = require('../../services/issueDetectionService');
 
 function buildMissingAgentConfigResponse(agentId, correlationId, callId, source) {
   logEvent('retell_agent_config_missing', {
@@ -73,66 +72,6 @@ function normalizeCallAnalysis(analysis) {
   }
 
   return analysis;
-}
-
-function parseBoolean(value) {
-  if (value === true || value === false) {
-    return value;
-  }
-
-  if (typeof value === 'string') {
-    const lowered = value.toLowerCase();
-    if (lowered === 'true' || lowered === '1' || lowered === 'yes') {
-      return true;
-    }
-    if (lowered === 'false' || lowered === '0' || lowered === 'no') {
-      return false;
-    }
-  }
-
-  if (typeof value === 'number') {
-    return value !== 0;
-  }
-
-  return Boolean(value);
-}
-
-function shouldTriggerIssueDetection(analysis = {}) {
-  if (!analysis || Object.keys(analysis).length === 0) {
-    return false;
-  }
-
-  if (analysis.hallucination_detected && parseBoolean(analysis.hallucination_detected) === true) {
-    return true;
-  }
-
-  if (analysis.escalation_needed && parseBoolean(analysis.escalation_needed) === true) {
-    return true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(analysis, 'call_successful')) {
-    const successful = parseBoolean(analysis.call_successful);
-    if (successful === false) {
-      return true;
-    }
-  }
-
-  if (Object.prototype.hasOwnProperty.call(analysis, 'booking_created')) {
-    const booking = parseBoolean(analysis.booking_created);
-    if (booking === false) {
-      return true;
-    }
-  }
-
-  if (analysis.failure_reason && String(analysis.failure_reason).toLowerCase() !== 'none') {
-    return true;
-  }
-
-  if (analysis.user_sentiment && String(analysis.user_sentiment).toLowerCase() === 'negative') {
-    return true;
-  }
-
-  return false;
 }
 
 async function handleCallStarted(payload, context) {

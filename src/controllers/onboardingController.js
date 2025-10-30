@@ -1,8 +1,6 @@
 const onboardingService = require('../services/onboardingService');
 const tenantService = require('../services/tenantService');
 const { logger } = require('../utils/logger');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 
 /**
@@ -182,61 +180,6 @@ async function getAvailableVoices(req, res) {
     });
   } catch (error) {
     logger.error('get_available_voices_failed', { message: error.message });
-    return res.status(500).json({
-      success: false,
-      error: 'voices_fetch_failed',
-      message: 'Failed to fetch available voices'
-    });
-  }
-}
-
-/**
- * Fallback function to fetch voices from local file
- */
-function fetchVoicesFromFile(res) {
-  try {
-    const voicesPath = path.join(__dirname, '../services/available-voices');
-    const voicesText = fs.readFileSync(voicesPath, 'utf8');
-
-    const voices = [];
-    const lines = voicesText.trim().split('\n');
-    let currentGender = null;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed === 'Male') {
-        currentGender = 'male';
-      } else if (trimmed === 'Female') {
-        currentGender = 'female';
-      } else if (trimmed && currentGender) {
-        const [provider, ...voiceNameParts] = trimmed.split('-');
-        const voiceName = voiceNameParts.join('-').replace(/\s*\(DEFAULT\)/, '');
-        const id = trimmed
-          .toLowerCase()
-          .replace(/\s+/g, '-')
-          .replace(/\(default\)/i, '')
-          .trim();
-
-        voices.push({
-          id,
-          name: voiceName.trim(),
-          gender: currentGender,
-          provider: provider.toLowerCase(),
-          accent: 'Standard',
-          language: 'English',
-          previewUrl: `/api/onboarding/voices/${id}/preview`
-        });
-      }
-    }
-
-    return res.status(200).json({
-      success: true,
-      voices,
-      total: voices.length,
-      source: 'local_file'
-    });
-  } catch (error) {
-    logger.error('fetch_voices_from_file_failed', { message: error.message });
     return res.status(500).json({
       success: false,
       error: 'voices_fetch_failed',

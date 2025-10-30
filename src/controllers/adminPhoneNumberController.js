@@ -1,4 +1,3 @@
-const phoneNumberService = require('../services/phoneNumberService');
 const { logger } = require('../utils/logger');
 const { query } = require('../services/database');
 

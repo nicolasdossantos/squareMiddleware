@@ -1,6 +1,5 @@
 const crypto = require('crypto');
 const { query, withTransaction, encryptSecret, decryptSecret } = require('./database');
-const { logger } = require('../utils/logger');
 
 function slugify(text) {
   return (

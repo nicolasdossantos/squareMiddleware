@@ -418,18 +418,30 @@ function renderErrorPage({ title, message, nextSteps, stateRaw, postMessage }) {
  * @param {import('express').Response} res
  */
 async function handleAuthCallback(req, res) {
-  const { code, state, error, error_description: errorDescription } = req.query;
+  const { code, state } = req.query;
+  const rawError = req.query.error;
+  const rawErrorDescription = req.query.error_description;
+  const errorValue = Array.isArray(rawError) ? rawError[0] : rawError;
+  const errorDescriptionValue = Array.isArray(rawErrorDescription)
+    ? rawErrorDescription[0]
+    : rawErrorDescription;
+  const hasError = typeof errorValue === 'string' && errorValue.trim().length > 0;
+  const normalizedError = hasError ? errorValue.trim() : null;
+  const normalizedErrorDescription =
+    typeof errorDescriptionValue === 'string' && errorDescriptionValue.trim().length > 0
+      ? errorDescriptionValue.trim()
+      : null;
 
   logger.info('Square OAuth callback invoked', {
     hasCode: Boolean(code),
     hasState: Boolean(state),
-    error: error || null
+    error: normalizedError
   });
 
-  if (error) {
+  if (hasError) {
     const payload = {
       title: 'Square Authorization Declined',
-      message: errorDescription || error,
+      message: normalizedErrorDescription || normalizedError,
       nextSteps: [
         'Verify the seller granted the requested permissions.',
         'Ensure the Square application scopes match your business needs.',
@@ -439,8 +451,8 @@ async function handleAuthCallback(req, res) {
       postMessage: {
         type: 'square_oauth_complete',
         success: false,
-        error: error || 'authorization_declined',
-        message: errorDescription || error || null,
+        error: normalizedError || 'authorization_declined',
+        message: normalizedErrorDescription || normalizedError || null,
         state: state || null
       }
     };
@@ -448,8 +460,8 @@ async function handleAuthCallback(req, res) {
     if (wantsJson(req)) {
       return res.status(400).json({
         success: false,
-        error,
-        message: errorDescription || 'Square rejected the authorization request.',
+        error: normalizedError,
+        message: normalizedErrorDescription || 'Square rejected the authorization request.',
         state
       });
     }

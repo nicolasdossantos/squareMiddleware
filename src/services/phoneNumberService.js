@@ -1,6 +1,6 @@
 const { query } = require('./database');
 const { invokePhoneNumberFunction, isPhoneNumberFunctionConfigured } = require('../utils/functionInvoker');
-const { logger, logEvent } = require('../utils/logger');
+const { logEvent } = require('../utils/logger');
 
 const RETELL_COUNTRY_DEFAULT = process.env.RETELL_PHONE_COUNTRY || 'US';
 

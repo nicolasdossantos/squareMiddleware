@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Radio, Zap, Volume2, Music, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
+import { Radio, Zap, Music, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { fetchOnboardingStatus, OnboardingStatus, saveVoicePreferences } from '@/utils/apiClient';
