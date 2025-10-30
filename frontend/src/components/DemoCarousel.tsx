@@ -1,47 +1,47 @@
-import { useState, useEffect } from 'react'
-import { Play } from 'lucide-react'
+import { useState, useEffect } from 'react';
+import { Play } from 'lucide-react';
 
 const demos = [
   {
     id: 1,
     title: 'AI Receptionist Demo',
-    description: 'Watch how the AI handles incoming calls naturally',
+    description: 'Watch how the AI handles incoming calls naturally'
   },
   {
     id: 2,
     title: 'Call Scheduling Demo',
-    description: 'See smart appointment scheduling in action',
+    description: 'See smart appointment scheduling in action'
   },
   {
     id: 3,
     title: 'Multilingual Example',
-    description: 'AI seamlessly switches between languages',
-  },
-]
+    description: 'AI seamlessly switches between languages'
+  }
+];
 
 export default function DemoCarousel() {
-  const [currentSlide, setCurrentSlide] = useState(0)
-  const [isAutoPlay, setIsAutoPlay] = useState(true)
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isAutoPlay, setIsAutoPlay] = useState(true);
 
   useEffect(() => {
-    if (!isAutoPlay) return
+    if (!isAutoPlay) return;
 
     const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % demos.length)
-    }, 5000)
+      setCurrentSlide(prev => (prev + 1) % demos.length);
+    }, 5000);
 
-    return () => clearInterval(timer)
-  }, [isAutoPlay])
+    return () => clearInterval(timer);
+  }, [isAutoPlay]);
 
   const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % demos.length)
-    setIsAutoPlay(false)
-  }
+    setCurrentSlide(prev => (prev + 1) % demos.length);
+    setIsAutoPlay(false);
+  };
 
   const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + demos.length) % demos.length)
-    setIsAutoPlay(false)
-  }
+    setCurrentSlide(prev => (prev - 1 + demos.length) % demos.length);
+    setIsAutoPlay(false);
+  };
 
   return (
     <section className="py-20 px-4 sm:px-6 lg:px-8 bg-light-bg dark:bg-dark-bg">
@@ -76,18 +76,8 @@ export default function DemoCarousel() {
               className="absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border hover:border-primary-light dark:hover:border-primary-dark transition-all duration-200 opacity-0 group-hover:opacity-100"
               aria-label="Previous slide"
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
 
@@ -96,18 +86,8 @@ export default function DemoCarousel() {
               className="absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full bg-light-surface dark:bg-dark-surface border border-light-border dark:border-dark-border hover:border-primary-light dark:hover:border-primary-dark transition-all duration-200 opacity-0 group-hover:opacity-100"
               aria-label="Next slide"
             >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
@@ -118,8 +98,8 @@ export default function DemoCarousel() {
               <button
                 key={index}
                 onClick={() => {
-                  setCurrentSlide(index)
-                  setIsAutoPlay(false)
+                  setCurrentSlide(index);
+                  setIsAutoPlay(false);
                 }}
                 className={`h-2 rounded-full transition-all duration-300 ${
                   index === currentSlide
@@ -148,8 +128,8 @@ export default function DemoCarousel() {
             <button
               key={demo.id}
               onClick={() => {
-                setCurrentSlide(index)
-                setIsAutoPlay(false)
+                setCurrentSlide(index);
+                setIsAutoPlay(false);
               }}
               className={`p-4 rounded-card border-2 transition-all duration-300 ${
                 index === currentSlide
@@ -168,5 +148,5 @@ export default function DemoCarousel() {
         </div>
       </div>
     </section>
-  )
+  );
 }

@@ -1,13 +1,13 @@
-import Header from '@/components/Header'
-import HeroSection from '@/components/HeroSection'
-import DemoCarousel from '@/components/DemoCarousel'
-import FeatureHighlights from '@/components/FeatureHighlights'
-import CTABanner from '@/components/CTABanner'
-import Footer from '@/components/Footer'
+import Header from '@/components/Header';
+import HeroSection from '@/components/HeroSection';
+import DemoCarousel from '@/components/DemoCarousel';
+import FeatureHighlights from '@/components/FeatureHighlights';
+import CTABanner from '@/components/CTABanner';
+import Footer from '@/components/Footer';
 
 interface LandingPageProps {
-  theme: 'light' | 'dark'
-  onToggleTheme: () => void
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 export default function LandingPage({ theme, onToggleTheme }: LandingPageProps) {
@@ -22,5 +22,5 @@ export default function LandingPage({ theme, onToggleTheme }: LandingPageProps) 
       </main>
       <Footer theme={theme} />
     </div>
-  )
+  );
 }

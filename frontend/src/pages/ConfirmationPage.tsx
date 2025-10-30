@@ -1,53 +1,101 @@
-import { useNavigate } from 'react-router-dom'
-import { CheckCircle, Clock, Mail, Phone, ExternalLink, Loader } from 'lucide-react'
-import Header from '@/components/Header'
-import Footer from '@/components/Footer'
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CheckCircle, Clock, Mail, Phone, ExternalLink, Loader, AlertCircle } from 'lucide-react';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
+import { fetchOnboardingStatus, OnboardingStatus } from '@/utils/apiClient';
+import { useAuth } from '@/context/AuthContext';
 
 interface ConfirmationPageProps {
-  theme: 'light' | 'dark'
-  onToggleTheme: () => void
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
-const checklistItems = [
-  {
-    id: 1,
-    label: 'Voice Preferences Saved',
-    description: 'Your AI receptionist voice and communication settings',
-    status: 'complete' as const,
-  },
-  {
-    id: 2,
-    label: 'Square Account Connected',
-    description: 'Integration enabled for bookings and payments',
-    status: 'complete' as const,
-  },
-  {
-    id: 3,
-    label: 'Phone Number Assigned',
-    description: 'Your dedicated AI receptionist phone number',
-    status: 'complete' as const,
-  },
-  {
-    id: 4,
-    label: 'QA Review & Activation',
-    description: 'Our team is verifying your configuration',
-    status: 'pending' as const,
-  },
-]
-
-export default function ConfirmationPage({
-  theme,
-  onToggleTheme,
-}: ConfirmationPageProps) {
-  const navigate = useNavigate()
+export default function ConfirmationPage({ theme, onToggleTheme }: ConfirmationPageProps) {
+  const navigate = useNavigate();
+  const { authState } = useAuth();
+  const [status, setStatus] = useState<OnboardingStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleBackToDashboard = () => {
     // In a real app, this would redirect to login/dashboard
-    navigate('/')
-  }
+    navigate('/');
+  };
 
-  const completedItems = checklistItems.filter((item) => item.status === 'complete').length
-  const progressPercent = (completedItems / checklistItems.length) * 100
+  useEffect(() => {
+    if (!authState?.tokens?.accessToken) {
+      navigate('/signup', { replace: true });
+      return;
+    }
+
+    const loadStatus = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetchOnboardingStatus();
+        setStatus(response.status);
+        setErrorMessage(null);
+      } catch (error) {
+        console.error('Failed to load onboarding status:', error);
+        setErrorMessage('Unable to load your onboarding summary. Please refresh the page.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadStatus();
+  }, [authState, navigate]);
+
+  const checklistItems = useMemo(
+    () => [
+      {
+        id: 1,
+        label: 'Voice Preferences Saved',
+        description: status?.voiceProfile
+          ? `Voice: ${status.voiceProfile.name} (${status.voiceProfile.provider})`
+          : 'Your AI receptionist voice and communication settings',
+        status: status?.voiceProfile ? ('complete' as const) : ('pending' as const)
+      },
+      {
+        id: 2,
+        label: 'Square Account Connected',
+        description: status?.square?.connected
+          ? `Merchant ID: ${status.square.merchantId}`
+          : 'Integration enabled for bookings and payments',
+        status: status?.square?.connected ? ('complete' as const) : ('pending' as const)
+      },
+      {
+        id: 3,
+        label: 'Phone Number Preference',
+        description: status?.phonePreference
+          ? status.phonePreference.type === 'new'
+            ? `Requesting new number${status.phonePreference.areaCode ? ` (area code ${status.phonePreference.areaCode})` : ''}`
+            : 'Using existing business number via forwarding'
+          : 'Your dedicated AI receptionist phone number or forwarding setup',
+        status: status?.phonePreference ? ('complete' as const) : ('pending' as const)
+      },
+      {
+        id: 4,
+        label: 'QA Review & Activation',
+        description:
+          status?.tenant?.qaStatus === 'approved'
+            ? 'QA review approved'
+            : status?.tenant?.qaStatus === 'in_review'
+              ? 'QA review in progress'
+              : 'Our team is verifying your configuration',
+        status:
+          status?.tenant?.qaStatus === 'approved'
+            ? ('complete' as const)
+            : status?.tenant?.qaStatus === 'in_review'
+              ? ('pending' as const)
+              : ('pending' as const)
+      }
+    ],
+    [status]
+  );
+
+  const completedItems = checklistItems.filter(item => item.status === 'complete').length;
+  const progressPercent = (completedItems / checklistItems.length) * 100;
 
   return (
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text-primary dark:text-dark-text-primary transition-colors duration-300">
@@ -61,7 +109,10 @@ export default function ConfirmationPage({
           {/* Animated background elements */}
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-primary-light/20 to-transparent rounded-full blur-3xl opacity-50 animate-glow-pulse" />
-            <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-accent-blue/20 to-transparent rounded-full blur-3xl opacity-40 animate-glow-pulse" style={{ animationDelay: '1s' }} />
+            <div
+              className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-accent-blue/20 to-transparent rounded-full blur-3xl opacity-40 animate-glow-pulse"
+              style={{ animationDelay: '1s' }}
+            />
           </div>
 
           <div className="relative z-10 w-full max-w-2xl">
@@ -77,8 +128,21 @@ export default function ConfirmationPage({
                 </p>
               </div>
 
+              {isLoading && (
+                <div className="flex justify-center py-6">
+                  <Loader className="h-10 w-10 animate-spin text-primary-light" />
+                </div>
+              )}
+
               {/* Main Card */}
               <div className="card space-y-8">
+                {errorMessage && (
+                  <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                    <AlertCircle className="mt-0.5 h-4 w-4" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
                 {/* Progress Bar */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
@@ -97,7 +161,7 @@ export default function ConfirmationPage({
 
                 {/* Checklist */}
                 <div className="space-y-3">
-                  {checklistItems.map((item) => (
+                  {checklistItems.map(item => (
                     <div
                       key={item.id}
                       className="flex items-start gap-3 p-4 rounded-lg border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface"
@@ -128,9 +192,15 @@ export default function ConfirmationPage({
                     <div className="space-y-2 text-sm">
                       <p className="font-semibold">Estimated Activation Timeline</p>
                       <ul className="space-y-1 text-light-text-secondary dark:text-dark-text-secondary">
-                        <li>• <span className="font-medium">Today</span>: Configuration validation</li>
-                        <li>• <span className="font-medium">24-48 hours</span>: QA review & testing</li>
-                        <li>• <span className="font-medium">After approval</span>: Live activation</li>
+                        <li>
+                          • <span className="font-medium">Today</span>: Configuration validation
+                        </li>
+                        <li>
+                          • <span className="font-medium">24-48 hours</span>: QA review & testing
+                        </li>
+                        <li>
+                          • <span className="font-medium">After approval</span>: Live activation
+                        </li>
                       </ul>
                     </div>
                   </div>
@@ -182,10 +252,7 @@ export default function ConfirmationPage({
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                  <a
-                    href="#"
-                    className="flex-1 btn-secondary flex items-center justify-center gap-2 group"
-                  >
+                  <a href="#" className="flex-1 btn-secondary flex items-center justify-center gap-2 group">
                     <Mail className="w-4 h-4" />
                     View Onboarding Summary
                   </a>
@@ -210,5 +277,5 @@ export default function ConfirmationPage({
 
       <Footer theme={theme} />
     </div>
-  )
+  );
 }

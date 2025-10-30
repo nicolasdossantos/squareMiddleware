@@ -89,6 +89,7 @@ public/              # Static assets
 ### Colors
 
 **Light Mode:**
+
 - Background: `#F8FAFB`
 - Surface: `#FFFFFF`
 - Primary Text: `#1B1D1F`
@@ -96,6 +97,7 @@ public/              # Static assets
 - Primary Accent: `#00C7C7`
 
 **Dark Mode:**
+
 - Background: `#0D1117`
 - Surface: `#161B22`
 - Primary Text: `#F3F6F8`

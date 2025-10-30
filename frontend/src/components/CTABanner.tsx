@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router-dom';
 
 export default function CTABanner() {
   return (
@@ -14,7 +14,10 @@ export default function CTABanner() {
 
           {/* Buttons */}
           <div className="flex flex-col sm:flex-row gap-3 flex-shrink-0">
-            <Link to="/signup" className="px-8 py-3 rounded-button font-semibold bg-white text-primary-light hover:bg-light-bg transition-all duration-200 hover:shadow-lg active:scale-95 whitespace-nowrap text-center">
+            <Link
+              to="/signup"
+              className="px-8 py-3 rounded-button font-semibold bg-white text-primary-light hover:bg-light-bg transition-all duration-200 hover:shadow-lg active:scale-95 whitespace-nowrap text-center"
+            >
               Start Free Trial
             </Link>
             <button className="px-8 py-3 rounded-button font-semibold border-2 border-white text-white hover:bg-white/10 transition-all duration-200 active:scale-95 whitespace-nowrap">
@@ -24,5 +27,5 @@ export default function CTABanner() {
         </div>
       </div>
     </section>
-  )
+  );
 }

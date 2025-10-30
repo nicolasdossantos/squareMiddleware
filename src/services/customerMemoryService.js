@@ -35,7 +35,7 @@ async function listProfiles(tenantId, { search, limit } = {}) {
 async function getProfileDetail(tenantId, profileId) {
   const [{ rows: profileRows }, { rows: contextRows }, { rows: issueRows }, { rows: changeRows }] =
     await Promise.all([
-      query(`SELECT * FROM customer_profiles WHERE tenant_id = $1 AND id = $2 LIMIT 1`, [
+      query('SELECT * FROM customer_profiles WHERE tenant_id = $1 AND id = $2 LIMIT 1', [
         tenantId,
         profileId
       ]),
@@ -87,7 +87,7 @@ async function upsertContextEntry({
   user
 }) {
   const { rows: existing } = await query(
-    `SELECT context_value FROM conversation_context WHERE customer_profile_id = $1 AND context_key = $2`,
+    'SELECT context_value FROM conversation_context WHERE customer_profile_id = $1 AND context_key = $2',
     [profileId, key]
   );
 

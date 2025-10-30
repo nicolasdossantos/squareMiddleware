@@ -2151,8 +2151,8 @@ CREATE INDEX idx_call_analytics_expires ON call_analytics_cache(expires_at);
   database.
 - Tooling confirmations: `npm run format`, `npm run lint`, and `npm test` all pass on the new codebase (see
   testing notes below).
-- Added targeted Jest coverage for auth/onboarding/tenant services and analytics, keeping the SaaS
-  foundations regression-safe.
+- Added targeted Jest coverage for auth/onboarding/tenant services and analytics, keeping the SaaS foundations
+  regression-safe.
 - Required env vars confirmed in App Service: `PG_CONNECTION_STRING`, `DB_ENCRYPTION_KEY`,
   `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (optional overrides: `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL`,
   `BCRYPT_SALT_ROUNDS`).
@@ -2298,8 +2298,8 @@ correctly.
 - [ ] Build sentiment trend insights + alerting (aggregate existing Retell sentiment data)
 - [ ] Develop AI performance health score (blend issue-diagnostics, failed calls, QA results)
 - [ ] Implement multi-person SMS notifications (Premium tier)
-- **Front-end**: memory management pages with edit dialogs/change log, sentiment dashboards/alert settings,
-  AI health score cards, premium notification recipient settings.
+- **Front-end**: memory management pages with edit dialogs/change log, sentiment dashboards/alert settings, AI
+  health score cards, premium notification recipient settings.
 
 **Week 10: Support Infrastructure**
 

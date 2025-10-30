@@ -3,6 +3,7 @@ const tenantService = require('../services/tenantService');
 const { logger } = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 /**
  * Generate a simple valid WAV file (silent audio)
@@ -210,7 +211,11 @@ function fetchVoicesFromFile(res) {
       } else if (trimmed && currentGender) {
         const [provider, ...voiceNameParts] = trimmed.split('-');
         const voiceName = voiceNameParts.join('-').replace(/\s*\(DEFAULT\)/, '');
-        const id = trimmed.toLowerCase().replace(/\s+/g, '-').replace(/\(default\)/i, '').trim();
+        const id = trimmed
+          .toLowerCase()
+          .replace(/\s+/g, '-')
+          .replace(/\(default\)/i, '')
+          .trim();
 
         voices.push({
           id,
@@ -266,7 +271,7 @@ async function getVoicePreview(req, res) {
     const retellResponse = await fetch(`https://api.retellai.com/get-voice/${voiceId}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${retellApiKey}`,
+        Authorization: `Bearer ${retellApiKey}`,
         'Content-Type': 'application/json'
       }
     });
@@ -451,8 +456,238 @@ async function submitPreferences(req, res) {
   }
 }
 
+const SQUARE_BASE_SCOPES = [
+  'APPOINTMENTS_READ',
+  'APPOINTMENTS_WRITE',
+  'APPOINTMENTS_ALL_READ',
+  'APPOINTMENTS_BUSINESS_SETTINGS_READ',
+  'CUSTOMERS_READ',
+  'CUSTOMERS_WRITE',
+  'EMPLOYEES_READ',
+  'ITEMS_READ',
+  'MERCHANT_PROFILE_READ'
+];
+
+function encodeState(stateData) {
+  const stateJson = JSON.stringify(stateData);
+  return Buffer.from(stateJson).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function authorizeSquare(req, res) {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({
+        success: false,
+        error: 'unauthorized',
+        message: 'Authentication required'
+      });
+    }
+
+    const tenant = await tenantService.getTenantById(tenantId);
+    if (!tenant) {
+      return res.status(404).json({
+        success: false,
+        error: 'tenant_not_found',
+        message: 'Tenant record not found'
+      });
+    }
+
+    const clientId = process.env.SQUARE_APPLICATION_ID;
+    if (!clientId) {
+      return res.status(500).json({
+        success: false,
+        error: 'square_not_configured',
+        message: 'SQUARE_APPLICATION_ID is not configured'
+      });
+    }
+
+    const tier = req.body?.tier === 'paid' ? 'paid' : 'free';
+    const requestedEnv = typeof req.body?.environment === 'string' ? req.body.environment : null;
+    const environment = requestedEnv || process.env.SQUARE_ENVIRONMENT || 'sandbox';
+    const baseUrl =
+      environment === 'production' ? 'https://connect.squareup.com' : 'https://connect.squareupsandbox.com';
+
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const host = req.headers['x-forwarded-host'] || req.get('host');
+    const redirectUri = `${protocol}://${host}/authcallback`;
+
+    const existingAgent = await tenantService.getLatestRetellAgent(tenantId);
+    const agentId =
+      typeof req.body?.agentId === 'string' && req.body.agentId.trim().length > 0
+        ? req.body.agentId.trim()
+        : existingAgent?.retell_agent_id || `agent-${tenant.slug}`;
+
+    const voiceProfile = await tenantService.getDefaultVoiceProfile(tenantId);
+
+    const stateData = {
+      tenantId,
+      agentId,
+      businessName: tenant.business_name,
+      environment,
+      clientId,
+      redirectUri,
+      tier,
+      submittedBy: req.user?.id || null,
+      nonce: crypto.randomBytes(12).toString('hex'),
+      timestamp: new Date().toISOString()
+    };
+
+    if (voiceProfile) {
+      stateData.voicePreferences = {
+        voiceKey: voiceProfile.voice_key,
+        language: voiceProfile.language,
+        temperature: voiceProfile.temperature,
+        speakingRate: voiceProfile.speaking_rate,
+        ambience: voiceProfile.ambience
+      };
+    }
+
+    const state = encodeState(stateData);
+
+    const scopes =
+      tier === 'paid' ? [...SQUARE_BASE_SCOPES, 'APPOINTMENTS_ALL_WRITE'] : [...SQUARE_BASE_SCOPES];
+
+    const authUrl = new URL(`${baseUrl}/oauth2/authorize`);
+    authUrl.searchParams.set('client_id', clientId);
+    authUrl.searchParams.set('scope', scopes.join(' '));
+    authUrl.searchParams.set('state', state);
+
+    logger.info('onboarding_square_authorize_generated', {
+      tenantId,
+      agentId,
+      environment,
+      tier
+    });
+
+    return res.json({
+      success: true,
+      authorizationUrl: authUrl.toString(),
+      agentId,
+      environment,
+      redirectUri,
+      state,
+      scopes,
+      expiresIn: 300
+    });
+  } catch (error) {
+    logger.error('onboarding_square_authorize_failed', {
+      message: error.message
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'square_authorize_failed',
+      message: 'Failed to initiate Square authorization'
+    });
+  }
+}
+
+async function getOnboardingStatus(req, res) {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({
+        success: false,
+        error: 'unauthorized',
+        message: 'Authentication required'
+      });
+    }
+
+    const status = await tenantService.getTenantOnboardingStatus(tenantId);
+    if (!status) {
+      return res.status(404).json({
+        success: false,
+        error: 'tenant_not_found',
+        message: 'Tenant record not found'
+      });
+    }
+
+    return res.json({
+      success: true,
+      status
+    });
+  } catch (error) {
+    logger.error('onboarding_status_failed', {
+      message: error.message
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'status_failed',
+      message: 'Failed to load onboarding status'
+    });
+  }
+}
+
+async function savePhonePreference(req, res) {
+  try {
+    const tenantId = req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(401).json({
+        success: false,
+        error: 'unauthorized',
+        message: 'Authentication required'
+      });
+    }
+
+    const { option, areaCode, forwardingNumber, notes } = req.body || {};
+    if (!option || (option !== 'new' && option !== 'existing')) {
+      return res.status(400).json({
+        success: false,
+        error: 'invalid_option',
+        message: 'option must be "new" or "existing"'
+      });
+    }
+
+    if (option === 'new' && (!areaCode || typeof areaCode !== 'string')) {
+      return res.status(400).json({
+        success: false,
+        error: 'missing_area_code',
+        message: 'Area code is required when requesting a new phone number'
+      });
+    }
+
+    const preference = {
+      type: option,
+      areaCode: option === 'new' ? areaCode : null,
+      forwardingNumber: option === 'existing' ? forwardingNumber || null : null,
+      notes: notes || null,
+      updatedAt: new Date().toISOString()
+    };
+
+    const qaRecord = await tenantService.upsertPendingQaConfiguration(tenantId, {
+      phonePreference: preference
+    });
+
+    logger.info('onboarding_phone_preference_saved', {
+      tenantId,
+      option
+    });
+
+    return res.json({
+      success: true,
+      preference,
+      pendingQaId: qaRecord?.id || null
+    });
+  } catch (error) {
+    logger.error('onboarding_phone_preference_failed', {
+      message: error.message
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'phone_preference_failed',
+      message: 'Failed to save phone number preference'
+    });
+  }
+}
+
 module.exports = {
   getAvailableVoices,
   getVoicePreview,
-  submitPreferences
+  submitPreferences,
+  authorizeSquare,
+  getOnboardingStatus,
+  savePhonePreference
 };

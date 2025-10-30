@@ -179,6 +179,203 @@ async function getAgentContextByRetellId(retellAgentId) {
   };
 }
 
+async function getDefaultVoiceProfile(tenantId) {
+  if (!tenantId) {
+    return null;
+  }
+
+  const { rows } = await query(
+    `
+      SELECT
+        id,
+        tenant_id,
+        name,
+        provider,
+        voice_key,
+        language,
+        temperature,
+        speaking_rate,
+        ambience,
+        is_default,
+        updated_at
+      FROM voice_profiles
+      WHERE tenant_id = $1
+      ORDER BY is_default DESC, updated_at DESC
+      LIMIT 1
+    `,
+    [tenantId]
+  );
+
+  return rows[0] || null;
+}
+
+async function getLatestRetellAgent(tenantId) {
+  if (!tenantId) {
+    return null;
+  }
+
+  const { rows } = await query(
+    `
+      SELECT
+        id,
+        tenant_id,
+        retell_agent_id,
+        status,
+        qa_status,
+        phone_number,
+        updated_at
+      FROM retell_agents
+      WHERE tenant_id = $1
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `,
+    [tenantId]
+  );
+
+  return rows[0] || null;
+}
+
+async function getPendingQaRecord(tenantId) {
+  if (!tenantId) {
+    return null;
+  }
+
+  const { rows } = await query(
+    `
+      SELECT
+        id,
+        tenant_id,
+        retell_agent_uuid,
+        qa_status,
+        configuration,
+        updated_at
+      FROM pending_qa_agents
+      WHERE tenant_id = $1
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `,
+    [tenantId]
+  );
+
+  return rows[0] || null;
+}
+
+async function upsertPendingQaConfiguration(tenantId, configPatch = {}) {
+  if (!tenantId) {
+    throw new Error('tenantId is required to update QA configuration');
+  }
+
+  return withTransaction(async client => {
+    const existing = await client.query(
+      `
+        SELECT id, configuration
+        FROM pending_qa_agents
+        WHERE tenant_id = $1
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `,
+      [tenantId]
+    );
+
+    const currentConfig = existing.rows[0]?.configuration || {};
+    const mergedConfig = {
+      ...currentConfig,
+      ...configPatch
+    };
+
+    if (existing.rows.length > 0) {
+      const { rows } = await client.query(
+        `
+          UPDATE pending_qa_agents
+          SET configuration = $2::jsonb,
+              updated_at = NOW()
+          WHERE id = $1
+          RETURNING *
+        `,
+        [existing.rows[0].id, mergedConfig]
+      );
+      return rows[0];
+    }
+
+    const { rows } = await client.query(
+      `
+        INSERT INTO pending_qa_agents (
+          tenant_id,
+          qa_status,
+          configuration
+        )
+        VALUES ($1, 'pending', $2::jsonb)
+        RETURNING *
+      `,
+      [tenantId, mergedConfig]
+    );
+
+    return rows[0];
+  });
+}
+
+async function getTenantOnboardingStatus(tenantId) {
+  const tenant = await getTenantById(tenantId);
+  if (!tenant) {
+    return null;
+  }
+
+  const [voiceProfile, credentials, agent, pendingQa] = await Promise.all([
+    getDefaultVoiceProfile(tenantId),
+    getLatestSquareCredentials(tenantId),
+    getLatestRetellAgent(tenantId),
+    getPendingQaRecord(tenantId)
+  ]);
+
+  const phonePreference = pendingQa?.configuration?.phonePreference || null;
+
+  return {
+    tenant: {
+      id: tenant.id,
+      slug: tenant.slug,
+      businessName: tenant.business_name,
+      status: tenant.status,
+      timezone: tenant.timezone,
+      qaStatus: tenant.qa_status,
+      trialEndsAt: tenant.trial_ends_at
+    },
+    voiceProfile: voiceProfile
+      ? {
+          id: voiceProfile.id,
+          name: voiceProfile.name,
+          provider: voiceProfile.provider,
+          voiceKey: voiceProfile.voice_key,
+          language: voiceProfile.language,
+          temperature: voiceProfile.temperature ? Number(voiceProfile.temperature) : null,
+          speakingRate: voiceProfile.speaking_rate ? Number(voiceProfile.speaking_rate) : null,
+          ambience: voiceProfile.ambience,
+          updatedAt: voiceProfile.updated_at
+        }
+      : null,
+    square: credentials
+      ? {
+          connected: true,
+          merchantId: credentials.square_merchant_id,
+          environment: credentials.square_environment,
+          defaultLocationId: credentials.default_location_id,
+          supportsSellerLevelWrites: credentials.supports_seller_level_writes,
+          updatedAt: credentials.updated_at
+        }
+      : { connected: false },
+    agent: agent
+      ? {
+          id: agent.id,
+          retellAgentId: agent.retell_agent_id,
+          status: agent.status,
+          qaStatus: agent.qa_status,
+          phoneNumber: agent.phone_number,
+          updatedAt: agent.updated_at
+        }
+      : null,
+    phonePreference
+  };
+}
+
 async function createTenantWithOwner({
   businessName,
   email,
@@ -326,6 +523,11 @@ module.exports = {
   getTenantById,
   getTenantContext,
   getAgentContextByRetellId,
+  getDefaultVoiceProfile,
+  getLatestRetellAgent,
+  getPendingQaRecord,
+  upsertPendingQaConfiguration,
+  getTenantOnboardingStatus,
   createTenantWithOwner,
   storeSquareCredentials,
   storeAgentBearerToken,

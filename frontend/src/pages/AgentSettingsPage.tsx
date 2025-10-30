@@ -1,20 +1,22 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Radio, Zap, Volume2, Music, ArrowLeft, ArrowRight } from 'lucide-react'
-import Header from '@/components/Header'
-import Footer from '@/components/Footer'
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Radio, Zap, Volume2, Music, ArrowLeft, ArrowRight, AlertCircle } from 'lucide-react';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
+import { fetchOnboardingStatus, OnboardingStatus, saveVoicePreferences } from '@/utils/apiClient';
+import { useAuth } from '@/context/AuthContext';
 
 interface AgentSettings {
-  language: string
-  personality: number // 0-4: Very Formal, Formal, Balanced, Casual, Very Casual
-  speakingSpeed: number // 0.5-2
-  backgroundAmbience: boolean
-  ambienceVolume: number // 0-1
+  language: string;
+  personality: number; // 0-4: Very Formal, Formal, Balanced, Casual, Very Casual
+  speakingSpeed: number; // 0.5-2
+  backgroundAmbience: boolean;
+  ambienceVolume: number; // 0-1
 }
 
 interface AgentSettingsPageProps {
-  theme: 'light' | 'dark'
-  onToggleTheme: () => void
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
 }
 
 const languages = [
@@ -26,53 +28,156 @@ const languages = [
   'Portuguese',
   'Mandarin Chinese',
   'Japanese',
-  'Korean',
-]
+  'Korean'
+];
 
 const personalityLevels = [
   { value: 0, label: 'Very Formal' },
   { value: 1, label: 'Formal' },
   { value: 2, label: 'Balanced' },
   { value: 3, label: 'Casual' },
-  { value: 4, label: 'Very Casual' },
-]
+  { value: 4, label: 'Very Casual' }
+];
 
 export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSettingsPageProps) {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const { authState } = useAuth();
+  const [voiceProfile, setVoiceProfile] = useState<OnboardingStatus['voiceProfile'] | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const personalityTemperatureMap = useMemo(() => [0.85, 0.95, 1.05, 1.15, 1.25], []);
+  const mapTemperatureToPersonality = useCallback(
+    (temperature?: number | null) => {
+      if (typeof temperature !== 'number' || Number.isNaN(temperature)) {
+        return 2;
+      }
+
+      let closestIndex = 2;
+      let smallestDiff = Number.POSITIVE_INFINITY;
+
+      personalityTemperatureMap.forEach((value, index) => {
+        const diff = Math.abs(value - temperature);
+        if (diff < smallestDiff) {
+          smallestDiff = diff;
+          closestIndex = index;
+        }
+      });
+
+      return closestIndex;
+    },
+    [personalityTemperatureMap]
+  );
+  const temperatureFromPersonality = useCallback(
+    (level: number) => {
+      const index = Math.min(Math.max(level, 0), personalityTemperatureMap.length - 1);
+      return personalityTemperatureMap[index];
+    },
+    [personalityTemperatureMap]
+  );
 
   const [settings, setSettings] = useState<AgentSettings>({
     language: 'English',
     personality: 2, // Balanced by default
     speakingSpeed: 1,
     backgroundAmbience: false,
-    ambienceVolume: 0.5,
-  })
+    ambienceVolume: 0.5
+  });
 
-  const [isLoadingForm, setIsLoadingForm] = useState(false)
+  const [isLoadingForm, setIsLoadingForm] = useState(false);
+  useEffect(() => {
+    if (!authState?.tokens?.accessToken) {
+      navigate('/signup', { replace: true });
+      return;
+    }
+
+    let mounted = true;
+
+    const loadStatus = async () => {
+      setIsLoadingProfile(true);
+      setErrorMessage(null);
+
+      try {
+        const response = await fetchOnboardingStatus();
+        if (!mounted) return;
+
+        const profile = response.status.voiceProfile;
+        setVoiceProfile(profile);
+
+        if (profile) {
+          setSettings(prev => ({
+            ...prev,
+            language: profile.language || prev.language,
+            personality: mapTemperatureToPersonality(profile.temperature),
+            speakingSpeed: profile.speakingRate ?? prev.speakingSpeed,
+            backgroundAmbience:
+              !!profile.ambience && profile.ambience !== 'no_background' && profile.ambience !== 'none'
+          }));
+        }
+      } catch (error) {
+        if (mounted) {
+          console.error('Failed to load onboarding status:', error);
+          setErrorMessage('Unable to load your agent settings. Please try again.');
+        }
+      } finally {
+        if (mounted) {
+          setIsLoadingProfile(false);
+        }
+      }
+    };
+
+    loadStatus();
+
+    return () => {
+      mounted = false;
+    };
+  }, [authState, mapTemperatureToPersonality, navigate]);
 
   const handleSliderChange = (key: keyof AgentSettings, value: number) => {
-    setSettings((prev) => ({
+    setSettings(prev => ({
       ...prev,
-      [key]: value,
-    }))
-  }
+      [key]: value
+    }));
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoadingForm(true)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    setTimeout(() => {
-      setIsLoadingForm(false)
-      // Navigate to next onboarding page (Square OAuth or Phone Number)
-      navigate('/square-oauth')
-    }, 1500)
-  }
+    if (!voiceProfile) {
+      setErrorMessage('Please choose a voice before configuring agent settings.');
+      return;
+    }
+
+    setIsLoadingForm(true);
+    setErrorMessage(null);
+
+    try {
+      await saveVoicePreferences({
+        voiceKey: voiceProfile.voiceKey,
+        voiceName: voiceProfile.name,
+        voiceProvider: voiceProfile.provider,
+        language: settings.language,
+        temperature: temperatureFromPersonality(settings.personality),
+        speakingRate: Number(settings.speakingSpeed.toFixed(2)),
+        ambience: settings.backgroundAmbience ? 'professional_office' : 'no_background'
+      });
+
+      navigate('/square-oauth');
+    } catch (error) {
+      const message =
+        (error as any)?.data?.message ||
+        (error as Error).message ||
+        'Failed to save agent settings. Please try again.';
+      setErrorMessage(message);
+    } finally {
+      setIsLoadingForm(false);
+    }
+  };
 
   const handleBack = () => {
-    navigate('/voice-preferences')
-  }
+    navigate('/voice-preferences');
+  };
 
-  const currentPersonality = personalityLevels[settings.personality]
+  const currentPersonality = personalityLevels[settings.personality];
 
   return (
     <div className="min-h-screen bg-light-bg dark:bg-dark-bg text-light-text-primary dark:text-dark-text-primary transition-colors duration-300">
@@ -86,7 +191,10 @@ export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSetting
           {/* Animated background elements */}
           <div className="absolute inset-0 overflow-hidden">
             <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-primary-light/20 to-transparent rounded-full blur-3xl opacity-50 animate-glow-pulse" />
-            <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-accent-blue/20 to-transparent rounded-full blur-3xl opacity-40 animate-glow-pulse" style={{ animationDelay: '1s' }} />
+            <div
+              className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-accent-blue/20 to-transparent rounded-full blur-3xl opacity-40 animate-glow-pulse"
+              style={{ animationDelay: '1s' }}
+            />
             <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-gradient-to-br from-primary-light/10 to-transparent rounded-full blur-3xl opacity-30" />
           </div>
 
@@ -108,6 +216,19 @@ export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSetting
               {/* Form Card */}
               <div className="card space-y-8">
                 <form onSubmit={handleSubmit} className="space-y-8">
+                  {errorMessage && (
+                    <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                      <AlertCircle className="mt-0.5 h-4 w-4" />
+                      <span>{errorMessage}</span>
+                    </div>
+                  )}
+
+                  {isLoadingProfile && (
+                    <div className="rounded-lg border border-light-border bg-light-bg px-4 py-3 text-sm text-light-text-secondary dark:border-dark-border dark:bg-dark-surface dark:text-dark-text-secondary">
+                      Loading your saved preferences...
+                    </div>
+                  )}
+
                   {/* Default Language */}
                   <div className="space-y-3">
                     <label className="block text-sm font-medium">Default Language *</label>
@@ -116,15 +237,16 @@ export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSetting
                     </p>
                     <select
                       value={settings.language}
-                      onChange={(e) =>
-                        setSettings((prev) => ({
+                      onChange={e =>
+                        setSettings(prev => ({
                           ...prev,
-                          language: e.target.value,
+                          language: e.target.value
                         }))
                       }
-                      className="w-full px-4 py-2 rounded-button border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:border-primary-light dark:focus:border-primary-dark transition-colors"
+                      disabled={isLoadingProfile || isLoadingForm}
+                      className="w-full px-4 py-2 rounded-button border border-light-border dark:border-dark-border bg-light-surface dark:bg-dark-surface text-light-text-primary dark:text-dark-text-primary focus:outline-none focus:border-primary-light dark:focus:border-primary-dark transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {languages.map((lang) => (
+                      {languages.map(lang => (
                         <option key={lang} value={lang}>
                           {lang}
                         </option>
@@ -150,8 +272,9 @@ export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSetting
                         max="4"
                         step="1"
                         value={settings.personality}
-                        onChange={(e) => handleSliderChange('personality', parseInt(e.target.value))}
-                        className="w-full h-2 bg-light-border dark:bg-dark-border rounded-full appearance-none cursor-pointer accent-primary-light"
+                        onChange={e => handleSliderChange('personality', parseInt(e.target.value))}
+                        disabled={isLoadingProfile || isLoadingForm}
+                        className="w-full h-2 bg-light-border dark:bg-dark-border rounded-full appearance-none cursor-pointer accent-primary-light disabled:cursor-not-allowed"
                       />
                       <div className="flex justify-between text-xs text-light-text-secondary dark:text-dark-text-secondary">
                         <span>Very Formal</span>
@@ -179,12 +302,15 @@ export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSetting
                         max="2"
                         step="0.1"
                         value={settings.speakingSpeed}
-                        onChange={(e) => handleSliderChange('speakingSpeed', parseFloat(e.target.value))}
-                        className="w-full h-2 bg-light-border dark:bg-dark-border rounded-full appearance-none cursor-pointer accent-primary-light"
+                        onChange={e => handleSliderChange('speakingSpeed', parseFloat(e.target.value))}
+                        disabled={isLoadingProfile || isLoadingForm}
+                        className="w-full h-2 bg-light-border dark:bg-dark-border rounded-full appearance-none cursor-pointer accent-primary-light disabled:cursor-not-allowed"
                       />
                       <div className="flex justify-between text-xs text-light-text-secondary dark:text-dark-text-secondary">
                         <span>Slower (0.5x)</span>
-                        <span className="font-semibold text-primary-light">{settings.speakingSpeed.toFixed(1)}x</span>
+                        <span className="font-semibold text-primary-light">
+                          {settings.speakingSpeed.toFixed(1)}x
+                        </span>
                         <span>Faster (2.0x)</span>
                       </div>
                     </div>
@@ -197,12 +323,13 @@ export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSetting
                       <label className="flex items-center gap-3 cursor-pointer flex-1">
                         <span className="text-sm font-medium">Background Ambience</span>
                         <div
-                          onClick={() =>
-                            setSettings((prev) => ({
+                          onClick={() => {
+                            if (isLoadingProfile || isLoadingForm) return;
+                            setSettings(prev => ({
                               ...prev,
-                              backgroundAmbience: !prev.backgroundAmbience,
-                            }))
-                          }
+                              backgroundAmbience: !prev.backgroundAmbience
+                            }));
+                          }}
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                             settings.backgroundAmbience
                               ? 'bg-primary-light dark:bg-primary-dark'
@@ -228,12 +355,15 @@ export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSetting
                             max="1"
                             step="0.05"
                             value={settings.ambienceVolume}
-                            onChange={(e) => handleSliderChange('ambienceVolume', parseFloat(e.target.value))}
-                            className="w-full h-2 bg-light-border dark:bg-dark-border rounded-full appearance-none cursor-pointer accent-primary-light"
+                            onChange={e => handleSliderChange('ambienceVolume', parseFloat(e.target.value))}
+                            disabled={isLoadingProfile || isLoadingForm}
+                            className="w-full h-2 bg-light-border dark:bg-dark-border rounded-full appearance-none cursor-pointer accent-primary-light disabled:cursor-not-allowed"
                           />
                           <div className="flex justify-between text-xs text-light-text-secondary dark:text-dark-text-secondary">
                             <span>Mute</span>
-                            <span className="font-semibold text-primary-light">{Math.round(settings.ambienceVolume * 100)}%</span>
+                            <span className="font-semibold text-primary-light">
+                              {Math.round(settings.ambienceVolume * 100)}%
+                            </span>
                             <span>Full</span>
                           </div>
                         </div>
@@ -253,7 +383,7 @@ export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSetting
                     </button>
                     <button
                       type="submit"
-                      disabled={isLoadingForm}
+                      disabled={isLoadingForm || isLoadingProfile}
                       className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed group"
                     >
                       {isLoadingForm ? (
@@ -278,5 +408,5 @@ export default function AgentSettingsPage({ theme, onToggleTheme }: AgentSetting
 
       <Footer theme={theme} />
     </div>
-  )
+  );
 }

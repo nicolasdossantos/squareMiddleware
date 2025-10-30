@@ -15,6 +15,8 @@ import {
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import AIBotIllustration from '@/components/AIBotIllustration';
+import { signup } from '@/utils/apiClient';
+import { mapSignupResponseToAuthState, useAuth } from '@/context/AuthContext';
 
 interface SignUpFormData {
   businessName: string;
@@ -31,8 +33,11 @@ interface SignUpPageProps {
   onToggleTheme: () => void;
 }
 
+const SIGNUP_CONTEXT_KEY = 'fluentfront.onboarding.signup';
+
 export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
   const navigate = useNavigate();
+  const { setAuthState } = useAuth();
   const [formData, setFormData] = useState<SignUpFormData>({
     businessName: '',
     industry: '',
@@ -46,6 +51,7 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [emailValid, setEmailValid] = useState<boolean | null>(null);
@@ -71,6 +77,18 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
     'IST (UTC+5:30)',
     'JST (UTC+9)'
   ];
+
+  const persistSignupContext = (context: Partial<SignUpFormData>) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      window.sessionStorage.setItem(SIGNUP_CONTEXT_KEY, JSON.stringify(context));
+    } catch {
+      // Ignore storage errors (private mode, etc.)
+    }
+  };
 
   const getPasswordStrength = (password: string): { strength: string; score: number; color: string } => {
     let score = 0;
@@ -145,6 +163,10 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
         return newErrors;
       });
     }
+
+    if (apiError) {
+      setApiError(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -156,11 +178,41 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
     }
 
     setIsLoading(true);
+    setApiError(null);
 
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      const response = await signup({
+        businessName: formData.businessName.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        timezone: formData.timezone || undefined,
+        industry: formData.industry || undefined,
+        name: formData.businessName.trim()
+      });
+
+      if (!response?.success) {
+        throw new Error('Signup failed');
+      }
+
+      setAuthState(mapSignupResponseToAuthState(response));
+      persistSignupContext({
+        businessName: formData.businessName.trim(),
+        industry: formData.industry,
+        timezone: formData.timezone
+      });
+
+      showToast('success', 'Account created successfully');
       navigate('/voice-preferences');
-    }, 1500);
+    } catch (error) {
+      const message =
+        (error as any)?.data?.message ||
+        (error as Error).message ||
+        'Failed to create account. Please try again.';
+      setApiError(message);
+      showToast('error', message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const showToast = (type: 'success' | 'error', message: string) => {
@@ -213,6 +265,12 @@ export default function SignUpPage({ theme, onToggleTheme }: SignUpPageProps) {
 
                   {/* Form */}
                   <form onSubmit={handleSubmit} className="space-y-6">
+                    {apiError && (
+                      <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                        <AlertCircle className="mt-0.5 h-4 w-4" />
+                        <span>{apiError}</span>
+                      </div>
+                    )}
                     {/* Business Name */}
                     <div className="space-y-2">
                       <label htmlFor="businessName" className="block text-sm font-medium">

@@ -1,11 +1,11 @@
-import { Linkedin, Twitter, Youtube } from 'lucide-react'
+import { Linkedin, Twitter, Youtube } from 'lucide-react';
 
 interface FooterProps {
-  theme: 'light' | 'dark'
+  theme: 'light' | 'dark';
 }
 
 export default function Footer({ theme }: FooterProps) {
-  const currentYear = new Date().getFullYear()
+  const currentYear = new Date().getFullYear();
 
   return (
     <footer className="border-t border-light-border dark:border-dark-border bg-light-bg dark:bg-dark-bg">
@@ -78,5 +78,5 @@ export default function Footer({ theme }: FooterProps) {
         </div>
       </div>
     </footer>
-  )
+  );
 }

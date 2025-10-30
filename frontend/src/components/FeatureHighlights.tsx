@@ -1,25 +1,25 @@
-import { MessageCircle, Calendar, Globe } from 'lucide-react'
+import { MessageCircle, Calendar, Globe } from 'lucide-react';
 
 const features = [
   {
     id: 1,
     icon: MessageCircle,
     title: 'Conversational AI',
-    description: 'Not a phone menu. Not a voicemail. A real conversation.',
+    description: 'Not a phone menu. Not a voicemail. A real conversation.'
   },
   {
     id: 2,
     icon: Calendar,
     title: 'Smart Scheduling',
-    description: 'Sounds like your best employee, never stressed, never rushed.',
+    description: 'Sounds like your best employee, never stressed, never rushed.'
   },
   {
     id: 3,
     icon: Globe,
     title: 'Multilingual Support',
-    description: 'Fluent in English, Spanish, Portuguese, and more.',
-  },
-]
+    description: 'Fluent in English, Spanish, Portuguese, and more.'
+  }
+];
 
 export default function FeatureHighlights() {
   return (
@@ -27,7 +27,7 @@ export default function FeatureHighlights() {
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {features.map((feature, index) => {
-            const Icon = feature.icon
+            const Icon = feature.icon;
             return (
               <div
                 key={feature.id}
@@ -50,10 +50,10 @@ export default function FeatureHighlights() {
                 {/* Subtle accent line on hover */}
                 <div className="absolute bottom-0 left-0 h-1 bg-gradient-primary rounded-full opacity-0 group-hover:opacity-100 transition-all duration-300 w-0 group-hover:w-12" />
               </div>
-            )
+            );
           })}
         </div>
       </div>
     </section>
-  )
+  );
 }

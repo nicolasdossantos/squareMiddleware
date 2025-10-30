@@ -33,6 +33,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Build frontend
+        run: npm run build --prefix frontend
+
       - name: Run tests
         run: npm test
 
@@ -50,6 +56,9 @@ jobs:
       - name: Install production dependencies
         run: npm ci --omit=dev
 
+      - name: Clean frontend dev dependencies
+        run: npm ci --prefix frontend --omit=dev
+
       - name: Create deployment package
         run: |
           rm -rf deploy
@@ -59,6 +68,8 @@ jobs:
           cp -R db deploy/
           cp package.json package-lock.json deploy/
           cp -R node_modules deploy/
+          mkdir -p deploy/frontend
+          cp -R frontend/dist deploy/frontend/
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
