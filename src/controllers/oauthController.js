@@ -5,6 +5,7 @@
 
 const crypto = require('crypto');
 const { decodeState, exchangeCodeForTokens, fetchSellerMetadata } = require('../services/oauthService');
+const onboardingService = require('../services/onboardingService');
 const { logger } = require('../utils/logger');
 
 /**
@@ -107,12 +108,47 @@ function renderSuccessPage({ agentId, environment, tokens, stateDebug, metadata 
        </div>`
     : '';
 
+  const postMessagePayload = JSON.stringify(
+    {
+      type: 'square_oauth_complete',
+      success: true,
+      agentId: agentId || null,
+      tenantId: metadata?.tenantId || null,
+      merchantId: metadata?.merchantId || null,
+      defaultLocationId: metadata?.defaultLocationId || null,
+      environment,
+      supportsSellerLevelWrites,
+      timestamp: new Date().toISOString()
+    },
+    null,
+    0
+  ).replace(/</g, '\\u003c');
+
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Square OAuth Authorization Complete</title>
+    <script>
+      window.addEventListener('load', function () {
+        try {
+          var payload = ${postMessagePayload};
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(payload, '*');
+          }
+        } catch (err) {
+          console.error('Square OAuth postMessage failed', err);
+        }
+        setTimeout(function () {
+          try {
+            window.close();
+          } catch (_) {
+            // ignore
+          }
+        }, 1500);
+      });
+    </script>
     <style>
       :root {
         color-scheme: light dark;
@@ -249,6 +285,15 @@ function renderSuccessPage({ agentId, environment, tokens, stateDebug, metadata 
           : ''
       }
       ${tokenRows}
+      ${
+        metadata?.bearerToken
+          ? `<div class="token-row" style="background:#f1f5f9;border-color:#cbd5f5;">
+              <div class="label">API Bearer Token (Retell ↔️ Middleware)</div>
+              <div class="value">${escapeHtml(metadata.bearerToken)}</div>
+              <div class="hint">Configure this token in the Retell agent for authenticated tool calls.</div>
+            </div>`
+          : ''
+      }
       <div class="note">
         <strong>Security reminder:</strong> Copy these credentials into your vault or encrypted configuration
         immediately. Treat them as secrets – refresh tokens never expire unless revoked. Rotate the access
@@ -265,13 +310,31 @@ function renderSuccessPage({ agentId, environment, tokens, stateDebug, metadata 
  * @param {object} params
  * @returns {string}
  */
-function renderErrorPage({ title, message, nextSteps, stateRaw }) {
+function renderErrorPage({ title, message, nextSteps, stateRaw, postMessage }) {
   const steps = (nextSteps || []).map(step => `<li>${escapeHtml(step)}</li>`).join('');
   const stateSection = stateRaw
     ? `<div class="state-debug">
           <div class="state-title">Original state parameter</div>
           <code>${escapeHtml(stateRaw)}</code>
        </div>`
+    : '';
+  const postMessageScript = postMessage
+    ? `
+    <script>
+      window.addEventListener('load', function () {
+        try {
+          var payload = ${JSON.stringify(postMessage).replace(/</g, '\\u003c')};
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(payload, '*');
+          }
+        } catch (err) {
+          console.error('Square OAuth error postMessage failed', err);
+        }
+        setTimeout(function () {
+          try { window.close(); } catch (_) {}
+        }, 2500);
+      });
+    </script>`
     : '';
 
   return `<!doctype html>
@@ -280,6 +343,7 @@ function renderErrorPage({ title, message, nextSteps, stateRaw }) {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Square OAuth Authorization Failed</title>
+    ${postMessageScript}
     <style>
       body {
         margin: 0;
@@ -354,31 +418,50 @@ function renderErrorPage({ title, message, nextSteps, stateRaw }) {
  * @param {import('express').Response} res
  */
 async function handleAuthCallback(req, res) {
-  const { code, state, error, error_description: errorDescription } = req.query;
+  const { code, state } = req.query;
+  const rawError = req.query.error;
+  const rawErrorDescription = req.query.error_description;
+  const errorValue = Array.isArray(rawError) ? rawError[0] : rawError;
+  const errorDescriptionValue = Array.isArray(rawErrorDescription)
+    ? rawErrorDescription[0]
+    : rawErrorDescription;
+  const hasError = typeof errorValue === 'string' && errorValue.trim().length > 0;
+  const normalizedError = hasError ? errorValue.trim() : null;
+  const normalizedErrorDescription =
+    typeof errorDescriptionValue === 'string' && errorDescriptionValue.trim().length > 0
+      ? errorDescriptionValue.trim()
+      : null;
 
   logger.info('Square OAuth callback invoked', {
     hasCode: Boolean(code),
     hasState: Boolean(state),
-    error: error || null
+    error: normalizedError
   });
 
-  if (error) {
+  if (hasError) {
     const payload = {
       title: 'Square Authorization Declined',
-      message: errorDescription || error,
+      message: normalizedErrorDescription || normalizedError,
       nextSteps: [
         'Verify the seller granted the requested permissions.',
         'Ensure the Square application scopes match your business needs.',
         'Retry the authorization flow from your onboarding portal.'
       ],
-      stateRaw: state || null
+      stateRaw: state || null,
+      postMessage: {
+        type: 'square_oauth_complete',
+        success: false,
+        error: normalizedError || 'authorization_declined',
+        message: normalizedErrorDescription || normalizedError || null,
+        state: state || null
+      }
     };
 
     if (wantsJson(req)) {
       return res.status(400).json({
         success: false,
-        error,
-        message: errorDescription || 'Square rejected the authorization request.',
+        error: normalizedError,
+        message: normalizedErrorDescription || 'Square rejected the authorization request.',
         state
       });
     }
@@ -404,7 +487,14 @@ async function handleAuthCallback(req, res) {
           'Confirm the redirect URL matches the one configured in Square Developer Portal.',
           'Restart the OAuth flow to generate a new authorization code (codes expire after 5 minutes).'
         ],
-        stateRaw: state || null
+        stateRaw: state || null,
+        postMessage: {
+          type: 'square_oauth_complete',
+          success: false,
+          error: 'missing_code',
+          message: missingCodeMessage,
+          state: state || null
+        }
       })
     );
   }
@@ -456,6 +546,42 @@ async function handleAuthCallback(req, res) {
       timezone: metadata?.timezone || null
     };
 
+    let onboardingResult = null;
+
+    if (stateData.tenantId && stateData.agentId) {
+      try {
+        onboardingResult = await onboardingService.confirmSquareAuthorization({
+          tenantId: stateData.tenantId,
+          retellAgentId: stateData.agentId,
+          tokens: {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            scope: tokens.scope,
+            expiresAt: tokens.expiresAt,
+            merchantId,
+            environment
+          },
+          metadata: {
+            merchantId,
+            defaultLocationId,
+            displayName: businessName,
+            supportsSellerLevelWrites,
+            environment,
+            timezone: metadata?.timezone
+          },
+          voicePreferences: stateData.voicePreferences || null,
+          submittedBy: stateData.submittedBy || null,
+          configuration: stateData.configuration || null
+        });
+      } catch (storageError) {
+        logger.error('Square OAuth onboarding persistence failed', {
+          message: storageError.message,
+          tenantId: stateData.tenantId,
+          agentId: stateData.agentId
+        });
+      }
+    }
+
     if (wantsJson(req)) {
       return res.json({
         success: true,
@@ -472,7 +598,15 @@ async function handleAuthCallback(req, res) {
         bookingProfile: metadata?.bookingProfile,
         locations: metadata?.locations,
         timezone: metadata?.timezone,
-        state: state
+        state: state,
+        onboarding: onboardingResult
+          ? {
+              tenantId: stateData.tenantId,
+              retellAgentUuid: onboardingResult.agent?.id,
+              pendingQaId: onboardingResult.pendingQa?.id,
+              bearerToken: onboardingResult.bearerToken
+            }
+          : null
       });
     }
 
@@ -481,7 +615,11 @@ async function handleAuthCallback(req, res) {
         agentId: stateData.agentId,
         environment,
         tokens,
-        metadata: metadataForView,
+        metadata: {
+          ...metadataForView,
+          bearerToken: onboardingResult?.bearerToken || null,
+          tenantId: stateData.tenantId || null
+        },
         stateDebug: stateInfo.isDecoded ? stateData : null
       })
     );
@@ -515,7 +653,15 @@ async function handleAuthCallback(req, res) {
           'Verify the Square Application ID and Secret are configured correctly.',
           'Check the server logs for more detailed error context.'
         ],
-        stateRaw: stateInfo.raw
+        stateRaw: stateInfo.raw,
+        postMessage: {
+          type: 'square_oauth_complete',
+          success: false,
+          error: 'token_exchange_failed',
+          message: friendlyMessage,
+          state: stateInfo.raw,
+          statusCode: err.statusCode || 500
+        }
       })
     );
   }

@@ -165,6 +165,26 @@ function invokeSmsFunction(payload, correlationId, options = {}) {
   return callFunction('sms-sender', config.azureFunctions?.sms, payload, correlationId, options);
 }
 
+function invokePhoneNumberFunction(payload, correlationId, options = {}) {
+  return callFunction(
+    'phone-number-manager',
+    config.azureFunctions?.phoneNumbers,
+    payload,
+    correlationId,
+    options
+  );
+}
+
+function invokeIssueDiagnosticsFunction(payload, correlationId, options = {}) {
+  return callFunction(
+    'issue-diagnostics',
+    config.azureFunctions?.issueDetection,
+    payload,
+    correlationId,
+    options
+  );
+}
+
 function isEmailFunctionConfigured() {
   const cfg = config.azureFunctions?.email;
   return Boolean(cfg && cfg.url && cfg.key);
@@ -175,10 +195,24 @@ function isSmsFunctionConfigured() {
   return Boolean(cfg && cfg.url && cfg.key);
 }
 
+function isIssueDiagnosticsConfigured() {
+  const cfg = config.azureFunctions?.issueDetection;
+  return Boolean(cfg && cfg.url && cfg.key);
+}
+
+function isPhoneNumberFunctionConfigured() {
+  const cfg = config.azureFunctions?.phoneNumbers;
+  return Boolean(cfg && cfg.url && cfg.key);
+}
+
 module.exports = {
   invokeEmailFunction,
   invokeSmsFunction,
+  invokePhoneNumberFunction,
   isEmailFunctionConfigured,
   isSmsFunctionConfigured,
+  isPhoneNumberFunctionConfigured,
+  invokeIssueDiagnosticsFunction,
+  isIssueDiagnosticsConfigured,
   FunctionError
 };

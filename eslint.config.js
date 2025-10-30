@@ -1,5 +1,8 @@
 module.exports = [
   {
+    linterOptions: {
+      reportUnusedDisableDirectives: false
+    },
     languageOptions: {
       ecmaVersion: 2020,
       sourceType: 'commonjs',
@@ -59,8 +62,17 @@ module.exports = [
         }
       ],
       'no-trailing-spaces': 'error',
-      'eol-last': 'error'
+      'eol-last': 'error',
+      'no-unused-disable': 'off'
     },
-    ignores: ['node_modules/', 'coverage/', 'dist/']
+    ignores: [
+      'node_modules/**',
+      'coverage/**',
+      '**/coverage/**',
+      'dist/**',
+      '**/dist/**',
+      'frontend/dist/**',
+      'frontend/node_modules/**'
+    ]
   }
 ];

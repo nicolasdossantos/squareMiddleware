@@ -57,6 +57,23 @@ function normalizeTenantShape(tenant) {
   return tenant;
 }
 
+function normalizeCallAnalysis(analysis) {
+  if (!analysis) {
+    return {};
+  }
+
+  if (Array.isArray(analysis)) {
+    return analysis.reduce((acc, item) => {
+      if (item?.name) {
+        acc[item.name] = item.value;
+      }
+      return acc;
+    }, {});
+  }
+
+  return analysis;
+}
+
 async function handleCallStarted(payload, context) {
   const { correlationId, tenant: requestTenant } = context;
   const call = payload.call;
@@ -200,6 +217,8 @@ async function handleCallAnalyzed(payload, context) {
   const { correlationId, tenant: requestTenant } = context;
   const call = payload.call;
   const { call_id, from_number, transcript, call_analysis } = call;
+  const normalizedAnalysis = normalizeCallAnalysis(call_analysis);
+  call.call_analysis = normalizedAnalysis;
 
   logger.info('retell_call_analyzed_start', {
     correlationId,
@@ -286,7 +305,7 @@ async function handleCallAnalyzed(payload, context) {
       callId: call_id,
       fromNumber: from_number,
       transcript,
-      analysis: call_analysis,
+      analysis: normalizedAnalysis,
       correlationId
     });
 

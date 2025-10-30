@@ -49,6 +49,17 @@ const config = {
       url: process.env.AZURE_SMS_FUNCTION_URL || process.env.AZURE_FUNCTION_SMS_URL,
       key: process.env.AZURE_SMS_FUNCTION_KEY || process.env.AZURE_FUNCTION_SMS_KEY,
       timeout: parseInt(process.env.AZURE_SMS_FUNCTION_TIMEOUT_MS, 10) || 5000
+    },
+    phoneNumbers: {
+      url: process.env.AZURE_PHONE_FUNCTION_URL || process.env.PHONE_NUMBER_FUNCTION_URL,
+      key: process.env.AZURE_PHONE_FUNCTION_KEY || process.env.PHONE_NUMBER_FUNCTION_KEY,
+      timeout: parseInt(process.env.AZURE_PHONE_FUNCTION_TIMEOUT_MS, 10) || 10000
+    },
+    issueDetection: {
+      url: process.env.AZURE_ISSUE_FUNCTION_URL || process.env.ISSUE_DIAGNOSTICS_FUNCTION_URL,
+      key: process.env.AZURE_ISSUE_FUNCTION_KEY || process.env.ISSUE_DIAGNOSTICS_FUNCTION_KEY,
+      timeout: parseInt(process.env.AZURE_ISSUE_FUNCTION_TIMEOUT_MS, 10) || 8000,
+      retries: parseInt(process.env.AZURE_ISSUE_FUNCTION_RETRIES, 10) || 1
     }
   },
 
@@ -117,6 +128,15 @@ const config = {
   logging: {
     level: process.env.LOG_LEVEL || 'info',
     format: process.env.LOG_FORMAT || 'json'
+  },
+
+  // Authentication configuration
+  auth: {
+    accessTokenSecret: process.env.JWT_ACCESS_SECRET,
+    refreshTokenSecret: process.env.JWT_REFRESH_SECRET,
+    accessTokenTtl: process.env.JWT_ACCESS_TTL || '15m',
+    refreshTokenTtl: process.env.JWT_REFRESH_TTL || '30d',
+    passwordSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12
   }
 };
 
@@ -127,17 +147,23 @@ const config = {
  * Only validate in development/local environments.
  */
 function validateConfig() {
-  // Skip validation in production - credentials come from Key Vault per agent
+  const authRequired = ['JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'DB_ENCRYPTION_KEY'];
+  const authMissing = authRequired.filter(key => !process.env[key]);
+
+  if (authMissing.length > 0) {
+    throw new Error(`Missing required authentication environment variables: ${authMissing.join(', ')}`);
+  }
+
+  // Validate Square credential env vars only outside production; prod pulls them from Key Vault per agent
   if (process.env.NODE_ENV === 'production') {
     return true;
   }
 
-  const required = ['SQUARE_ACCESS_TOKEN', 'SQUARE_LOCATION_ID'];
+  const squareRequired = ['SQUARE_ACCESS_TOKEN', 'SQUARE_LOCATION_ID'];
+  const squareMissing = squareRequired.filter(key => !process.env[key]);
 
-  const missing = required.filter(key => !process.env[key]);
-
-  if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+  if (squareMissing.length > 0) {
+    throw new Error(`Missing required Square environment variables: ${squareMissing.join(', ')}`);
   }
 
   return true;

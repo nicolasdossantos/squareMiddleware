@@ -3,8 +3,10 @@
  * Protected endpoints for administrative operations
  */
 
-const azureConfigService = require('../services/azureConfigService');
 const { logger } = require('../utils/logger');
+const { query } = require('../services/database');
+const onboardingService = require('../services/onboardingService');
+const adminPhoneNumberController = require('./adminPhoneNumberController');
 
 /**
  * Complete agent onboarding
@@ -24,6 +26,7 @@ async function completeOnboarding(req, res) {
 
   try {
     const {
+      tenantId,
       agentId,
       businessName,
       accessToken,
@@ -35,98 +38,60 @@ async function completeOnboarding(req, res) {
       supportsSellerLevelWrites,
       timezone,
       squareEnvironment,
-      staffEmail
-    } = req.body;
+      voicePreferences,
+      submittedBy,
+      configuration
+    } = req.body || {};
 
-    // Validate required fields
-    const requiredFields = {
-      agentId,
-      businessName,
-      accessToken,
-      merchantId,
-      defaultLocationId,
-      squareEnvironment
-    };
-
-    const missing = Object.entries(requiredFields)
-      .filter(([_, value]) => !value)
-      .map(([key]) => key);
-
-    if (missing.length > 0) {
+    if (!tenantId || !agentId || !accessToken || !merchantId || !defaultLocationId) {
       return res.status(400).json({
         success: false,
         error: 'missing_required_fields',
-        message: `Missing required fields: ${missing.join(', ')}`,
+        message: 'tenantId, agentId, accessToken, merchantId, and defaultLocationId are required',
         correlationId
       });
     }
 
-    logger.info('Starting automated onboarding', {
-      agentId,
-      businessName,
-      environment: squareEnvironment,
-      correlationId
-    });
-
-    // Add agent configuration
-    const result = await azureConfigService.addAgentConfig({
-      agentId,
-      businessName,
-      squareAccessToken: accessToken,
-      squareRefreshToken: refreshToken || null,
-      squareTokenExpiresAt: expiresAt || null,
-      squareScopes: Array.isArray(scope) ? scope : scope?.split(' ') || [],
-      squareMerchantId: merchantId,
-      supportsSellerLevelWrites: supportsSellerLevelWrites === true,
-      squareLocationId: defaultLocationId,
-      defaultLocationId,
-      squareApplicationId: process.env.SQUARE_APPLICATION_ID,
-      staffEmail: staffEmail || null,
-      timezone: timezone || 'America/New_York',
-      squareEnvironment
-    });
-
-    logger.info('Onboarding completed successfully', {
-      agentId,
-      correlationId
-    });
-
-    // Return credentials for Retell configuration
-    return res.json({
-      success: true,
-      message: 'Agent onboarded successfully. App service is restarting.',
-      agent: {
-        agentId: result.agentId,
-        bearerToken: result.bearerToken,
-        businessName,
-        environment: squareEnvironment,
-        supportsSellerLevelWrites,
+    const onboardingResult = await onboardingService.confirmSquareAuthorization({
+      tenantId,
+      retellAgentId: agentId,
+      tokens: {
+        accessToken,
+        refreshToken,
+        scope,
+        expiresAt,
+        merchantId,
+        environment: squareEnvironment || 'production'
+      },
+      metadata: {
         merchantId,
         defaultLocationId,
+        displayName: businessName,
+        supportsSellerLevelWrites,
+        environment: squareEnvironment || 'production',
         timezone
       },
-      retellConfiguration: {
-        instructions: [
-          'Use this bearerToken for Retell Custom LLM authentication',
-          'Configure webhook URL with X-Agent-ID header',
-          'Test with a sample call to verify integration'
-        ],
-        webhookUrl: `${process.env.PUBLIC_URL || 'https://your-api.azurewebsites.net'}/api/webhooks/retell`,
-        headers: {
-          'X-Agent-ID': result.agentId,
-          'Content-Type': 'application/json'
-        },
-        authentication: {
-          type: 'Bearer Token',
-          token: result.bearerToken
-        }
+      voicePreferences,
+      submittedBy,
+      configuration
+    });
+
+    logger.info('Onboarding persisted via admin endpoint', {
+      agentId,
+      tenantId,
+      correlationId
+    });
+
+    return res.json({
+      success: true,
+      agent: {
+        agentId,
+        bearerToken: onboardingResult.bearerToken,
+        tenantId,
+        defaultLocationId,
+        supportsSellerLevelWrites
       },
-      nextSteps: [
-        'App service is restarting (may take 30-60 seconds)',
-        'Configure Retell agent with the bearerToken above',
-        'Set webhook URL in Retell dashboard',
-        'Test the integration with a sample call'
-      ]
+      pendingQa: onboardingResult.pendingQa
     });
   } catch (error) {
     logger.error('Onboarding failed', {
@@ -152,37 +117,32 @@ async function completeOnboarding(req, res) {
  */
 async function listAgents(req, res) {
   try {
-    const resourceGroupName = process.env.AZURE_RESOURCE_GROUP;
-    const appServiceName = process.env.AZURE_APP_SERVICE_NAME;
-
-    if (!resourceGroupName || !appServiceName) {
-      return res.status(500).json({
-        success: false,
-        error: 'config_error',
-        message: 'Azure configuration not set'
-      });
-    }
-
-    const agents = await azureConfigService.getCurrentAgentConfigs(resourceGroupName, appServiceName);
-
-    // Return safe subset (no tokens)
-    const safeAgents = agents.map(agent => ({
-      agentId: agent.agentId,
-      businessName: agent.businessName,
-      squareEnvironment: agent.squareEnvironment,
-      timezone: agent.timezone,
-      squareMerchantId: agent.squareMerchantId,
-      supportsSellerLevelWrites: agent.supportsSellerLevelWrites,
-      defaultLocationId: agent.defaultLocationId,
-      staffEmail: agent.staffEmail,
-      hasRefreshToken: Boolean(agent.squareRefreshToken),
-      tokenExpiresAt: agent.squareTokenExpiresAt
-    }));
+    const { rows } = await query(
+      `
+        SELECT
+          ra.retell_agent_id,
+          ra.display_name,
+          ra.status,
+          ra.qa_status,
+          t.id AS tenant_id,
+          t.business_name,
+          t.slug,
+          sc.square_environment,
+          sc.square_merchant_id,
+          sc.supports_seller_level_writes,
+          sc.default_location_id,
+          sc.square_token_expires_at
+        FROM retell_agents ra
+        INNER JOIN tenants t ON t.id = ra.tenant_id
+        LEFT JOIN square_credentials sc ON sc.retell_agent_uuid = ra.id
+        ORDER BY t.business_name ASC
+      `
+    );
 
     return res.json({
       success: true,
-      agents: safeAgents,
-      count: safeAgents.length
+      agents: rows,
+      count: rows.length
     });
   } catch (error) {
     logger.error('Failed to list agents', {
@@ -197,7 +157,109 @@ async function listAgents(req, res) {
   }
 }
 
+async function listPendingQaAgents(req, res) {
+  try {
+    const { rows } = await query(
+      `
+        SELECT
+          p.id,
+          p.qa_status,
+          p.configuration,
+          p.created_at,
+          p.updated_at,
+          t.business_name,
+          t.slug,
+          ra.retell_agent_id,
+          ra.display_name,
+          ra.status
+        FROM pending_qa_agents p
+        INNER JOIN tenants t ON t.id = p.tenant_id
+        LEFT JOIN retell_agents ra ON ra.id = p.retell_agent_uuid
+        ORDER BY p.created_at ASC
+      `
+    );
+
+    return res.json({
+      success: true,
+      pending: rows,
+      count: rows.length
+    });
+  } catch (error) {
+    logger.error('Failed to list pending QA agents', {
+      message: error.message
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'list_failed',
+      message: error.message
+    });
+  }
+}
+
+async function listSupportTickets(req, res) {
+  try {
+    const { status, severity, tenantId, limit } = req.query || {};
+    const conditions = [];
+    const values = [];
+
+    if (tenantId) {
+      conditions.push(`st.tenant_id = $${values.length + 1}`);
+      values.push(tenantId);
+    }
+
+    if (status) {
+      conditions.push(`st.status = $${values.length + 1}`);
+      values.push(String(status).toLowerCase());
+    }
+
+    if (severity) {
+      conditions.push(`st.severity = $${values.length + 1}`);
+      values.push(String(severity).toLowerCase());
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limitValue = Math.min(parseInt(limit, 10) || 50, 200);
+    values.push(limitValue);
+
+    const { rows } = await query(
+      `
+        SELECT
+          st.*,
+          t.business_name,
+          t.slug AS tenant_slug
+        FROM support_tickets st
+        INNER JOIN tenants t ON t.id = st.tenant_id
+        ${whereClause}
+        ORDER BY st.created_at DESC
+        LIMIT $${values.length}
+      `,
+      values
+    );
+
+    return res.json({
+      success: true,
+      tickets: rows,
+      count: rows.length
+    });
+  } catch (error) {
+    logger.error('Failed to list support tickets', {
+      message: error.message
+    });
+
+    return res.status(500).json({
+      success: false,
+      error: 'list_failed',
+      message: error.message
+    });
+  }
+}
+
 module.exports = {
   completeOnboarding,
-  listAgents
+  listAgents,
+  listPendingQaAgents,
+  listSupportTickets,
+  listPhoneNumberAssignments: adminPhoneNumberController.listAll,
+  updatePhoneNumberAssignment: adminPhoneNumberController.updateAssignment
 };

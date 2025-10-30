@@ -94,13 +94,38 @@ function extractDaysAhead(req) {
     req.body?.daysAhead ??
     req.body?.days_ahead ??
     req.retellPayload?.daysAhead ??
-    req.retellPayload?.days_ahead;
+    req.retellPayload?.days_ahead ??
+    14;
 
   const parsedDaysAhead =
     rawDaysAhead !== undefined && rawDaysAhead !== null ? parseInt(rawDaysAhead, 10) : null;
 
-  // Default to 14 days
   return parsedDaysAhead !== null && !Number.isNaN(parsedDaysAhead) ? parsedDaysAhead : 14;
+}
+
+/**
+ * Extract optional target date from request (earliest date to show availability)
+ * Used when customer asks for "next week" or specific future date
+ * @param {Object} req - Express request object
+ * @returns {Date|null} Target date or null if not provided
+ */
+function extractTargetDate(req) {
+  const targetDateString =
+    req.query.targetDate ?? req.body?.targetDate ?? req.retellPayload?.targetDate ?? null;
+
+  if (!targetDateString) {
+    return null;
+  }
+
+  try {
+    const parsedDate = new Date(targetDateString);
+    if (Number.isNaN(parsedDate.getTime())) {
+      return null;
+    }
+    return parsedDate;
+  } catch (error) {
+    return null;
+  }
 }
 
 /**
@@ -132,10 +157,11 @@ async function getServiceAvailability(req, tenant, correlationId) {
 
     const staffMemberId = extractStaffId(req);
     const daysAhead = extractDaysAhead(req);
+    const targetDate = extractTargetDate(req);
 
     logger.info(
       `Getting service availability - Services: ${serviceIdArray.join(',')}, ` +
-        `Staff: ${staffMemberId}, Days: ${daysAhead}`
+        `Staff: ${staffMemberId}, Days: ${daysAhead}, Target Date: ${targetDate ? targetDate.toISOString() : 'none'}`
     );
 
     // Validate daysAhead
@@ -212,11 +238,28 @@ async function getServiceAvailability(req, tenant, correlationId) {
     // Clean BigInt values
     const cleanAvailabilityRecord = cleanBigIntFromObject(availabilityRecord);
 
+    // Filter slots by target date if provided
+    let filteredSlots = cleanAvailabilityRecord.slots || [];
+    if (targetDate) {
+      const targetTime = targetDate.getTime();
+      const originalCount = filteredSlots.length;
+
+      filteredSlots = filteredSlots.filter(slot => {
+        const slotTime = new Date(slot.startAt).getTime();
+        return slotTime >= targetTime;
+      });
+
+      logger.info(
+        `🔍 [TARGET DATE FILTER] Filtered slots from ${originalCount} to ${filteredSlots.length} ` +
+          `(showing only slots >= ${targetDate.toISOString()})`
+      );
+    }
+
     const response = {
       id: cleanAvailabilityRecord.id,
       serviceVariationIds: cleanAvailabilityRecord.serviceVariationIds,
       staffMemberId: cleanAvailabilityRecord.staffMemberId,
-      slots: cleanAvailabilityRecord.slots || [],
+      slots: filteredSlots,
       timestamp: new Date().toISOString()
     };
 
@@ -266,5 +309,6 @@ module.exports = {
   getServiceAvailability,
   extractServiceIds,
   extractStaffId,
-  extractDaysAhead
+  extractDaysAhead,
+  extractTargetDate
 };

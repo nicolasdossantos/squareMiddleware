@@ -2,6 +2,7 @@
 node_modules/
 package-lock.json
 !azure-functions/package-lock.json
+!frontend/package-lock.json
 
 # Deployment scripts (should not be in version control)
 deploy/
@@ -66,3 +67,4 @@ scripts/decrypt-agent-configs.js
 Elite Barbershop_UPGRADED.json
 Retell AI Multi-Prompt Agents.md
 Optimizing AI Voice Receptionist Syste.md
+frontend/public/0919.mp4

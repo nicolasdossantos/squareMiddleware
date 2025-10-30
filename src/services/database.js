@@ -11,6 +11,7 @@ const { config } = require('../config');
 const { logger } = require('../utils/logger');
 
 let pool = null;
+let encryptionKeyCache = null;
 
 /**
  * Resolve SSL configuration for the PostgreSQL client.
@@ -104,6 +105,48 @@ function getPool() {
   return pool;
 }
 
+function getEncryptionKey() {
+  if (encryptionKeyCache) {
+    return encryptionKeyCache;
+  }
+
+  const key = process.env.DB_ENCRYPTION_KEY;
+  if (!key) {
+    throw new Error('DB_ENCRYPTION_KEY is not configured. Unable to encrypt/decrypt secrets.');
+  }
+
+  encryptionKeyCache = key;
+  return encryptionKeyCache;
+}
+
+async function encryptSecret(plainText, client) {
+  if (plainText === undefined || plainText === null) {
+    return null;
+  }
+
+  const executor = client || getPool();
+  const { rows } = await executor.query('SELECT pgp_sym_encrypt($1::text, $2)::bytea AS encrypted', [
+    plainText,
+    getEncryptionKey()
+  ]);
+
+  return rows[0]?.encrypted || null;
+}
+
+async function decryptSecret(encryptedValue, client) {
+  if (!encryptedValue) {
+    return null;
+  }
+
+  const executor = client || getPool();
+  const { rows } = await executor.query('SELECT pgp_sym_decrypt($1::bytea, $2)::text AS decrypted', [
+    encryptedValue,
+    getEncryptionKey()
+  ]);
+
+  return rows[0]?.decrypted || null;
+}
+
 /**
  * Execute a parameterised query using the shared pool.
  */
@@ -153,5 +196,7 @@ module.exports = {
   getPool,
   query,
   withTransaction,
-  closePool
+  closePool,
+  encryptSecret,
+  decryptSecret
 };

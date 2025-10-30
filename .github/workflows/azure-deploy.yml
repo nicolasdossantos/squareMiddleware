@@ -33,6 +33,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Build frontend
+        run: npm run build --prefix frontend
+
       - name: Run tests
         run: npm test
 
@@ -44,11 +50,15 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           enable-AzPSSession: false
 
+      - name: Configure App Service build settings
+        run: |
+          az webapp config appsettings set \
+            --resource-group square-middleware-prod-rg \
+            --name "${{ env.AZURE_WEBAPP_NAME }}" \
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true ENABLE_ORYX_BUILD=true
+
       - name: Install Azure Functions Core Tools
         run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
-
-      - name: Install production dependencies
-        run: npm ci --omit=dev
 
       - name: Create deployment package
         run: |
@@ -58,7 +68,8 @@ jobs:
           cp -R scripts deploy/
           cp -R db deploy/
           cp package.json package-lock.json deploy/
-          cp -R node_modules deploy/
+          mkdir -p deploy/frontend
+          cp -R frontend/dist deploy/frontend/
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v2
