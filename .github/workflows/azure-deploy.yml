@@ -57,6 +57,16 @@ jobs:
             --name "${{ env.AZURE_WEBAPP_NAME }}" \
             --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true ENABLE_ORYX_BUILD=true
 
+      - name: Configure Application Insights connection
+        if: ${{ secrets.AZURE_APPINSIGHTS_CONNECTION_STRING != '' }}
+        env:
+          APPINSIGHTS_CONNECTION: ${{ secrets.AZURE_APPINSIGHTS_CONNECTION_STRING }}
+        run: |
+          az webapp config appsettings set \
+            --resource-group square-middleware-prod-rg \
+            --name "${{ env.AZURE_WEBAPP_NAME }}" \
+            --settings APPLICATIONINSIGHTS_CONNECTION_STRING="$APPINSIGHTS_CONNECTION" APPINSIGHTS_INSTRUMENTATIONKEY=
+
       - name: Install Azure Functions Core Tools
         run: npm install -g azure-functions-core-tools@4 --unsafe-perm true
 

@@ -127,8 +127,18 @@ function createApp() {
 
     app.use(express.static(staticDir));
 
-    app.get('*', (req, res, next) => {
-      if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/authcallback')) {
+    app.use((req, res, next) => {
+      const isGet = req.method === 'GET';
+      const isApiRoute = req.path.startsWith('/api');
+      const isAuthCallback = req.path.startsWith('/authcallback');
+      const acceptHeader = req.headers.accept;
+      const wantsHtml =
+        !acceptHeader ||
+        acceptHeader.includes('text/html') ||
+        acceptHeader.includes('*/*') ||
+        acceptHeader === '*';
+
+      if (!isGet || isApiRoute || isAuthCallback || !wantsHtml) {
         return next();
       }
 

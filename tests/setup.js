@@ -10,7 +10,8 @@ process.env.LOG_LEVEL = 'error'; // Reduce log noise during tests
 // Provide required auth secrets so config validation passes in CI
 process.env.JWT_ACCESS_SECRET = process.env.JWT_ACCESS_SECRET || 'test-access-secret';
 process.env.JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'test-refresh-secret';
-process.env.DB_ENCRYPTION_KEY = process.env.DB_ENCRYPTION_KEY || 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+process.env.DB_ENCRYPTION_KEY =
+  process.env.DB_ENCRYPTION_KEY || 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
 // Global test timeout
 jest.setTimeout(30000);

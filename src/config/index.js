@@ -154,7 +154,7 @@ function validateConfig() {
     throw new Error(`Missing required authentication environment variables: ${authMissing.join(', ')}`);
   }
 
-  // Validate Square credential env vars only outside production; prod pulls them from Key Vault per agent
+  // Only skip Square credential validation in production; auth secrets are always required
   if (process.env.NODE_ENV === 'production') {
     return true;
   }
