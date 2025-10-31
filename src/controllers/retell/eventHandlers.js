@@ -6,9 +6,11 @@ const retellWebhookService = require('../../services/retellWebhookService');
 const retellEmailService = require('../../services/retellEmailService');
 const agentConfigService = require('../../services/agentConfigService');
 const customerContextService = require('../../services/customerContextService');
+const tenantService = require('../../services/tenantService');
 const { config } = require('../../config');
 const { buildConversationInitiationData } = require('../../services/customerInfoResponseService');
 const { buildInboundResponse, buildDefaultDynamicVariables } = require('./inboundResponseBuilder');
+const { validate: uuidValidate } = require('uuid');
 
 function buildMissingAgentConfigResponse(agentId, correlationId, callId, source) {
   logEvent('retell_agent_config_missing', {
@@ -57,6 +59,48 @@ function normalizeTenantShape(tenant) {
   return tenant;
 }
 
+function isUuid(value) {
+  return typeof value === 'string' && uuidValidate(value);
+}
+
+async function loadTenantFromAgent(agentId) {
+  if (!agentId) {
+    return null;
+  }
+
+  try {
+    const context = await tenantService.getAgentContextByRetellId(agentId);
+    if (!context || !context.tenantId) {
+      return null;
+    }
+
+    return normalizeTenantShape({
+      id: context.tenantId,
+      tenantId: context.tenantId,
+      agentId: context.agentId,
+      squareAccessToken: context.squareAccessToken,
+      accessToken: context.squareAccessToken,
+      squareRefreshToken: context.squareRefreshToken,
+      squareTokenExpiresAt: context.squareTokenExpiresAt,
+      squareLocationId: context.squareLocationId || context.defaultLocationId,
+      locationId: context.defaultLocationId || context.squareLocationId,
+      defaultLocationId: context.defaultLocationId || context.squareLocationId,
+      squareEnvironment: context.squareEnvironment || config.square.environment || 'sandbox',
+      environment: context.squareEnvironment || config.square.environment || 'sandbox',
+      timezone: context.timezone || config.server.timezone || 'America/New_York',
+      businessName: context.businessName,
+      supportsSellerLevelWrites: Boolean(context.supportsSellerLevelWrites),
+      squareMerchantId: context.squareMerchantId
+    });
+  } catch (error) {
+    logger.warn('retell_agent_context_lookup_failed', {
+      agentId,
+      message: error.message
+    });
+    return null;
+  }
+}
+
 function normalizeCallAnalysis(analysis) {
   if (!analysis) {
     return {};
@@ -69,6 +113,17 @@ function normalizeCallAnalysis(analysis) {
       }
       return acc;
     }, {});
+  }
+
+  if (typeof analysis === 'string') {
+    try {
+      return JSON.parse(analysis);
+    } catch (error) {
+      logger.warn('retell_call_analysis_parse_failed', {
+        error: error.message
+      });
+      return { raw_payload: analysis };
+    }
   }
 
   return analysis;
@@ -86,45 +141,44 @@ async function handleCallStarted(payload, context) {
     direction
   });
 
+  const session = call_id ? sessionStore.getSession(call_id) : null;
   let sessionTenant = null;
   let agentConfigTenant = null;
 
-  if (call_id) {
-    const session = sessionStore.getSession(call_id);
+  if (session?.credentials?.squareAccessToken) {
+    sessionTenant = normalizeTenantShape({
+      id: session.tenantId || session.metadata?.tenantId || requestTenant?.id || session.agentId || 'default',
+      tenantId: session.tenantId || session.metadata?.tenantId || null,
+      agentId: session.agentId,
+      squareAccessToken: session.credentials.squareAccessToken,
+      squareLocationId: session.credentials.squareLocationId,
+      squareEnvironment:
+        session.credentials.squareEnvironment ||
+        requestTenant?.squareEnvironment ||
+        config.square.environment ||
+        'sandbox',
+      timezone:
+        session.credentials.timezone ||
+        requestTenant?.timezone ||
+        config.server.timezone ||
+        'America/New_York',
+      businessName:
+        session.credentials.businessName ||
+        requestTenant?.businessName ||
+        config.businessName ||
+        'Elite Barbershop'
+    });
 
-    if (session?.credentials?.squareAccessToken) {
-      sessionTenant = {
-        id: session.agentId || requestTenant?.id || 'default',
-        squareAccessToken: session.credentials.squareAccessToken,
-        squareLocationId: session.credentials.squareLocationId,
-        squareEnvironment:
-          session.credentials.squareEnvironment ||
-          requestTenant?.squareEnvironment ||
-          config.square.environment ||
-          'sandbox',
-        timezone:
-          session.credentials.timezone ||
-          requestTenant?.timezone ||
-          config.server.timezone ||
-          'America/New_York',
-        businessName:
-          session.credentials.businessName ||
-          requestTenant?.businessName ||
-          config.businessName ||
-          'Elite Barbershop'
-      };
-
-      logEvent('retell_call_started_session_match', {
-        correlationId,
-        callId: call_id,
-        tenantId: sessionTenant.id
-      });
-    } else {
-      logEvent('retell_call_started_session_missing', {
-        correlationId,
-        callId: call_id
-      });
-    }
+    logEvent('retell_call_started_session_match', {
+      correlationId,
+      callId: call_id,
+      tenantId: sessionTenant.id
+    });
+  } else if (call_id) {
+    logEvent('retell_call_started_session_missing', {
+      correlationId,
+      callId: call_id
+    });
   }
 
   if (!sessionTenant && !agent_id) {
@@ -135,8 +189,10 @@ async function handleCallStarted(payload, context) {
     try {
       const agentConfig = agentConfigService.getAgentConfig(agent_id);
 
-      agentConfigTenant = {
-        id: agentConfig.agentId || agent_id,
+      agentConfigTenant = normalizeTenantShape({
+        id: agentConfig.tenantId || agentConfig.agentId || agent_id,
+        tenantId: agentConfig.tenantId || null,
+        agentId: agentConfig.agentId,
         accessToken: agentConfig.squareAccessToken,
         squareAccessToken: agentConfig.squareAccessToken,
         squareLocationId: agentConfig.squareLocationId,
@@ -144,8 +200,10 @@ async function handleCallStarted(payload, context) {
         squareEnvironment: agentConfig.squareEnvironment,
         environment: agentConfig.squareEnvironment,
         timezone: agentConfig.timezone,
-        businessName: agentConfig.businessName
-      };
+        businessName: agentConfig.businessName,
+        supportsSellerLevelWrites: agentConfig.supportsSellerLevelWrites,
+        squareMerchantId: agentConfig.squareMerchantId
+      });
 
       logEvent('retell_call_started_agent_config', {
         correlationId,
@@ -157,7 +215,42 @@ async function handleCallStarted(payload, context) {
     }
   }
 
-  const tenant = normalizeTenantShape(sessionTenant) || normalizeTenantShape(agentConfigTenant);
+  const normalizedRequestTenant = requestTenant ? normalizeTenantShape({ ...requestTenant }) : null;
+  const dbTenant = await loadTenantFromAgent(agent_id || session?.agentId || sessionTenant?.agentId);
+
+  const candidateTenants = [dbTenant, sessionTenant, normalizedRequestTenant, agentConfigTenant].filter(
+    Boolean
+  );
+  let tenant =
+    candidateTenants.find(t => t && t.squareAccessToken) ||
+    (candidateTenants.length > 0 ? candidateTenants[0] : null);
+
+  if (dbTenant && isUuid(dbTenant.id)) {
+    tenant = dbTenant;
+  }
+
+  if (tenant) {
+    if (tenant.tenantId && isUuid(tenant.tenantId) && (!tenant.id || !isUuid(tenant.id))) {
+      tenant.id = tenant.tenantId;
+    }
+
+    if (tenant.id && isUuid(tenant.id) && !tenant.tenantId) {
+      tenant.tenantId = tenant.id;
+    }
+
+    if (tenant.squareAccessToken && !tenant.accessToken) {
+      tenant.accessToken = tenant.squareAccessToken;
+    }
+  }
+
+  if (tenant?.id && !isUuid(tenant.id)) {
+    logger.warn('retell_call_started_non_uuid_tenant', {
+      correlationId,
+      callId: call_id,
+      tenantId: tenant.id,
+      agentId: agent_id
+    });
+  }
 
   if (!tenant?.squareAccessToken) {
     return buildMissingAgentConfigResponse(agent_id || 'unknown', correlationId, call_id, 'call_started');
@@ -235,52 +328,106 @@ async function handleCallAnalyzed(payload, context) {
   });
 
   const session = sessionStore.getSession(call_id);
+  const normalizedRequestTenant = requestTenant ? normalizeTenantShape({ ...requestTenant }) : null;
 
-  let tenant = normalizeTenantShape(requestTenant) ||
-    (session
-      ? normalizeTenantShape({
-          id: session.agentId || requestTenant?.id || 'default',
-          squareAccessToken: session.credentials?.squareAccessToken,
-          squareLocationId: session.credentials?.squareLocationId,
-          squareEnvironment: session.credentials?.squareEnvironment || config.square.environment || 'sandbox',
-          timezone: session.credentials?.timezone || config.server.timezone || 'America/New_York',
-          businessName: session.credentials?.businessName || config.businessName || 'Elite Barbershop'
-        })
-      : null) || {
-      id: requestTenant?.id || 'default',
-      squareAccessToken: config.square.accessToken,
-      squareLocationId: config.square.locationId,
-      squareEnvironment: config.square.environment || 'sandbox',
-      timezone: config.server.timezone || 'America/New_York',
-      businessName: config.businessName || 'Elite Barbershop'
-    };
+  const sessionTenant = session?.credentials?.squareAccessToken
+    ? normalizeTenantShape({
+        id:
+          session.tenantId ||
+          session.metadata?.tenantId ||
+          normalizedRequestTenant?.id ||
+          session.agentId ||
+          'default',
+        tenantId: session.tenantId || session.metadata?.tenantId || null,
+        agentId: session.agentId,
+        squareAccessToken: session.credentials.squareAccessToken,
+        squareLocationId: session.credentials.squareLocationId,
+        squareEnvironment:
+          session.credentials.squareEnvironment ||
+          normalizedRequestTenant?.squareEnvironment ||
+          config.square.environment ||
+          'sandbox',
+        timezone:
+          session.credentials.timezone ||
+          normalizedRequestTenant?.timezone ||
+          config.server.timezone ||
+          'America/New_York',
+        businessName:
+          session.credentials.businessName ||
+          normalizedRequestTenant?.businessName ||
+          config.businessName ||
+          'Elite Barbershop'
+      })
+    : null;
 
-  if (tenant.id === 'default' && call.agent_id) {
+  let agentConfigTenant = null;
+  if (call.agent_id) {
     try {
       const agentConfig = agentConfigService.getAgentConfig(call.agent_id);
-
-      tenant = normalizeTenantShape({
-        id: agentConfig.agentId || call.agent_id,
+      agentConfigTenant = normalizeTenantShape({
+        id: agentConfig.tenantId || agentConfig.agentId || call.agent_id,
+        tenantId: agentConfig.tenantId || null,
+        agentId: agentConfig.agentId,
         squareAccessToken: agentConfig.squareAccessToken,
         squareLocationId: agentConfig.squareLocationId,
         squareEnvironment: agentConfig.squareEnvironment,
         timezone: agentConfig.timezone,
-        businessName: agentConfig.businessName
-      });
-
-      logger.info('retell_call_analyzed_agent_fallback', {
-        correlationId,
-        callId: call_id,
-        tenantId: tenant.id
+        businessName: agentConfig.businessName,
+        supportsSellerLevelWrites: agentConfig.supportsSellerLevelWrites,
+        squareMerchantId: agentConfig.squareMerchantId
       });
     } catch (agentError) {
-      logger.warn('retell_call_analyzed_agent_fallback_failed', {
+      logger.warn('retell_call_analyzed_agent_config_missing', {
         correlationId,
         callId: call_id,
         agentId: call.agent_id,
         error: agentError.message
       });
     }
+  }
+
+  const dbTenant = await loadTenantFromAgent(call.agent_id || session?.agentId || sessionTenant?.agentId);
+  const candidateTenants = [dbTenant, sessionTenant, normalizedRequestTenant, agentConfigTenant].filter(
+    Boolean
+  );
+
+  let tenant =
+    candidateTenants.find(t => t.squareAccessToken) ||
+    candidateTenants[0] ||
+    normalizeTenantShape({
+      id: 'default',
+      squareAccessToken: config.square.accessToken,
+      squareLocationId: config.square.locationId,
+      squareEnvironment: config.square.environment || 'sandbox',
+      timezone: config.server.timezone || 'America/New_York',
+      businessName: config.businessName || 'Elite Barbershop'
+    });
+
+  if (dbTenant && isUuid(dbTenant.id)) {
+    tenant = dbTenant;
+  }
+
+  if (tenant) {
+    if (tenant.tenantId && isUuid(tenant.tenantId) && (!tenant.id || !isUuid(tenant.id))) {
+      tenant.id = tenant.tenantId;
+    }
+
+    if (tenant.id && isUuid(tenant.id) && !tenant.tenantId) {
+      tenant.tenantId = tenant.id;
+    }
+
+    if (tenant.squareAccessToken && !tenant.accessToken) {
+      tenant.accessToken = tenant.squareAccessToken;
+    }
+  }
+
+  if (tenant?.id && !isUuid(tenant.id)) {
+    logger.warn('retell_call_analyzed_non_uuid_tenant', {
+      correlationId,
+      callId: call_id,
+      tenantId: tenant.id,
+      agentId: call.agent_id
+    });
   }
 
   try {
@@ -325,7 +472,8 @@ async function handleCallAnalyzed(payload, context) {
       if (call_id && contextPersistence?.profile?.id) {
         const updatedSession = sessionStore.updateSession(call_id, {
           customerProfileId: contextPersistence.profile.id,
-          contextPersistedAt: new Date().toISOString()
+          contextPersistedAt: new Date().toISOString(),
+          tenantId: tenant.id
         });
 
         if (updatedSession) {
@@ -468,38 +616,55 @@ async function handleCallInbound(payload, context) {
       return buildMissingAgentConfigResponse('unknown', correlationId, null, 'call_inbound');
     }
 
-    let tenant;
-    try {
-      const agentConfig = agentConfigService.getAgentConfig(agent_id);
-      const supportsSellerLevelWrites =
-        typeof agentConfig.supportsSellerLevelWrites === 'boolean'
-          ? agentConfig.supportsSellerLevelWrites
-          : true;
+    let tenant = await loadTenantFromAgent(agent_id);
 
-      tenant = {
-        id: agentConfig.agentId || agent_id,
-        accessToken: agentConfig.squareAccessToken,
-        locationId: agentConfig.defaultLocationId || agentConfig.squareLocationId,
-        squareLocationId: agentConfig.squareLocationId,
-        applicationId: agentConfig.squareApplicationId,
-        environment: agentConfig.squareEnvironment,
-        squareEnvironment: agentConfig.squareEnvironment,
-        timezone: agentConfig.timezone,
-        staffEmail: agentConfig.staffEmail,
-        businessName: agentConfig.businessName,
-        squareMerchantId: agentConfig.squareMerchantId,
-        merchantId: agentConfig.squareMerchantId,
-        supportsSellerLevelWrites,
-        squareScopes: agentConfig.squareScopes,
-        squareRefreshToken: agentConfig.squareRefreshToken,
-        squareTokenExpiresAt: agentConfig.squareTokenExpiresAt,
-        defaultLocationId: agentConfig.defaultLocationId || agentConfig.squareLocationId
-      };
-    } catch (configError) {
-      return buildMissingAgentConfigResponse(agent_id, correlationId, null, 'call_inbound');
+    if (!tenant || !tenant.squareAccessToken) {
+      try {
+        const agentConfig = agentConfigService.getAgentConfig(agent_id);
+        const supportsSellerLevelWrites =
+          typeof agentConfig.supportsSellerLevelWrites === 'boolean'
+            ? agentConfig.supportsSellerLevelWrites
+            : true;
+
+        tenant = normalizeTenantShape({
+          id: agentConfig.tenantId || agentConfig.agentId || agent_id,
+          tenantId: agentConfig.tenantId || null,
+          accessToken: agentConfig.squareAccessToken,
+          squareAccessToken: agentConfig.squareAccessToken,
+          locationId: agentConfig.defaultLocationId || agentConfig.squareLocationId,
+          squareLocationId: agentConfig.squareLocationId,
+          applicationId: agentConfig.squareApplicationId,
+          environment: agentConfig.squareEnvironment,
+          squareEnvironment: agentConfig.squareEnvironment,
+          timezone: agentConfig.timezone,
+          staffEmail: agentConfig.staffEmail,
+          businessName: agentConfig.businessName,
+          squareMerchantId: agentConfig.squareMerchantId,
+          merchantId: agentConfig.squareMerchantId,
+          supportsSellerLevelWrites,
+          squareScopes: agentConfig.squareScopes,
+          squareRefreshToken: agentConfig.squareRefreshToken,
+          squareTokenExpiresAt: agentConfig.squareTokenExpiresAt,
+          defaultLocationId: agentConfig.defaultLocationId || agentConfig.squareLocationId
+        });
+      } catch (configError) {
+        return buildMissingAgentConfigResponse(agent_id, correlationId, null, 'call_inbound');
+      }
     }
 
-    if (!tenant?.accessToken) {
+    if (tenant.tenantId && (!tenant.id || !isUuid(tenant.id))) {
+      tenant.id = tenant.tenantId;
+    }
+
+    if (tenant.id && !tenant.tenantId && isUuid(tenant.id)) {
+      tenant.tenantId = tenant.id;
+    }
+
+    if (tenant.squareAccessToken && !tenant.accessToken) {
+      tenant.accessToken = tenant.squareAccessToken;
+    }
+
+    if (!tenant?.squareAccessToken) {
       return buildMissingAgentConfigResponse(agent_id, correlationId, null, 'call_inbound');
     }
 
@@ -510,7 +675,7 @@ async function handleCallInbound(payload, context) {
         callId,
         agent_id,
         {
-          squareAccessToken: tenant.accessToken,
+          squareAccessToken: tenant.squareAccessToken,
           squareLocationId: tenant.locationId,
           squareEnvironment: tenant.environment,
           timezone: tenant.timezone,
@@ -589,7 +754,8 @@ async function handleCallInbound(payload, context) {
           const updatedSession = sessionStore.updateSession(callId, {
             customerProfileId: storedContext?.profile?.id || null,
             normalizedPhone: storedContext?.normalizedPhone || null,
-            lastContextSync: new Date().toISOString()
+            lastContextSync: new Date().toISOString(),
+            tenantId: tenant.id
           });
 
           logEvent('retell_call_inbound_context_applied', {

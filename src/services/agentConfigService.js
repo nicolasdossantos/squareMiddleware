@@ -99,6 +99,10 @@ class AgentConfigService {
       config.supportsSellerLevelWrites = Boolean(config.supportsSellerLevelWrites);
     }
 
+    if (config.tenantId && typeof config.tenantId !== 'string') {
+      throw new Error('tenantId must be a string when provided');
+    }
+
     if (config.squareTokenExpiresAt && isNaN(Date.parse(config.squareTokenExpiresAt))) {
       logger.warn('Invalid squareTokenExpiresAt detected; ignoring value', {
         agentId: config.agentId,
@@ -124,6 +128,7 @@ class AgentConfigService {
     }
 
     return {
+      tenantId: config.tenantId || null,
       agentId: config.agentId,
       bearerToken: config.bearerToken,
       squareAccessToken: config.squareAccessToken,

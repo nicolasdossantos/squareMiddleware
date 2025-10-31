@@ -44,6 +44,9 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Prune dev dependencies
+        run: npm prune --omit=dev
+
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -77,6 +80,7 @@ jobs:
           cp -R src deploy/
           cp -R scripts deploy/
           cp -R db deploy/
+          cp -R node_modules deploy/
           cp package.json package-lock.json deploy/
           mkdir -p deploy/frontend
           cp -R frontend/dist deploy/frontend/

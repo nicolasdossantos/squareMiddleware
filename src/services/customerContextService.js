@@ -6,6 +6,7 @@
 
 const { getPool, withTransaction } = require('./database');
 const { logger, logEvent } = require('../utils/logger');
+const { validate: uuidValidate } = require('uuid');
 
 const LANGUAGE_CODE_MAP = {
   english: 'en',
@@ -689,7 +690,7 @@ async function upsertOpenIssues(client, tenantId, customerProfileId, callHistory
  * Persist Retell call analysis payload to the database.
  */
 async function saveCallAnalysis({ tenant, call, correlationId }) {
-  if (!tenant || !tenant.id || !call) {
+  if (!tenant || !call) {
     logger.warn('customer_context_missing_tenant_or_call', {
       correlationId,
       hasTenant: Boolean(tenant),
@@ -698,7 +699,18 @@ async function saveCallAnalysis({ tenant, call, correlationId }) {
     return null;
   }
 
-  const tenantId = tenant.id;
+  const tenantId = tenant.id || tenant.tenantId;
+
+  if (!tenantId || !uuidValidate(tenantId)) {
+    logger.warn('customer_context_invalid_tenant_id', {
+      correlationId,
+      tenantId,
+      hasTenantId: Boolean(tenantId),
+      agentId: call.agent_id || call.agentId || null
+    });
+    return null;
+  }
+
   const analysis = call.call_analysis || {};
   const normalizedPhone = normalizePhoneNumber(call.from_number || call.customer_phone);
 

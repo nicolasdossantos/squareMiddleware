@@ -42,6 +42,7 @@ class SessionStore {
     const session = {
       callId,
       agentId,
+      tenantId: metadata?.tenantId || credentials.tenantId || null,
       credentials: {
         squareAccessToken: credentials.accessToken || credentials.squareAccessToken,
         squareLocationId: credentials.locationId || credentials.squareLocationId,
@@ -86,6 +87,9 @@ class SessionStore {
       ...(session.metadata || {}),
       ...(updates || {})
     };
+    if (Object.prototype.hasOwnProperty.call(updates || {}, 'tenantId')) {
+      session.tenantId = updates.tenantId;
+    }
     session.lastAccessedAt = Date.now();
 
     logger.debug('Session metadata updated', {
@@ -195,10 +199,12 @@ class SessionStore {
       sessions.push({
         callId,
         agentId: session.agentId,
+        tenantId: session.tenantId || null,
         createdAt: new Date(session.createdAt).toISOString(),
         expiresAt: new Date(session.expiresAt).toISOString(),
         expiresIn: Math.ceil((session.expiresAt - now) / 1000) + 's',
         accessCount: session.accessCount,
+        metadataKeys: Object.keys(session.metadata || {}),
         isExpired
       });
     }

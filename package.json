@@ -26,7 +26,8 @@
     "precommit": "npm run format && npm run lint && npm test",
     "quality": "npm run lint && npm run format:check && npm run test:coverage",
     "security": "npm audit --audit-level=moderate",
-    "ci": "npm run quality && npm run security"
+    "ci": "npm run quality && npm run security",
+    "diagnostics:tables": "node scripts/checkTables.js"
   },
   "author": "",
   "license": "ISC",
