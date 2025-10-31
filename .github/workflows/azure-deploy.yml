@@ -19,6 +19,8 @@ permissions:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      APPINSIGHTS_CONNECTION: ${{ secrets.AZURE_APPINSIGHTS_CONNECTION_STRING }}
 
     steps:
       - name: Checkout code
@@ -58,9 +60,7 @@ jobs:
             --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true ENABLE_ORYX_BUILD=true
 
       - name: Configure Application Insights connection
-        if: ${{ secrets.AZURE_APPINSIGHTS_CONNECTION_STRING != '' }}
-        env:
-          APPINSIGHTS_CONNECTION: ${{ secrets.AZURE_APPINSIGHTS_CONNECTION_STRING }}
+        if: ${{ env.APPINSIGHTS_CONNECTION != '' }}
         run: |
           az webapp config appsettings set \
             --resource-group square-middleware-prod-rg \
