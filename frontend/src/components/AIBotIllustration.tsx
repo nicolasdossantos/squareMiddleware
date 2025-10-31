@@ -1,3 +1,5 @@
+import './AIBotIllustration.css';
+
 interface AIBotIllustrationProps {
   theme: 'light' | 'dark';
 }
@@ -9,17 +11,18 @@ export default function AIBotIllustration({ theme }: AIBotIllustrationProps) {
 
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      {/* Glow background */}
-      <div className="absolute inset-0 flex items-center justify-center">
+      {/* Subtle glow background */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div
-          className="w-96 h-96 rounded-full blur-3xl animate-glow-pulse"
+          className="w-96 h-96 rounded-full"
           style={{
-            background: `linear-gradient(135deg, ${accent}33, ${secondaryAccent}1A)`
+            background: `radial-gradient(circle, ${accent}40, transparent 60%)`,
+            boxShadow: `0 0 40px ${accent}20`
           }}
         ></div>
       </div>
 
-      {/* Orbiting rings */}
+      {/* Orbiting rings - GPU accelerated */}
       <div
         className="absolute w-96 h-96 animate-spin"
         style={{
@@ -30,7 +33,7 @@ export default function AIBotIllustration({ theme }: AIBotIllustrationProps) {
           WebkitPerspective: '1000px'
         }}
       >
-        <svg viewBox="0 0 400 400" className="w-full h-full">
+        <svg viewBox="0 0 400 400" className="w-full h-full" style={{ willChange: 'transform' }}>
           {/* Outer ring */}
           <circle cx="200" cy="200" r="180" fill="none" stroke={accent} strokeWidth="2" opacity="0.5" />
 
@@ -47,19 +50,34 @@ export default function AIBotIllustration({ theme }: AIBotIllustrationProps) {
         </svg>
       </div>
 
-      {/* Your actual logo with glow effect */}
-      <div className="relative z-10 w-80 h-80 animate-float">
+      {/* Your actual logo with glow effect - GPU accelerated */}
+      <div
+        className="relative z-10 w-80 h-80 animate-float"
+        style={{
+          willChange: 'transform',
+          WebkitBackfaceVisibility: 'hidden'
+        }}
+      >
         <img src={logoSrc} alt="Fluent Front AI" className="w-full h-full object-contain" />
       </div>
 
-      {/* Additional floating accent dots */}
+      {/* Additional floating accent dots - GPU accelerated */}
       <div
         className="absolute top-12 right-12 w-4 h-4 rounded-full opacity-50 animate-pulse"
-        style={{ backgroundColor: accent }}
+        style={{
+          backgroundColor: accent,
+          willChange: 'opacity',
+          WebkitBackfaceVisibility: 'hidden'
+        }}
       />
       <div
         className="absolute bottom-20 left-8 w-3 h-3 rounded-full opacity-40 animate-pulse"
-        style={{ animationDelay: '0.5s', backgroundColor: secondaryAccent }}
+        style={{
+          animationDelay: '0.5s',
+          backgroundColor: secondaryAccent,
+          willChange: 'opacity',
+          WebkitBackfaceVisibility: 'hidden'
+        }}
       />
     </div>
   );

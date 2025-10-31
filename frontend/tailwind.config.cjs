@@ -76,20 +76,26 @@ module.exports = {
       },
       keyframes: {
         float: {
-          '0%, 100%': { transform: 'translateY(0px)' },
-          '50%': { transform: 'translateY(-20px)' }
+          '0%, 100%': { transform: 'translate3d(0, 0, 0)' },
+          '50%': { transform: 'translate3d(0, -20px, 0)' }
         },
         glowPulse: {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(0, 224, 224, 0.3)' },
-          '50%': { boxShadow: '0 0 30px rgba(0, 224, 224, 0.5)' }
+          '0%, 100%': {
+            boxShadow: '0 0 10px rgba(0, 224, 224, 0.15)',
+            opacity: '0.5'
+          },
+          '50%': {
+            boxShadow: '0 0 20px rgba(0, 224, 224, 0.3)',
+            opacity: '0.65'
+          }
         },
         fadeIn: {
           from: { opacity: '0' },
           to: { opacity: '1' }
         },
         slideInUp: {
-          from: { opacity: '0', transform: 'translateY(20px)' },
-          to: { opacity: '1', transform: 'translateY(0)' }
+          from: { opacity: '0', transform: 'translate3d(0, 20px, 0)' },
+          to: { opacity: '1', transform: 'translate3d(0, 0, 0)' }
         }
       }
     }

@@ -1,0 +1,41 @@
+/* Safari-specific performance optimizations for AIBotIllustration */
+
+/* Force GPU acceleration on all animated elements - just add the hints without overriding animations */
+.animate-spin,
+.animate-float,
+.animate-glow-pulse,
+.animate-pulse {
+  -webkit-backface-visibility: hidden;
+  -webkit-perspective: 1000px;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin,
+  .animate-float,
+  .animate-glow-pulse,
+  .animate-pulse {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* SVG-specific optimizations */
+svg {
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+}
+
+svg circle {
+  -webkit-backface-visibility: hidden;
+}
+
+/* Optimize box shadows for Safari (use opacity instead of blur) */
+@supports (-webkit-appearance: none) {
+  .animate-glow-pulse {
+    box-shadow: none;
+  }
+}
