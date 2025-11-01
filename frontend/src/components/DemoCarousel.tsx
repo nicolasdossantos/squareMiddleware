@@ -67,30 +67,17 @@ export default function DemoCarousel() {
           <div className="md:aspect-video aspect-[9/16] md:max-w-5xl max-w-sm mx-auto bg-light-surface dark:bg-dark-surface rounded-card border border-light-border dark:border-dark-border overflow-hidden flex items-center justify-center shadow-lg hover:shadow-glow-hover transition-shadow duration-300">
             {/* YouTube video or demo placeholder */}
             {demos[currentSlide].youtubeId ? (
-              <div className="w-full h-full relative bg-black flex flex-col items-center justify-center gap-4">
+              <div className="w-full h-full relative bg-black">
                 <iframe
                   width="100%"
                   height="100%"
-                  src={`https://www.youtube.com/embed/${isMobile && demos[currentSlide].youtubeIdMobile ? demos[currentSlide].youtubeIdMobile : demos[currentSlide].youtubeId}?fs=1&rel=0&modestbranding=1&playsinline=1`}
+                  src={`https://www.youtube.com/embed/${isMobile && demos[currentSlide].youtubeIdMobile ? demos[currentSlide].youtubeIdMobile : demos[currentSlide].youtubeId}?autoplay=1&fs=1&rel=0&modestbranding=1&playsinline=1`}
                   title={demos[currentSlide].title}
                   frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allow="autoplay; fullscreen; picture-in-picture"
                   allowFullScreen
-                  className="w-full h-full absolute inset-0"
+                  style={{ display: 'block', width: '100%', height: '100%' }}
                 />
-                {/* Fallback link if embed fails */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-80 opacity-0 hover:opacity-100 transition-opacity duration-300 z-10">
-                  <Play className="w-12 h-12 text-white fill-white mb-4" />
-                  <a
-                    href={`https://www.youtube.com/${isMobile && demos[currentSlide].youtubeIdMobile ? 'shorts' : 'watch?v='}${isMobile && demos[currentSlide].youtubeIdMobile ? demos[currentSlide].youtubeIdMobile : demos[currentSlide].youtubeId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary inline-flex items-center gap-2"
-                  >
-                    <Play className="w-4 h-4" />
-                    Watch on YouTube
-                  </a>
-                </div>
               </div>
             ) : (
               <div className="text-center space-y-4">
