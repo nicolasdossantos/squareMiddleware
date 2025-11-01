@@ -6,7 +6,8 @@ const demos = [
     id: 1,
     title: 'AI Receptionist Demo',
     description: 'Watch how the AI handles incoming calls naturally',
-    youtubeId: 'VJyZYa3bYjY'
+    youtubeId: 'VJyZYa3bYjY',
+    youtubeIdMobile: 'TPxgo6pqgn8'
   },
   {
     id: 2,
@@ -23,6 +24,20 @@ const demos = [
 export default function DemoCarousel() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isAutoPlay, setIsAutoPlay] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    // Check initial screen size
+    setIsMobile(window.innerWidth < 768);
+
+    // Handle window resize
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (!isAutoPlay) return;
@@ -55,7 +70,7 @@ export default function DemoCarousel() {
               <iframe
                 width="100%"
                 height="100%"
-                src={`https://www.youtube.com/embed/${demos[currentSlide].youtubeId}`}
+                src={`https://www.youtube.com/embed/${isMobile && demos[currentSlide].youtubeIdMobile ? demos[currentSlide].youtubeIdMobile : demos[currentSlide].youtubeId}`}
                 title={demos[currentSlide].title}
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
