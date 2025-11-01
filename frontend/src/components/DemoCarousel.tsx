@@ -5,7 +5,8 @@ const demos = [
   {
     id: 1,
     title: 'AI Receptionist Demo',
-    description: 'Watch how the AI handles incoming calls naturally'
+    description: 'Watch how the AI handles incoming calls naturally',
+    youtubeId: 'VJyZYa3bYjY'
   },
   {
     id: 2,
@@ -49,26 +50,39 @@ export default function DemoCarousel() {
         {/* Main carousel */}
         <div className="relative group">
           <div className="md:aspect-video aspect-[9/16] md:max-w-5xl max-w-sm mx-auto bg-light-surface dark:bg-dark-surface rounded-card border border-light-border dark:border-dark-border overflow-hidden flex items-center justify-center shadow-lg hover:shadow-glow-hover transition-shadow duration-300">
-            {/* Demo content placeholder */}
-            <div className="text-center space-y-4">
-              <div className="flex justify-center">
-                <div className="w-24 h-24 bg-gradient-primary rounded-full flex items-center justify-center shadow-glow-primary group-hover:shadow-glow-hover transition-all duration-300">
-                  <Play className="w-12 h-12 text-white fill-white" />
+            {/* YouTube video or demo placeholder */}
+            {demos[currentSlide].youtubeId ? (
+              <iframe
+                width="100%"
+                height="100%"
+                src={`https://www.youtube.com/embed/${demos[currentSlide].youtubeId}`}
+                title={demos[currentSlide].title}
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                className="w-full h-full"
+              />
+            ) : (
+              <div className="text-center space-y-4">
+                <div className="flex justify-center">
+                  <div className="w-24 h-24 bg-gradient-primary rounded-full flex items-center justify-center shadow-glow-primary group-hover:shadow-glow-hover transition-all duration-300">
+                    <Play className="w-12 h-12 text-white fill-white" />
+                  </div>
                 </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-light-text-primary dark:text-dark-text-primary">
+                    {demos[currentSlide].title}
+                  </h3>
+                  <p className="text-light-text-secondary dark:text-dark-text-secondary mt-2">
+                    {demos[currentSlide].description}
+                  </p>
+                </div>
+                <button className="btn-primary inline-flex items-center gap-2 mt-4">
+                  <Play className="w-4 h-4" />
+                  Play Preview
+                </button>
               </div>
-              <div>
-                <h3 className="text-2xl font-bold text-light-text-primary dark:text-dark-text-primary">
-                  {demos[currentSlide].title}
-                </h3>
-                <p className="text-light-text-secondary dark:text-dark-text-secondary mt-2">
-                  {demos[currentSlide].description}
-                </p>
-              </div>
-              <button className="btn-primary inline-flex items-center gap-2 mt-4">
-                <Play className="w-4 h-4" />
-                Play Preview
-              </button>
-            </div>
+            )}
 
             {/* Navigation buttons */}
             <button
