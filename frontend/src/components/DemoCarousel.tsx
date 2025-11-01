@@ -92,7 +92,6 @@ export default function DemoCarousel() {
                   </a>
                 </div>
               </div>
-            )
             ) : (
               <div className="text-center space-y-4">
                 <div className="flex justify-center">
